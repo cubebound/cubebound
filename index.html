@@ -44,7 +44,7 @@
   .wrap {
     position: relative;
     z-index: 1;
-    max-width: 560px;
+    max-width: 640px;
     width: 100%;
   }
 
@@ -99,11 +99,37 @@
 
   p.lede {
     text-align: center;
-    color: var(--dim);
-    font-size: 15px;
+    color: var(--paper);
+    font-size: 16px;
     line-height: 1.6;
-    max-width: 440px;
+    max-width: 480px;
     margin: 0 auto 36px;
+  }
+
+  .body-copy {
+    margin: 0 auto 36px;
+  }
+
+  .body-copy p {
+    color: var(--dim);
+    font-size: 14px;
+    line-height: 1.75;
+    margin-bottom: 18px;
+  }
+
+  .body-copy p:last-child { margin-bottom: 0; }
+
+  .legal {
+    border-top: 1px solid var(--line);
+    margin-top: 36px;
+    padding-top: 18px;
+  }
+
+  .legal p {
+    color: var(--dim);
+    font-size: 11px;
+    line-height: 1.6;
+    opacity: 0.75;
   }
 
   .status {
@@ -181,18 +207,26 @@
     <div class="eyebrow">Project Prototype</div>
     <h1>Cubebound<span>.</span></h1>
     <p class="lede">
-      A site to build and share riftbound cubes.
+      A free, fan-made tool for building, sharing, and drafting Riftbound cubes.
     </p>
 
     <div class="status">
       <div class="dot"></div>
-      <div class="status-text">Prototype in progress</div>
+      <div class="status-text">Early development</div>
+    </div>
+
+    <div class="body-copy">
+      <p>Cube is a beloved format in trading card games: players curate a custom pool of cards, then draft decks from it with friends. Communities in other TCGs have thriving platforms for it, but Riftbound doesn't yet have a dedicated home for the format. Cubebound aims to be that home — a place to construct cubes with full card search and filtering, analyze their balance across domains and costs, share lists publicly for others to browse and clone, and eventually draft them solo against bots or live with friends.</p>
+      <p>Cubebound is free to use, carries no ads or paywalled content, and exists to grow the Riftbound community and encourage organized play. Card data and imagery remain the property of Riot Games.</p>
     </div>
 
     <div class="panel">
       <div class="panel-row"><span class="k">Status</span><span class="v">Early development</span></div>
-      <div class="panel-row"><span class="k">Repo</span><span class="v">github.com/yourusername/cubebound</span></div>
-      <div class="panel-row"><span class="k">Contact</span><span class="v">carl.ferguson96@gmail.com</span></div>
+      <div class="panel-row"><span class="k">Repo</span><span class="v">https://github.com/cubebound/cubebound</span></div>
+    </div>
+
+    <div class="legal">
+      <p>Cubebound is not endorsed by Riot Games and does not reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties. Riftbound and all associated properties are trademarks or registered trademarks of Riot Games, Inc.</p>
     </div>
 
     <footer>CUBEBOUND — LAST UPDATED AUGUST 2026</footer>
