@@ -283,6 +283,7 @@ export function CardTile({
   action,
   showPrintingCount = true,
   dimmed = false,
+  quantity,
 }: {
   card: BrowseCard;
   onOpen: () => void;
@@ -290,6 +291,8 @@ export function CardTile({
   action?: ReactNode;
   showPrintingCount?: boolean;
   dimmed?: boolean;
+  /** Copies of this printing in the cube; the badge shows only above one. */
+  quantity?: number;
 }) {
   const thumb = card.imageThumb ?? card.imageFull;
   return (
@@ -322,6 +325,14 @@ export function CardTile({
               className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white"
             >
               ×{card.printingCount}
+            </span>
+          )}
+          {quantity !== undefined && quantity > 1 && (
+            <span
+              title={`${quantity} copies in this cube`}
+              className="absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white"
+            >
+              ×{quantity}
             </span>
           )}
         </div>

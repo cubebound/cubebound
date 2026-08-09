@@ -20,7 +20,8 @@ const SEARCH_DEBOUNCE_MS = 220;
 
 interface Props {
   cubeId: string;
-  presentCardIds: string[];
+  /** Copies of each printing already in the cube, by card id. */
+  inCube: Record<string, number>;
 }
 
 /**
@@ -29,7 +30,7 @@ interface Props {
  * and one click each. The page behind it revalidates so the cube list stays
  * in step.
  */
-function QuickAddPanel({ cubeId, presentCardIds, onClose }: Props & { onClose?: () => void }) {
+function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => void }) {
   const [query, setQuery] = useState("");
   // Results carry the term they answer, so "is a search in flight" is derived
   // rather than another piece of state to keep in sync.
@@ -37,18 +38,18 @@ function QuickAddPanel({ cubeId, presentCardIds, onClose }: Props & { onClose?: 
     term: "",
     items: [],
   });
-  const [present, setPresent] = useState(() => new Set(presentCardIds));
+  const [counts, setCounts] = useState(inCube);
   const [chosen, setChosen] = useState<Record<string, { printingId: string; section: CubeSection }>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Server-side ids can change under us after a revalidate; keep in step.
-  const [syncedIds, setSyncedIds] = useState(presentCardIds);
-  if (syncedIds !== presentCardIds) {
-    setSyncedIds(presentCardIds);
-    setPresent(new Set(presentCardIds));
+  // Server-side counts can change under us after a revalidate; keep in step.
+  const [synced, setSynced] = useState(inCube);
+  if (synced !== inCube) {
+    setSynced(inCube);
+    setCounts(inCube);
   }
 
   const term = query.trim();
@@ -73,7 +74,7 @@ function QuickAddPanel({ cubeId, presentCardIds, onClose }: Props & { onClose?: 
       }
       setError(null);
       setAnswered({ term: current, items: response.results });
-      setPresent(new Set(response.presentIds));
+      setCounts(response.inCube);
     }, SEARCH_DEBOUNCE_MS);
 
     return () => {
@@ -96,7 +97,7 @@ function QuickAddPanel({ cubeId, presentCardIds, onClose }: Props & { onClose?: 
       return;
     }
 
-    setPresent((prev) => new Set(prev).add(printingId));
+    setCounts((prev) => ({ ...prev, [printingId]: (prev[printingId] ?? 0) + 1 }));
     setLastAdded(`${result.card.name} → ${CUBE_SECTION_LABELS[section]}`);
     // Leave the query in place but selected, so the next name replaces it
     // without reaching for the mouse.
@@ -154,7 +155,7 @@ function QuickAddPanel({ cubeId, presentCardIds, onClose }: Props & { onClose?: 
             const section = choice?.section ?? result.defaultSection;
             const printing =
               result.printings.find((p) => p.id === printingId) ?? result.card;
-            const inCube = present.has(printingId);
+            const held = counts[printingId] ?? 0;
             const busy = busyId === printingId;
 
             const setChoice = (patch: Partial<{ printingId: string; section: CubeSection }>) =>
@@ -224,17 +225,22 @@ function QuickAddPanel({ cubeId, presentCardIds, onClose }: Props & { onClose?: 
                       </select>
                     )}
 
+                    {held > 0 && (
+                      <span
+                        title={`${held} in this cube`}
+                        className="shrink-0 rounded bg-zinc-200 px-1 text-[10px] font-medium tabular-nums text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
+                      >
+                        ×{held}
+                      </span>
+                    )}
                     <button
                       type="button"
-                      disabled={inCube || busy}
+                      disabled={busy}
                       onClick={() => add(result)}
-                      className={`ml-auto h-7 rounded px-2.5 text-[11px] font-medium ${
-                        inCube
-                          ? "cursor-default bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
-                          : "bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-                      }`}
+                      title={held > 0 ? "Add another copy" : "Add to the cube"}
+                      className="ml-auto h-7 rounded bg-zinc-900 px-2.5 text-[11px] font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
                     >
-                      {inCube ? "In cube" : busy ? "…" : "Add"}
+                      {busy ? "…" : held > 0 ? "+1" : "Add"}
                     </button>
                   </div>
                 </div>

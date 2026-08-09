@@ -152,6 +152,28 @@ until a source supplies them or we add a derivation step.
   through the real component and fails if anything executable survives — run it
   after touching that component. Milestone 6's public cube view should render
   the primer with the same component.
+- Cards carry a **quantity**: cubes commonly run multiples, so adding a card
+  that is already present increments it rather than being a no-op. Counts shown
+  anywhere — headers, section totals, column and cost-group totals — are
+  copies, not rows; use `countCopies`. Moving a card between sections or
+  swapping its printing merges into whatever is already there instead of
+  dropping the copies being moved.
+- **Runes are optional content.** A cube with no runes is a legitimate cube, so
+  never warn about their absence or treat any section as required.
+- Public cube view is `/cube/{username}/{slug}`. Public and unlisted render for
+  anyone including signed-out visitors; private 404s for non-owners, the same
+  convention the mutations use. `canViewCube` in `src/lib/cube-access.ts` is the
+  single definition, next to `canEditCube`.
+- **Public reads go through the server connection, not RLS policies.** RLS
+  stays deny-all: it exists to shut the PostgREST API that Supabase exposes
+  automatically, not to authorize the app. Every read already happens in a
+  Server Component through Drizzle as the table owner, so visibility is
+  enforced in one place in application code. Opening `SELECT` policies to
+  `anon` would mean granting the browser key direct read access to `cubes`,
+  `cube_cards` and `cards` in order to serve pages we render server-side
+  anyway — a second data path with its own rules, for no gain. If a future
+  feature genuinely needs browser-side reads, add the policies then, and keep
+  `canViewCube` and the policy in step.
 - **Every cube mutation goes through `requireOwnedCube` in
   `src/app/cube/actions.ts`.** Pages decide only what to render; the server
   re-checks ownership on each write. Non-owners get "not found" rather than
@@ -167,10 +189,14 @@ until a source supplies them or we add a derivation step.
 - Card search inside the editor reuses the browser's machinery — `searchCards`,
   `CardFilterBar`, `CardPagination` and the shared tiles in
   `src/components/card-visuals.tsx`. Route-specific wrappers stay under their
-  route; anything used by both lives in `src/components/`. The filter
-  serializer lives in `src/lib/card-search-params.ts`, not beside the filter
-  bar, because the pagination server component needs it and a `"use client"`
-  module's exports cannot be called from the server.
+  route; anything used by both lives in `src/components/`.
+- **A `"use client"` module's exports cannot be called from the server** — only
+  rendered as components or passed as props. Pure helpers that both sides need
+  therefore live in `src/lib/`, never beside the component that happens to use
+  them most: `cardFilterParams` in `card-search-params.ts` (the pagination
+  server component calls it) and `countCopies` in `riftbound.ts` (the cube
+  pages call it). This fails at request time, not at build time, so it is easy
+  to ship — if a helper is shared, put it in `src/lib/` first.
 
 ## Auth and data access
 

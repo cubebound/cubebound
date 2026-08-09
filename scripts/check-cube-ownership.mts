@@ -128,13 +128,34 @@ try {
   expect(!canEditCube({ ownerId: "a" }, null), "signed-out may not edit");
   expect(!canEditCube(null, "a"), "missing cube is not editable");
 
-  // ---- every mutation goes through the ownership gate -----------------------
+  // ---- every mutation goes through an authorization gate --------------------
+  // Actions that are not owner-gated must say why here, and name the gate they
+  // use instead, so "no gate at all" can never pass by omission.
+  const OTHER_GATES: Record<string, { gate: string; why: string }> = {
+    createCubeAction: {
+      gate: "getCurrentUser",
+      why: "creates a cube from nothing; there is no existing cube to own",
+    },
+    cloneCubeAction: {
+      gate: "canViewCube",
+      why: "reads a cube the caller may only be able to *view*, and writes a new one they own",
+    },
+  };
+
   const source = readFileSync("src/app/cube/actions.ts", "utf8");
   const exported = [...source.matchAll(/export async function (\w+)/g)].map((m) => m[1]);
   const bodies = source.split(/export async function /).slice(1);
   for (const body of bodies) {
     const name = body.slice(0, body.indexOf("("));
-    if (name === "createCubeAction") continue; // nothing to own yet
+    const exemption = OTHER_GATES[name];
+    if (exemption) {
+      if (!body.includes(exemption.gate)) {
+        failures.push(
+          `${name} is exempt from requireOwnedCube (${exemption.why}) but does not call ${exemption.gate} either`,
+        );
+      }
+      continue;
+    }
     if (!body.includes("requireOwnedCube")) {
       failures.push(`${name} does not call requireOwnedCube`);
     }

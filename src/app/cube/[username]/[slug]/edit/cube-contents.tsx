@@ -2,12 +2,17 @@
 
 import { useState } from "react";
 
-import { moveCardAction, removeCardAction } from "@/app/cube/actions";
-import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
-import CubeTable from "@/components/cube-table";
+import {
+  adjustQuantityAction,
+  moveCardAction,
+  removeCardAction,
+} from "@/app/cube/actions";
+import CubeSections from "@/components/cube-sections";
 import type { CubeCardRow } from "@/db/queries/cubes";
 import type { CubeView } from "@/lib/cube-view";
 import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
+
+const rowKey = (card: CubeCardRow) => `${card.id}:${card.section}`;
 
 export default function CubeContents({
   cubeId,
@@ -18,40 +23,25 @@ export default function CubeContents({
   cards: CubeCardRow[];
   view: CubeView;
 }) {
-  const [selected, setSelected] = useState<CubeCardRow | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const bySection = new Map<CubeSection, CubeCardRow[]>();
-  for (const section of CUBE_SECTIONS) bySection.set(section, []);
-  for (const card of cards) bySection.get(card.section)?.push(card);
-
-  const key = (card: CubeCardRow) => `${card.id}:${card.section}`;
-
-  async function remove(card: CubeCardRow) {
-    setBusy(key(card));
+  async function run(card: CubeCardRow, work: () => Promise<{ error?: string }>) {
+    setBusy(rowKey(card));
     setError(null);
-    const result = await removeCardAction(cubeId, card.id, card.section);
-    setBusy(null);
-    if (result.error) setError(result.error);
-    else if (selected && key(selected) === key(card)) setSelected(null);
-  }
-
-  async function move(card: CubeCardRow, to: CubeSection) {
-    setBusy(key(card));
-    setError(null);
-    const result = await moveCardAction(cubeId, card.id, card.section, to);
+    const result = await work();
     setBusy(null);
     if (result.error) setError(result.error);
   }
 
-  if (cards.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed border-zinc-300 p-10 text-center text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
-        No cards yet. Search below to add some.
-      </p>
-    );
-  }
+  const adjust = (card: CubeCardRow, delta: number) =>
+    run(card, () => adjustQuantityAction(cubeId, card.id, card.section, delta));
+
+  const remove = (card: CubeCardRow) =>
+    run(card, () => removeCardAction(cubeId, card.id, card.section));
+
+  const move = (card: CubeCardRow, to: CubeSection) =>
+    run(card, () => moveCardAction(cubeId, card.id, card.section, to));
 
   return (
     <>
@@ -61,84 +51,79 @@ export default function CubeContents({
         </p>
       )}
 
-      <div className="space-y-8">
-        {CUBE_SECTIONS.map((section) => {
-          const inSection = bySection.get(section) ?? [];
-          if (inSection.length === 0) return null;
-          return (
-            <section key={section}>
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                {CUBE_SECTION_LABELS[section]}
-                <span className="ml-2 font-normal tabular-nums">{inSection.length}</span>
-              </h3>
-              {view === "text" ? (
-                <CubeTable
-                  cards={inSection}
-                  busyKey={busy}
-                  onSelect={setSelected}
-                  onRemove={remove}
-                  // Only main mixes card types; the rest are single-type.
-                  groupByType={section === "main"}
-                />
-              ) : (
-              <ul className={CARD_GRID_CLASS}>
-                {inSection.map((card) => (
-                  <CardTile
-                    key={key(card)}
-                    card={card}
-                    showPrintingCount={false}
-                    onOpen={() => setSelected(card)}
-                    action={
-                      <div className="flex items-center gap-1">
-                        <select
-                          aria-label={`Section for ${card.name}`}
-                          value={card.section}
-                          disabled={busy === key(card)}
-                          onChange={(event) => move(card, event.target.value as CubeSection)}
-                          className="h-7 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-1 text-[11px] text-zinc-700 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
-                        >
-                          {CUBE_SECTIONS.map((value) => (
-                            <option key={value} value={value}>
-                              {CUBE_SECTION_LABELS[value]}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          disabled={busy === key(card)}
-                          onClick={() => remove(card)}
-                          aria-label={`Remove ${card.name}`}
-                          title="Remove from cube"
-                          className="h-7 shrink-0 rounded-md border border-zinc-300 px-2 text-[11px] text-zinc-600 hover:border-red-400 hover:text-red-600 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-red-500 dark:hover:text-red-400"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    }
-                  />
+      <CubeSections
+        cards={cards}
+        view={view}
+        busyKey={busy}
+        emptyMessage="No cards yet. Use quick add to build the list."
+        // In the compact list a single control has to mean one thing: it takes
+        // a copy off, and the last one takes the card out.
+        onRemoveOne={(card) => adjust(card, -1)}
+        tileAction={(card) => (
+          <div className="space-y-1">
+            <div className="flex items-center gap-1">
+              <select
+                aria-label={`Section for ${card.name}`}
+                value={card.section}
+                disabled={busy === rowKey(card)}
+                onChange={(event) => move(card, event.target.value as CubeSection)}
+                className="h-7 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-1 text-[11px] text-zinc-700 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+              >
+                {CUBE_SECTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {CUBE_SECTION_LABELS[value]}
+                  </option>
                 ))}
-              </ul>
-              )}
-            </section>
-          );
-        })}
-      </div>
-
-      {selected && (
-        <CardDetail
-          card={selected}
-          onClose={() => setSelected(null)}
-          footer={
-            <button
-              type="button"
-              onClick={() => remove(selected)}
-              className="h-10 rounded-md border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:border-red-400 hover:text-red-600 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-500 dark:hover:text-red-400"
-            >
-              Remove from cube
-            </button>
-          }
-        />
-      )}
+              </select>
+              <button
+                type="button"
+                disabled={busy === rowKey(card)}
+                onClick={() => remove(card)}
+                aria-label={`Remove ${card.name} from the cube`}
+                title="Remove every copy"
+                className="h-7 shrink-0 rounded-md border border-zinc-300 px-2 text-[11px] text-zinc-600 hover:border-red-400 hover:text-red-600 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-red-500 dark:hover:text-red-400"
+              >
+                Remove
+              </button>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={busy === rowKey(card)}
+                onClick={() => adjust(card, -1)}
+                aria-label={`One fewer ${card.name}`}
+                className="h-7 flex-1 rounded-md border border-zinc-300 text-[13px] leading-none text-zinc-700 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                −
+              </button>
+              <span
+                aria-label={`${card.quantity} in cube`}
+                className="w-7 shrink-0 text-center text-[11px] font-medium tabular-nums"
+              >
+                {card.quantity}
+              </span>
+              <button
+                type="button"
+                disabled={busy === rowKey(card)}
+                onClick={() => adjust(card, 1)}
+                aria-label={`One more ${card.name}`}
+                className="h-7 flex-1 rounded-md border border-zinc-300 text-[13px] leading-none text-zinc-700 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        )}
+        detailFooter={(card) => (
+          <button
+            type="button"
+            onClick={() => remove(card)}
+            className="h-10 rounded-md border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:border-red-400 hover:text-red-600 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-500 dark:hover:text-red-400"
+          >
+            Remove from cube
+          </button>
+        )}
+      />
     </>
   );
 }

@@ -7,11 +7,16 @@ import CardFilterBar from "@/components/card-filter-bar";
 import CardPagination from "@/components/card-pagination";
 import CubeViewToggle from "@/components/cube-view-toggle";
 import { getFilterOptions, PAGE_SIZE, searchCards } from "@/db/queries/cards";
-import { getCubeByOwnerAndSlug, getCubeCardIds, getCubeCards } from "@/db/queries/cubes";
+import {
+  getCubeByOwnerAndSlug,
+  getCubeCardQuantities,
+  getCubeCards,
+} from "@/db/queries/cubes";
 import { getCurrentUser } from "@/lib/auth";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
 import { canEditCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
+import { countCopies } from "@/lib/riftbound";
 
 import AddCards from "./add-cards";
 import CubeContents from "./cube-contents";
@@ -47,10 +52,11 @@ export default async function EditCubePage({
   const writingPrimer = mode === "primer";
   const view = resolveCubeView(query.view, (await cookies()).get(CUBE_VIEW_COOKIE)?.value);
 
-  const [contents, presentIds] = await Promise.all([
+  const [contents, inCube] = await Promise.all([
     getCubeCards(cube.id),
-    getCubeCardIds(cube.id),
+    getCubeCardQuantities(cube.id),
   ]);
+  const totalCopies = countCopies(contents);
 
   // The browse grid is only rendered in browse mode, so don't pay for it in
   // the default view.
@@ -85,7 +91,7 @@ export default async function EditCubePage({
             {cube.visibility}
           </span>
           <span className="text-sm text-zinc-500 tabular-nums">
-            {contents.length} {contents.length === 1 ? "card" : "cards"}
+            {totalCopies} {totalCopies === 1 ? "card" : "cards"}
           </span>
           <Link
             href={`/cube/${cube.ownerUsername}/${cube.slug}/settings`}
@@ -136,11 +142,7 @@ export default async function EditCubePage({
             </p>
           ) : (
             <div className="space-y-6">
-              <AddCards
-                cubeId={cube.id}
-                cards={browse![1].cards}
-                presentCardIds={[...presentIds]}
-              />
+              <AddCards cubeId={cube.id} cards={browse![1].cards} inCube={inCube} />
               <CardPagination
                 filters={filters}
                 page={browse![1].page}
@@ -158,7 +160,7 @@ export default async function EditCubePage({
           <section className="min-w-0">
             <CubeContents cubeId={cube.id} cards={contents} view={view} />
           </section>
-          <QuickAdd cubeId={cube.id} presentCardIds={[...presentIds]} />
+          <QuickAdd cubeId={cube.id} inCube={inCube} />
         </div>
       )}
     </div>

@@ -11,11 +11,15 @@ import {
 } from "@/db/queries/cards";
 import {
   addCubeCard,
+  adjustCubeCardQuantity,
+  cloneCube,
   createCube,
   deleteCube,
   getCubeById,
-  getCubeCardIds,
+  getCubeByOwnerAndSlug,
+  getCubeCardQuantities,
   getPrintings,
+  MAX_CARD_QUANTITY,
   moveCubeCard,
   removeCubeCard,
   swapCubeCardPrinting,
@@ -25,7 +29,7 @@ import {
 } from "@/db/queries/cubes";
 import type { Cube, User } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { canEditCube } from "@/lib/cube-access";
+import { canEditCube, canViewCube } from "@/lib/cube-access";
 import { defaultSectionForType, isCubeSection, type CubeSection } from "@/lib/riftbound";
 
 export interface ActionState {
@@ -211,6 +215,28 @@ export async function removeCardAction(
   return {};
 }
 
+/**
+ * Nudges a card's quantity. `delta` of -1 on the last copy removes the row, so
+ * the same control handles "one fewer" and "gone" without a separate case.
+ */
+export async function adjustQuantityAction(
+  cubeId: string,
+  cardId: string,
+  section: string,
+  delta: number,
+): Promise<ActionState & { quantity?: number }> {
+  const owned = await requireOwnedCube(cubeId);
+  if ("error" in owned) return { error: owned.error };
+  if (!isCubeSection(section)) return { error: "Unknown section." };
+  if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > MAX_CARD_QUANTITY) {
+    return { error: "Invalid quantity change." };
+  }
+
+  const quantity = await adjustCubeCardQuantity(owned.cube.id, cardId, section, delta);
+  revalidateCube(owned.profile.username, owned.cube.slug);
+  return { quantity };
+}
+
 export async function moveCardAction(
   cubeId: string,
   cardId: string,
@@ -252,6 +278,35 @@ export async function listPrintingsAction(cubeId: string, baseId: string) {
   return { printings: await getPrintings(baseId) };
 }
 
+/**
+ * Copies a cube into a new private one owned by the caller.
+ *
+ * Read access is re-checked here, not assumed from the page that rendered the
+ * button: a private cube can only be cloned by its owner.
+ */
+export async function cloneCubeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const current = await getCurrentUser();
+  if (!current) return { error: "Sign in to clone this cube." };
+  if (!current.profile) return { error: "Claim a username before cloning a cube." };
+
+  const username = String(formData.get("username") ?? "");
+  const slug = String(formData.get("slug") ?? "");
+  const source = await getCubeByOwnerAndSlug(username, slug);
+  if (!canViewCube(source, current.profile.id)) return { error: "Cube not found." };
+
+  const clone = await cloneCube(
+    source.id,
+    current.profile.id,
+    `Copy of ${source.name}`.slice(0, 100),
+  );
+
+  revalidatePath("/cubes");
+  redirect(editorPath(current.profile.username, clone.slug));
+}
+
 export interface QuickAddResult {
   card: BrowseCard;
   /** Every printing, base first. Length 1 for most cards. */
@@ -267,16 +322,16 @@ export interface QuickAddResult {
 export async function quickSearchAction(
   cubeId: string,
   query: string,
-): Promise<{ error?: string; results: QuickAddResult[]; presentIds: string[] }> {
+): Promise<{ error?: string; results: QuickAddResult[]; inCube: Record<string, number> }> {
   const owned = await requireOwnedCube(cubeId);
-  if ("error" in owned) return { error: owned.error, results: [], presentIds: [] };
+  if ("error" in owned) return { error: owned.error, results: [], inCube: {} };
 
   const matches = await quickSearchCards(query);
-  if (matches.length === 0) return { results: [], presentIds: [] };
+  if (matches.length === 0) return { results: [], inCube: {} };
 
-  const [printings, present] = await Promise.all([
+  const [printings, inCube] = await Promise.all([
     getPrintingsForBases(matches.map((m) => m.baseId)),
-    getCubeCardIds(owned.cube.id),
+    getCubeCardQuantities(owned.cube.id),
   ]);
 
   const byBase = new Map<string, BrowseCard[]>();
@@ -292,6 +347,6 @@ export async function quickSearchAction(
       printings: byBase.get(card.baseId) ?? [card],
       defaultSection: defaultSectionForType(card.type),
     })),
-    presentIds: [...present],
+    inCube,
   };
 }

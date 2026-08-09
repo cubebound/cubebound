@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "..";
 import { cards, cubeCards, cubes, users, type Cube } from "../schema";
@@ -126,18 +126,28 @@ export async function getCubeCards(cubeId: string): Promise<CubeCardRow[]> {
   return rows as CubeCardRow[];
 }
 
-/** Card ids already in the cube, so the add panel can mark them. */
-export async function getCubeCardIds(cubeId: string): Promise<Set<string>> {
+/**
+ * Copies of each printing already in the cube, keyed by card id and summed
+ * across sections, so an add panel can show "×2 in cube" without another read.
+ */
+export async function getCubeCardQuantities(
+  cubeId: string,
+): Promise<Record<string, number>> {
   const rows = await db
-    .select({ cardId: cubeCards.cardId })
+    .select({
+      cardId: cubeCards.cardId,
+      quantity: sql<number>`sum(${cubeCards.quantity})::int`,
+    })
     .from(cubeCards)
-    .where(eq(cubeCards.cubeId, cubeId));
-  return new Set(rows.map((r) => r.cardId));
+    .where(eq(cubeCards.cubeId, cubeId))
+    .groupBy(cubeCards.cardId);
+  return Object.fromEntries(rows.map((r) => [r.cardId, r.quantity]));
 }
 
+/** Total copies, not distinct rows — a cube running four of a card holds four. */
 export async function countCubeCards(cubeId: string): Promise<number> {
   const [{ value }] = await db
-    .select({ value: count() })
+    .select({ value: sql<number>`coalesce(sum(${cubeCards.quantity}), 0)::int` })
     .from(cubeCards)
     .where(eq(cubeCards.cubeId, cubeId));
   return value;
@@ -153,19 +163,63 @@ export async function getPrintings(baseId: string): Promise<BrowseCard[]> {
 }
 
 /**
- * Adds a printing to a cube. Cubes are singleton pools, so re-adding a card
- * already present is a no-op rather than bumping quantity.
+ * Adds a printing to a cube. Cubes commonly run multiples of a card, so adding
+ * one that is already there increments its quantity rather than doing nothing.
  */
 export async function addCubeCard(
   cubeId: string,
   cardId: string,
   section: CubeSection,
+  quantity = 1,
 ): Promise<void> {
   await db
     .insert(cubeCards)
-    .values({ cubeId, cardId, section })
-    .onConflictDoNothing();
+    .values({ cubeId, cardId, section, quantity })
+    .onConflictDoUpdate({
+      target: [cubeCards.cubeId, cubeCards.cardId, cubeCards.section],
+      set: { quantity: sql`${cubeCards.quantity} + ${quantity}` },
+    });
   await touchCube(cubeId);
+}
+
+/** Hard cap so a stuck key can't write an absurd number into the column. */
+export const MAX_CARD_QUANTITY = 99;
+
+/**
+ * Moves a card's quantity by `delta`, deleting the row when it reaches zero.
+ * Returns the resulting quantity (0 when the row was removed).
+ */
+export async function adjustCubeCardQuantity(
+  cubeId: string,
+  cardId: string,
+  section: CubeSection,
+  delta: number,
+): Promise<number> {
+  const where = and(
+    eq(cubeCards.cubeId, cubeId),
+    eq(cubeCards.cardId, cardId),
+    eq(cubeCards.section, section),
+  );
+
+  const result = await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ quantity: cubeCards.quantity })
+      .from(cubeCards)
+      .where(where)
+      .limit(1);
+    if (!existing) return 0;
+
+    const next = Math.min(MAX_CARD_QUANTITY, existing.quantity + delta);
+    if (next <= 0) {
+      await tx.delete(cubeCards).where(where);
+      return 0;
+    }
+    await tx.update(cubeCards).set({ quantity: next }).where(where);
+    return next;
+  });
+
+  await touchCube(cubeId);
+  return result;
 }
 
 export async function removeCubeCard(
@@ -220,10 +274,17 @@ export async function moveCubeCard(
           eq(cubeCards.section, from),
         ),
       );
+    // Merge into whatever is already in the target section rather than
+    // discarding the copies being moved.
     await tx
       .insert(cubeCards)
       .values({ cubeId, cardId, section: to, quantity: existing.quantity })
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: [cubeCards.cubeId, cubeCards.cardId, cubeCards.section],
+        set: {
+          quantity: sql`least(${MAX_CARD_QUANTITY}, ${cubeCards.quantity} + ${existing.quantity})`,
+        },
+      });
   });
   await touchCube(cubeId);
 }
@@ -237,6 +298,19 @@ export async function swapCubeCardPrinting(
 ): Promise<void> {
   if (fromCardId === toCardId) return;
   await db.transaction(async (tx) => {
+    const [existing] = await tx
+      .select({ quantity: cubeCards.quantity })
+      .from(cubeCards)
+      .where(
+        and(
+          eq(cubeCards.cubeId, cubeId),
+          eq(cubeCards.cardId, fromCardId),
+          eq(cubeCards.section, section),
+        ),
+      )
+      .limit(1);
+    if (!existing) return;
+
     await tx
       .delete(cubeCards)
       .where(
@@ -248,8 +322,56 @@ export async function swapCubeCardPrinting(
       );
     await tx
       .insert(cubeCards)
-      .values({ cubeId, cardId: toCardId, section })
-      .onConflictDoNothing();
+      .values({ cubeId, cardId: toCardId, section, quantity: existing.quantity })
+      .onConflictDoUpdate({
+        target: [cubeCards.cubeId, cubeCards.cardId, cubeCards.section],
+        set: {
+          quantity: sql`least(${MAX_CARD_QUANTITY}, ${cubeCards.quantity} + ${existing.quantity})`,
+        },
+      });
   });
   await touchCube(cubeId);
+}
+
+/**
+ * Copies a cube's card list into a new private cube owned by `ownerId`.
+ *
+ * Sections, chosen printings and quantities all carry over. The description
+ * and primer deliberately do not: they are the original author's writing, and
+ * the clone is a starting point for the new owner's own list.
+ */
+export async function cloneCube(
+  sourceCubeId: string,
+  ownerId: string,
+  name: string,
+): Promise<Cube> {
+  const existing = await db
+    .select({ slug: cubes.slug })
+    .from(cubes)
+    .where(eq(cubes.ownerId, ownerId));
+  const slug = uniqueSlug(slugify(name), new Set(existing.map((r) => r.slug)));
+
+  return db.transaction(async (tx) => {
+    const source = await tx
+      .select({
+        cardId: cubeCards.cardId,
+        section: cubeCards.section,
+        quantity: cubeCards.quantity,
+      })
+      .from(cubeCards)
+      .where(eq(cubeCards.cubeId, sourceCubeId));
+
+    const [clone] = await tx
+      .insert(cubes)
+      .values({ ownerId, name, description: null, visibility: "private", slug })
+      .returning();
+
+    if (source.length > 0) {
+      await tx
+        .insert(cubeCards)
+        .values(source.map((row) => ({ ...row, cubeId: clone.id })));
+    }
+
+    return clone;
+  });
 }

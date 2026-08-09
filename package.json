@@ -15,7 +15,8 @@
     "check:auth-flow": "tsx scripts/check-auth-flow.mts",
     "check:printings": "tsx scripts/check-printings.mts",
     "check:primer-safety": "tsx scripts/check-primer-safety.mts",
-    "check:cube-ownership": "tsx --env-file-if-exists=.env.local scripts/check-cube-ownership.mts"
+    "check:cube-ownership": "tsx --env-file-if-exists=.env.local scripts/check-cube-ownership.mts",
+    "check:public-cube": "tsx --env-file-if-exists=.env.local scripts/check-public-cube.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

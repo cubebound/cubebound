@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useState } from "react";
 
 import { addCardAction, listPrintingsAction } from "@/app/cube/actions";
 import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
@@ -10,26 +10,26 @@ import { CUBE_SECTION_LABELS, defaultSectionForType } from "@/lib/riftbound";
 interface Props {
   cubeId: string;
   cards: BrowseCard[];
-  /** Card ids already in the cube, so tiles can show "In cube". */
-  presentCardIds: string[];
+  /** Copies of each printing already in the cube, by card id. */
+  inCube: Record<string, number>;
 }
 
-const buttonClass =
-  "h-8 w-full rounded-md text-xs font-medium transition disabled:opacity-60";
+const buttonClass = "h-8 w-full rounded-md text-xs font-medium transition disabled:opacity-60";
+const addClass =
+  "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white";
 
-export default function AddCards({ cubeId, cards, presentCardIds }: Props) {
-  const [present, setPresent] = useState(() => new Set(presentCardIds));
+export default function AddCards({ cubeId, cards, inCube }: Props) {
+  const [counts, setCounts] = useState(inCube);
   const [selected, setSelected] = useState<BrowseCard | null>(null);
   const [picker, setPicker] = useState<{ card: BrowseCard; printings: BrowseCard[] } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [, startTransition] = useTransition();
 
-  // Server-side ids can change under us after a revalidate; keep in step.
-  const [syncedIds, setSyncedIds] = useState(presentCardIds);
-  if (syncedIds !== presentCardIds) {
-    setSyncedIds(presentCardIds);
-    setPresent(new Set(presentCardIds));
+  // Server-side counts can change under us after a revalidate; keep in step.
+  const [synced, setSynced] = useState(inCube);
+  if (synced !== inCube) {
+    setSynced(inCube);
+    setCounts(inCube);
   }
 
   const add = useCallback(
@@ -42,10 +42,10 @@ export default function AddCards({ cubeId, cards, presentCardIds }: Props) {
         setError(result.error);
         return;
       }
-      // Optimistic locally; the revalidated page confirms it.
-      setPresent((prev) => new Set(prev).add(card.id));
+      // Adding again adds a copy, so reflect the increment rather than
+      // flipping to a terminal "in cube" state.
+      setCounts((prev) => ({ ...prev, [card.id]: (prev[card.id] ?? 0) + 1 }));
       setPicker(null);
-      startTransition(() => {});
     },
     [cubeId],
   );
@@ -65,6 +65,11 @@ export default function AddCards({ cubeId, cards, presentCardIds }: Props) {
     [cubeId],
   );
 
+  const addLabel = (card: BrowseCard) => {
+    const held = counts[card.id] ?? 0;
+    return held > 0 ? `Add another (${held})` : "Add";
+  };
+
   return (
     <>
       {error && (
@@ -75,32 +80,24 @@ export default function AddCards({ cubeId, cards, presentCardIds }: Props) {
 
       <ul className={CARD_GRID_CLASS}>
         {cards.map((card) => {
-          const inCube = present.has(card.id);
+          const held = counts[card.id] ?? 0;
           const busy = busyId === card.id;
           return (
             <CardTile
               key={card.id}
               card={card}
-              dimmed={inCube}
+              quantity={held}
               onOpen={() => setSelected(card)}
               action={
                 <div className="space-y-1">
                   <button
                     type="button"
-                    disabled={inCube || busy}
+                    disabled={busy}
                     onClick={() => add(card)}
-                    className={`${buttonClass} ${
-                      inCube
-                        ? "cursor-default bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
-                        : "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-                    }`}
-                    title={
-                      inCube
-                        ? "Already in this cube"
-                        : `Add to ${CUBE_SECTION_LABELS[defaultSectionForType(card.type)]}`
-                    }
+                    className={`${buttonClass} ${addClass}`}
+                    title={`Add to ${CUBE_SECTION_LABELS[defaultSectionForType(card.type)]}`}
                   >
-                    {inCube ? "In cube" : busy ? "Adding…" : "Add"}
+                    {busy ? "Adding…" : addLabel(card)}
                   </button>
                   {card.printingCount > 1 && (
                     <button
@@ -124,17 +121,13 @@ export default function AddCards({ cubeId, cards, presentCardIds }: Props) {
           card={selected}
           onClose={() => setSelected(null)}
           footer={
-            present.has(selected.id) ? (
-              <p className="text-sm text-zinc-500">Already in this cube.</p>
-            ) : (
-              <button
-                type="button"
-                onClick={() => add(selected).then(() => setSelected(null))}
-                className="h-10 rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-              >
-                Add to {CUBE_SECTION_LABELS[defaultSectionForType(selected.type)]}
-              </button>
-            )
+            <button
+              type="button"
+              onClick={() => add(selected).then(() => setSelected(null))}
+              className="h-10 rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            >
+              Add to {CUBE_SECTION_LABELS[defaultSectionForType(selected.type)]}
+            </button>
           }
         />
       )}
@@ -143,7 +136,7 @@ export default function AddCards({ cubeId, cards, presentCardIds }: Props) {
         <PrintingPicker
           card={picker.card}
           printings={picker.printings}
-          present={present}
+          counts={counts}
           onPick={(printing) => add(printing)}
           onClose={() => setPicker(null)}
         />
@@ -155,13 +148,13 @@ export default function AddCards({ cubeId, cards, presentCardIds }: Props) {
 function PrintingPicker({
   card,
   printings,
-  present,
+  counts,
   onPick,
   onClose,
 }: {
   card: BrowseCard;
   printings: BrowseCard[];
-  present: Set<string>;
+  counts: Record<string, number>;
   onPick: (printing: BrowseCard) => void;
   onClose: () => void;
 }) {
@@ -196,7 +189,7 @@ function PrintingPicker({
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {printings.map((printing) => {
             const isBase = printing.id === printing.baseId;
-            const inCube = present.has(printing.id);
+            const held = counts[printing.id] ?? 0;
             return (
               <li key={printing.id}>
                 {printing.imageThumb && (
@@ -211,18 +204,14 @@ function PrintingPicker({
                 <p className="mt-1.5 text-xs text-zinc-600 dark:text-zinc-400">
                   {printing.id} · {printing.rarity}
                   {isBase && <span className="ml-1 text-zinc-400">(base)</span>}
+                  {held > 0 && <span className="ml-1 tabular-nums">· ×{held}</span>}
                 </p>
                 <button
                   type="button"
-                  disabled={inCube}
                   onClick={() => onPick(printing)}
-                  className={`${buttonClass} mt-1 ${
-                    inCube
-                      ? "cursor-default bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
-                      : "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-                  }`}
+                  className={`${buttonClass} ${addClass} mt-1`}
                 >
-                  {inCube ? "In cube" : "Add this printing"}
+                  {held > 0 ? "Add another" : "Add this printing"}
                 </button>
               </li>
             );
