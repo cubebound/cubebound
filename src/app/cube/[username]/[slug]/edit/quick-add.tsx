@@ -1,0 +1,295 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+import {
+  addCardAction,
+  quickSearchAction,
+  type QuickAddResult,
+} from "@/app/cube/actions";
+import { DomainDots, EnergyChip } from "@/components/card-visuals";
+import {
+  CUBE_SECTIONS,
+  CUBE_SECTION_LABELS,
+  aspectRatio,
+  type CubeSection,
+} from "@/lib/riftbound";
+
+/** Debounce for the type-ahead; long enough to skip most intermediate keystrokes. */
+const SEARCH_DEBOUNCE_MS = 220;
+
+interface Props {
+  cubeId: string;
+  presentCardIds: string[];
+}
+
+/**
+ * Rapid-add panel: type a name, pick a printing and section if you want, add,
+ * keep typing. It never navigates, so consecutive adds cost one keystroke run
+ * and one click each. The page behind it revalidates so the cube list stays
+ * in step.
+ */
+function QuickAddPanel({ cubeId, presentCardIds, onClose }: Props & { onClose?: () => void }) {
+  const [query, setQuery] = useState("");
+  // Results carry the term they answer, so "is a search in flight" is derived
+  // rather than another piece of state to keep in sync.
+  const [answered, setAnswered] = useState<{ term: string; items: QuickAddResult[] }>({
+    term: "",
+    items: [],
+  });
+  const [present, setPresent] = useState(() => new Set(presentCardIds));
+  const [chosen, setChosen] = useState<Record<string, { printingId: string; section: CubeSection }>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Server-side ids can change under us after a revalidate; keep in step.
+  const [syncedIds, setSyncedIds] = useState(presentCardIds);
+  if (syncedIds !== presentCardIds) {
+    setSyncedIds(presentCardIds);
+    setPresent(new Set(presentCardIds));
+  }
+
+  const term = query.trim();
+  const longEnough = term.length >= 2;
+  const searching = longEnough && answered.term !== term;
+  // Keep the previous matches on screen while the next search runs, so the
+  // list doesn't blink empty between keystrokes.
+  const results = longEnough ? answered.items : [];
+
+  useEffect(() => {
+    const current = query.trim();
+    if (current.length < 2) return;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const response = await quickSearchAction(cubeId, current);
+      if (cancelled) return;
+      if (response.error) {
+        setError(response.error);
+        setAnswered({ term: current, items: [] });
+        return;
+      }
+      setError(null);
+      setAnswered({ term: current, items: response.results });
+      setPresent(new Set(response.presentIds));
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, cubeId]);
+
+  async function add(result: QuickAddResult) {
+    const choice = chosen[result.card.baseId];
+    const printingId = choice?.printingId ?? result.card.id;
+    const section = choice?.section ?? result.defaultSection;
+
+    setBusyId(printingId);
+    setError(null);
+    const response = await addCardAction(cubeId, printingId, section);
+    setBusyId(null);
+    if (response.error) {
+      setError(response.error);
+      return;
+    }
+
+    setPresent((prev) => new Set(prev).add(printingId));
+    setLastAdded(`${result.card.name} → ${CUBE_SECTION_LABELS[section]}`);
+    // Leave the query in place but selected, so the next name replaces it
+    // without reaching for the mouse.
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
+        <h2 className="text-sm font-semibold">Quick add</h2>
+        {onClose && (
+          <button
+            onClick={onClose}
+            aria-label="Close quick add"
+            className="rounded-md px-2 text-xl leading-none text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      <div className="border-b border-zinc-200 p-3 dark:border-zinc-800">
+        <input
+          ref={inputRef}
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Card name…"
+          aria-label="Search card names"
+          autoComplete="off"
+          className="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+        />
+        <p aria-live="polite" className="mt-1.5 min-h-4 text-xs text-zinc-500">
+          {error ? (
+            <span className="text-red-600 dark:text-red-400">{error}</span>
+          ) : searching ? (
+            "Searching…"
+          ) : lastAdded ? (
+            `Added ${lastAdded}`
+          ) : (
+            "Type at least two letters."
+          )}
+        </p>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {results.length === 0 && longEnough && !searching && (
+          <p className="p-3 text-sm text-zinc-500">No cards match.</p>
+        )}
+        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+          {results.map((result) => {
+            const choice = chosen[result.card.baseId];
+            const printingId = choice?.printingId ?? result.card.id;
+            const section = choice?.section ?? result.defaultSection;
+            const printing =
+              result.printings.find((p) => p.id === printingId) ?? result.card;
+            const inCube = present.has(printingId);
+            const busy = busyId === printingId;
+
+            const setChoice = (patch: Partial<{ printingId: string; section: CubeSection }>) =>
+              setChosen((prev) => ({
+                ...prev,
+                [result.card.baseId]: { printingId, section, ...patch },
+              }));
+
+            return (
+              <li key={result.card.baseId} className="flex gap-2.5 p-2.5">
+                <div
+                  className="w-12 shrink-0 overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800"
+                  style={{ aspectRatio: aspectRatio(printing.type) }}
+                >
+                  {printing.imageThumb && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={printing.imageThumb}
+                      alt={printing.name}
+                      loading="lazy"
+                      className="size-full object-cover"
+                    />
+                  )}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <DomainDots domains={printing.domains} />
+                    <span className="truncate text-sm font-medium">{printing.name}</span>
+                    <span className="ml-auto shrink-0">
+                      <EnergyChip energy={printing.energyCost} />
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    {printing.type} · {printing.setCode}
+                  </p>
+
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    <select
+                      aria-label={`Section for ${printing.name}`}
+                      value={section}
+                      onChange={(event) =>
+                        setChoice({ section: event.target.value as CubeSection })
+                      }
+                      className="h-7 rounded border border-zinc-300 bg-white px-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900"
+                    >
+                      {CUBE_SECTIONS.map((value) => (
+                        <option key={value} value={value}>
+                          {CUBE_SECTION_LABELS[value]}
+                        </option>
+                      ))}
+                    </select>
+
+                    {result.printings.length > 1 && (
+                      <select
+                        aria-label={`Printing for ${printing.name}`}
+                        value={printingId}
+                        onChange={(event) => setChoice({ printingId: event.target.value })}
+                        className="h-7 max-w-32 rounded border border-zinc-300 bg-white px-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900"
+                      >
+                        {result.printings.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.id}
+                            {option.id === option.baseId ? " (base)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    <button
+                      type="button"
+                      disabled={inCube || busy}
+                      onClick={() => add(result)}
+                      className={`ml-auto h-7 rounded px-2.5 text-[11px] font-medium ${
+                        inCube
+                          ? "cursor-default bg-zinc-100 text-zinc-500 dark:bg-zinc-800"
+                          : "bg-zinc-900 text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                      }`}
+                    >
+                      {inCube ? "In cube" : busy ? "…" : "Add"}
+                    </button>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+/** Sticky sidebar on desktop, bottom sheet on small screens. */
+export default function QuickAdd(props: Props) {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  return (
+    <>
+      <aside className="sticky top-4 hidden h-[calc(100vh-6rem)] rounded-lg border border-zinc-200 bg-white lg:block dark:border-zinc-800 dark:bg-zinc-950">
+        <QuickAddPanel {...props} />
+      </aside>
+
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="fixed bottom-4 right-4 z-30 rounded-full bg-zinc-900 px-5 py-3 text-sm font-medium text-white shadow-lg lg:hidden dark:bg-zinc-100 dark:text-zinc-900"
+      >
+        Quick add
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-40 flex items-end bg-black/60 lg:hidden"
+          onClick={() => setOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Quick add"
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            className="h-[80vh] w-full rounded-t-xl bg-white dark:bg-zinc-950"
+          >
+            <QuickAddPanel {...props} onClose={() => setOpen(false)} />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

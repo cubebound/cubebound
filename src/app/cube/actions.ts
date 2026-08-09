@@ -3,12 +3,18 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { getCardById } from "@/db/queries/cards";
+import {
+  getCardById,
+  getPrintingsForBases,
+  quickSearchCards,
+  type BrowseCard,
+} from "@/db/queries/cards";
 import {
   addCubeCard,
   createCube,
   deleteCube,
   getCubeById,
+  getCubeCardIds,
   getPrintings,
   moveCubeCard,
   removeCubeCard,
@@ -220,4 +226,48 @@ export async function listPrintingsAction(cubeId: string, baseId: string) {
   const owned = await requireOwnedCube(cubeId);
   if ("error" in owned) return { error: owned.error, printings: [] };
   return { printings: await getPrintings(baseId) };
+}
+
+export interface QuickAddResult {
+  card: BrowseCard;
+  /** Every printing, base first. Length 1 for most cards. */
+  printings: BrowseCard[];
+  defaultSection: CubeSection;
+}
+
+/**
+ * Type-ahead for the quick-add panel. Returns each match's printings inline so
+ * choosing an alternate costs no extra round trip, plus which cards are
+ * already in the cube so rows can be marked without a page refresh.
+ */
+export async function quickSearchAction(
+  cubeId: string,
+  query: string,
+): Promise<{ error?: string; results: QuickAddResult[]; presentIds: string[] }> {
+  const owned = await requireOwnedCube(cubeId);
+  if ("error" in owned) return { error: owned.error, results: [], presentIds: [] };
+
+  const matches = await quickSearchCards(query);
+  if (matches.length === 0) return { results: [], presentIds: [] };
+
+  const [printings, present] = await Promise.all([
+    getPrintingsForBases(matches.map((m) => m.baseId)),
+    getCubeCardIds(owned.cube.id),
+  ]);
+
+  const byBase = new Map<string, BrowseCard[]>();
+  for (const printing of printings) {
+    const group = byBase.get(printing.baseId);
+    if (group) group.push(printing);
+    else byBase.set(printing.baseId, [printing]);
+  }
+
+  return {
+    results: matches.map((card) => ({
+      card,
+      printings: byBase.get(card.baseId) ?? [card],
+      defaultSection: defaultSectionForType(card.type),
+    })),
+    presentIds: [...present],
+  };
 }

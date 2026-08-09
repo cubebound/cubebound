@@ -5,6 +5,7 @@ import {
   countDistinct,
   eq,
   ilike,
+  inArray,
   or,
   sql,
   type SQL,
@@ -166,6 +167,48 @@ export async function searchCards(
     .offset(offset);
 
   return { cards: rows as BrowseCard[], total, page, pageCount };
+}
+
+/**
+ * Small, fast name search for the cube editor's type-ahead. Collapsed to one
+ * row per card, with prefix matches ahead of substring matches so typing
+ * "poro" surfaces "Poro Herder" before "Plundering Poro".
+ */
+export async function quickSearchCards(query: string, limit = 12): Promise<BrowseCard[]> {
+  const term = query.trim();
+  if (term.length < 2) return [];
+  const pattern = `%${escapeLike(term)}%`;
+  const prefix = `${escapeLike(term)}%`;
+
+  const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
+    "printing_count",
+  );
+
+  const grouped = db
+    .selectDistinctOn([cards.baseId], { ...browseColumns, printingCount })
+    .from(cards)
+    .where(ilike(cards.name, pattern))
+    .orderBy(cards.baseId, sql`(${cards.id} = ${cards.baseId}) desc`, cards.id)
+    .as("grouped");
+
+  return db
+    .select()
+    .from(grouped)
+    .orderBy(sql`(${grouped.name} ilike ${prefix}) desc`, grouped.name, grouped.id)
+    .limit(limit);
+}
+
+/** Every printing of each of the given cards, base printing first. */
+export async function getPrintingsForBases(baseIds: string[]): Promise<BrowseCard[]> {
+  if (baseIds.length === 0) return [];
+  return db
+    .select({
+      ...browseColumns,
+      printingCount: sql<number>`count(*) over (partition by ${cards.baseId})::int`,
+    })
+    .from(cards)
+    .where(inArray(cards.baseId, baseIds))
+    .orderBy(cards.baseId, sql`(${cards.id} = ${cards.baseId}) desc`, cards.id);
 }
 
 export async function getCardById(id: string): Promise<BrowseCard | null> {

@@ -121,6 +121,11 @@ until a source supplies them or we add a derivation step.
 - Owner editor lives at `/cube/{username}/{slug}/edit`, settings at
   `.../settings`. The bare `/cube/{username}/{slug}` is reserved for the public
   view (milestone 6) and does not exist yet.
+- The editor has two modes. Default: the cube is the page, with a **quick-add**
+  panel (sticky sidebar on desktop, bottom sheet below `lg`) for rapid
+  consecutive adds — type-ahead, per-row section and printing selects, add
+  without navigating. `?mode=browse` swaps in the full filter/grid browser
+  **in place of** the cube list, so the add controls are never below it.
 - **Every cube mutation goes through `requireOwnedCube` in
   `src/app/cube/actions.ts`.** Pages decide only what to render; the server
   re-checks ownership on each write. Non-owners get "not found" rather than

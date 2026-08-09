@@ -235,8 +235,9 @@ try {
     path: "/",
   });
 
-  // Search for a unit so the add lands in "main".
-  await send("Page.navigate", { url: `${APP}${editorPath}?q=blazing+scorcher` });
+  // Browse mode is where the grid's Add buttons live; search a unit so the add
+  // lands in "main".
+  await send("Page.navigate", { url: `${APP}${editorPath}?mode=browse&q=blazing+scorcher` });
   for (let i = 0; i < 80; i++) {
     if (await evaluate("document.readyState === 'complete'")) break;
     await new Promise((r) => setTimeout(r, 250));
