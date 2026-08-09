@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cubebound — In Development</title>
+<style>
+  :root {
+    --ink: #0b0e14;
+    --panel: #12161f;
+    --line: #262c3a;
+    --paper: #e8e9ee;
+    --dim: #8891a5;
+    --accent: #5eead4;
+    --accent2: #a78bfa;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'Courier New', ui-monospace, monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+    overflow-x: hidden;
+  }
+
+  .field {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.35;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 560px;
+    width: 100%;
+  }
+
+  .cube-stage {
+    width: 96px;
+    height: 96px;
+    margin: 0 auto 40px;
+    perspective: 600px;
+  }
+
+  .cube {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    transform-style: preserve-3d;
+    animation: spin 14s linear infinite;
+  }
+
+  .face {
+    position: absolute;
+    width: 96px;
+    height: 96px;
+    border: 1px solid var(--accent);
+    background: rgba(94, 234, 212, 0.06);
+  }
+
+  .face:nth-child(1) { transform: translateZ(48px); }
+  .face:nth-child(2) { transform: rotateY(180deg) translateZ(48px); border-color: var(--accent2); background: rgba(167, 139, 250, 0.06); }
+  .face:nth-child(3) { transform: rotateY(90deg) translateZ(48px); }
+  .face:nth-child(4) { transform: rotateY(-90deg) translateZ(48px); border-color: var(--accent2); background: rgba(167, 139, 250, 0.06); }
+  .face:nth-child(5) { transform: rotateX(90deg) translateZ(48px); }
+  .face:nth-child(6) { transform: rotateX(-90deg) translateZ(48px); border-color: var(--accent2); background: rgba(167, 139, 250, 0.06); }
+
+  @keyframes spin {
+    from { transform: rotateX(0deg) rotateY(0deg); }
+    to { transform: rotateX(360deg) rotateY(360deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cube { animation: none; transform: rotateX(-20deg) rotateY(30deg); }
+  }
+
+  .eyebrow {
+    text-align: center;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: clamp(32px, 7vw, 48px);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 20px;
+  }
+
+  h1 span { color: var(--dim); }
+
+  p.lede {
+    text-align: center;
+    color: var(--dim);
+    font-size: 15px;
+    line-height: 1.6;
+    max-width: 440px;
+    margin: 0 auto 36px;
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 40px;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.15);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .status-text {
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--paper);
+  }
+
+  .panel {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    padding: 24px;
+  }
+
+  .panel-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13px;
+  }
+
+  .panel-row:last-child { border-bottom: none; }
+
+  .panel-row .k { color: var(--dim); }
+  .panel-row .v { color: var(--paper); text-align: right; }
+
+  footer {
+    text-align: center;
+    margin-top: 36px;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+  <div class="field"></div>
+  <div class="wrap">
+    <div class="cube-stage">
+      <div class="cube">
+        <div class="face"></div>
+        <div class="face"></div>
+        <div class="face"></div>
+        <div class="face"></div>
+        <div class="face"></div>
+        <div class="face"></div>
+      </div>
+    </div>
+
+    <div class="eyebrow">Project Prototype</div>
+    <h1>Cubebound<span>.</span></h1>
+    <p class="lede">
+      A short description of what Cubebound does goes here — replace this line
+      with one or two sentences on the problem it solves and who it's for.
+    </p>
+
+    <div class="status">
+      <div class="dot"></div>
+      <div class="status-text">Prototype in progress</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-row"><span class="k">Status</span><span class="v">Early development</span></div>
+      <div class="panel-row"><span class="k">Repo</span><span class="v">github.com/yourusername/cubebound</span></div>
+      <div class="panel-row"><span class="k">Contact</span><span class="v">you@example.com</span></div>
+    </div>
+
+    <footer>CUBEBOUND — LAST UPDATED AUGUST 2026</footer>
+  </div>
+</body>
+</html>
