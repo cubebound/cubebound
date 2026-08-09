@@ -83,11 +83,9 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
     };
   }, [query, cubeId]);
 
-  async function add(result: QuickAddResult) {
-    const choice = chosen[result.card.baseId];
-    const printingId = choice?.printingId ?? result.card.id;
-    const section = choice?.section ?? result.defaultSection;
-
+  // The row resolves which printing and section it is showing; add takes them
+  // rather than re-deriving, so the button always does what the row says.
+  async function add(result: QuickAddResult, printingId: string, section: CubeSection) {
     setBusyId(printingId);
     setError(null);
     const response = await addCardAction(cubeId, printingId, section);
@@ -151,7 +149,12 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {results.map((result) => {
             const choice = chosen[result.card.baseId];
-            const printingId = choice?.printingId ?? result.card.id;
+            // Default to the printing already in the cube, so adding again
+            // adds to that one rather than silently starting a second printing.
+            const heldPrinting = result.printings
+              .filter((p) => (counts[p.id] ?? 0) > 0)
+              .sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))[0];
+            const printingId = choice?.printingId ?? heldPrinting?.id ?? result.card.id;
             const section = choice?.section ?? result.defaultSection;
             const printing =
               result.printings.find((p) => p.id === printingId) ?? result.card;
@@ -167,7 +170,7 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
             return (
               <li key={result.card.baseId} className="flex gap-2.5 p-2.5">
                 <div
-                  className="w-12 shrink-0 overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800"
+                  className="w-12 shrink-0 self-start overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800"
                   style={{ aspectRatio: aspectRatio(printing.type) }}
                 >
                   {printing.imageThumb && (
@@ -176,7 +179,7 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
                       src={printing.imageThumb}
                       alt={printing.name}
                       loading="lazy"
-                      className="size-full object-cover"
+                      className="size-full object-contain"
                     />
                   )}
                 </div>
@@ -193,14 +196,17 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
                     {printing.type} · {printing.setCode}
                   </p>
 
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  {/* Two fixed rows rather than a wrapping one: with a
+                      printing select in play the row wrapped on some cards and
+                      not others, so Add moved around between neighbours. */}
+                  <div className="mt-1.5 flex items-center gap-1">
                     <select
                       aria-label={`Section for ${printing.name}`}
                       value={section}
                       onChange={(event) =>
                         setChoice({ section: event.target.value as CubeSection })
                       }
-                      className="h-7 rounded border border-zinc-300 bg-white px-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900"
+                      className="h-7 min-w-0 flex-1 rounded border border-zinc-300 bg-white px-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900"
                     >
                       {CUBE_SECTIONS.map((value) => (
                         <option key={value} value={value}>
@@ -214,7 +220,7 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
                         aria-label={`Printing for ${printing.name}`}
                         value={printingId}
                         onChange={(event) => setChoice({ printingId: event.target.value })}
-                        className="h-7 max-w-32 rounded border border-zinc-300 bg-white px-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900"
+                        className="h-7 min-w-0 flex-1 rounded border border-zinc-300 bg-white px-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900"
                       >
                         {result.printings.map((option) => (
                           <option key={option.id} value={option.id}>
@@ -224,7 +230,9 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
                         ))}
                       </select>
                     )}
+                  </div>
 
+                  <div className="mt-1 flex items-center gap-1">
                     {held > 0 && (
                       <span
                         title={`${held} in this cube`}
@@ -236,11 +244,11 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => add(result)}
+                      onClick={() => add(result, printingId, section)}
                       title={held > 0 ? "Add another copy" : "Add to the cube"}
                       className="ml-auto h-7 rounded bg-zinc-900 px-2.5 text-[11px] font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
                     >
-                      {busy ? "…" : held > 0 ? "+1" : "Add"}
+                      {busy ? "…" : held > 0 ? "Add another" : "Add"}
                     </button>
                   </div>
                 </div>

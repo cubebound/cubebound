@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "..";
 import { cards, cubeCards, cubes, users, type Cube } from "../schema";
@@ -151,6 +151,51 @@ export async function countCubeCards(cubeId: string): Promise<number> {
     .from(cubeCards)
     .where(eq(cubeCards.cubeId, cubeId));
   return value;
+}
+
+export interface CubeHolding {
+  /** Copies of any printing of this card, across every section. */
+  total: number;
+  /** Copies keyed by the exact printing. */
+  byPrinting: Record<string, number>;
+  /** The printing the cube actually holds — most copies, canonical to break ties. */
+  held: BrowseCard;
+}
+
+/**
+ * What the cube holds for each of the given base cards.
+ *
+ * The browse grid shows one tile per card, so it needs to know that a cube
+ * holding only the alt art still holds that card — and which printing to show.
+ */
+export async function getCubeHoldingsForBases(
+  cubeId: string,
+  baseIds: string[],
+): Promise<Record<string, CubeHolding>> {
+  if (baseIds.length === 0) return {};
+
+  const rows = await db
+    .select({ ...browseColumns, printingCount: sql<number>`1::int`, quantity: cubeCards.quantity })
+    .from(cubeCards)
+    .innerJoin(cards, eq(cards.id, cubeCards.cardId))
+    .where(and(eq(cubeCards.cubeId, cubeId), inArray(cards.baseId, baseIds)));
+
+  const holdings: Record<string, CubeHolding> = {};
+  for (const row of rows) {
+    const { quantity, ...card } = row;
+    const holding = (holdings[card.baseId] ??= { total: 0, byPrinting: {}, held: card });
+    holding.total += quantity;
+    holding.byPrinting[card.id] = (holding.byPrinting[card.id] ?? 0) + quantity;
+
+    // Prefer the printing with the most copies; canonical breaks a tie.
+    const bestSoFar = holding.byPrinting[holding.held.id] ?? 0;
+    const thisOne = holding.byPrinting[card.id];
+    const isCanonical = card.id === card.baseId;
+    if (thisOne > bestSoFar || (thisOne === bestSoFar && isCanonical)) {
+      holding.held = card;
+    }
+  }
+  return holdings;
 }
 
 /** Every printing of a card, base printing first, for the printing picker. */

@@ -39,8 +39,13 @@ export default function CubeSections({
   emptyMessage?: string;
   detailFooter?: (card: CubeCardRow) => ReactNode;
 }) {
-  const [selected, setSelected] = useState<CubeCardRow | null>(null);
-  const close = useCallback(() => setSelected(null), []);
+  // Track the selection by key, not by row: after a quantity change the page
+  // revalidates and hands us new row objects, and a held reference would show
+  // a stale count. Deriving it also closes the modal when the card is removed.
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const close = useCallback(() => setSelectedKey(null), []);
+  const rowKey = (card: CubeCardRow) => `${card.id}:${card.section}`;
+  const selected = cards.find((card) => rowKey(card) === selectedKey) ?? null;
 
   if (cards.length === 0) {
     return (
@@ -72,7 +77,7 @@ export default function CubeSections({
                 <CubeTable
                   cards={inSection}
                   busyKey={busyKey}
-                  onSelect={setSelected}
+                  onSelect={(card) => setSelectedKey(rowKey(card))}
                   onRemove={onRemoveOne}
                   // Only main mixes card types; the rest are single-type.
                   groupByType={section === "main"}
@@ -81,11 +86,11 @@ export default function CubeSections({
                 <ul className={CARD_GRID_CLASS}>
                   {inSection.map((card) => (
                     <CardTile
-                      key={`${card.id}:${card.section}`}
+                      key={rowKey(card)}
                       card={card}
                       showPrintingCount={false}
                       quantity={card.quantity}
-                      onOpen={() => setSelected(card)}
+                      onOpen={() => setSelectedKey(rowKey(card))}
                       action={tileAction?.(card)}
                     />
                   ))}

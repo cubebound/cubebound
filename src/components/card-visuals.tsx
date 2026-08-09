@@ -319,24 +319,29 @@ export function CardTile({
               {card.name}
             </div>
           )}
+          {/* Printing count is a bare number, not "×N" — that reads as a
+              quantity, and a tile can show both at once. */}
           {showPrintingCount && card.printingCount > 1 && (
             <span
-              title={`${card.printingCount} printings`}
-              className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white"
+              title={`${card.printingCount} printings of this card`}
+              className="absolute right-1.5 top-1.5 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white ring-1 ring-white/25"
             >
-              ×{card.printingCount}
+              {card.printingCount}
             </span>
           )}
-          {quantity !== undefined && quantity > 1 && (
+          {quantity !== undefined && quantity > 0 && (
             <span
-              title={`${quantity} copies in this cube`}
-              className="absolute left-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white"
+              title={`${quantity} in this cube`}
+              className="absolute left-1.5 top-1.5 rounded bg-black/75 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white"
             >
               ×{quantity}
             </span>
           )}
         </div>
-        <div className="mt-1.5 flex items-center gap-1.5">
+        {/* Fixed height: the energy chip is taller than bare text, and without
+            this the tiles that have one push their action row out of line with
+            the tiles that don't. */}
+        <div className="mt-1.5 flex h-5 items-center gap-1.5">
           <DomainDots domains={card.domains} />
           <span className="truncate text-xs text-zinc-700 dark:text-zinc-300">{card.name}</span>
           <span className="ml-auto">

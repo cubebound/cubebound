@@ -115,13 +115,46 @@ export default function CubeContents({
           </div>
         )}
         detailFooter={(card) => (
-          <button
-            type="button"
-            onClick={() => remove(card)}
-            className="h-10 rounded-md border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:border-red-400 hover:text-red-600 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-500 dark:hover:text-red-400"
-          >
-            Remove from cube
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={busy === rowKey(card)}
+                onClick={() => adjust(card, -1)}
+                aria-label={`One fewer ${card.name}`}
+                className="size-9 rounded-md border border-zinc-300 text-lg leading-none text-zinc-700 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                −
+              </button>
+              <span
+                aria-live="polite"
+                aria-label={`${card.quantity} in cube`}
+                className="w-10 text-center text-sm font-medium tabular-nums"
+              >
+                ×{card.quantity}
+              </span>
+              <button
+                type="button"
+                disabled={busy === rowKey(card)}
+                onClick={() => adjust(card, 1)}
+                aria-label={`One more ${card.name}`}
+                className="size-9 rounded-md border border-zinc-300 text-lg leading-none text-zinc-700 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                +
+              </button>
+            </div>
+            <span className="text-xs text-zinc-500">
+              in {CUBE_SECTION_LABELS[card.section]}
+            </span>
+            <button
+              type="button"
+              disabled={busy === rowKey(card)}
+              onClick={() => remove(card)}
+              className="h-9 rounded-md border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:border-red-400 hover:text-red-600 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-500 dark:hover:text-red-400"
+            >
+              Remove all
+            </button>
+          </div>
         )}
       />
     </>

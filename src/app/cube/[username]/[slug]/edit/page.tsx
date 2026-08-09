@@ -11,6 +11,7 @@ import {
   getCubeByOwnerAndSlug,
   getCubeCardQuantities,
   getCubeCards,
+  getCubeHoldingsForBases,
 } from "@/db/queries/cubes";
 import { getCurrentUser } from "@/lib/auth";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
@@ -63,6 +64,10 @@ export default async function EditCubePage({
   const browse = browsing
     ? await Promise.all([getFilterOptions(), searchCards(filters)])
     : null;
+  // Which of the results the cube already holds, and in which printing.
+  const holdings = browse
+    ? await getCubeHoldingsForBases(cube.id, browse[1].cards.map((c) => c.baseId))
+    : {};
 
   const modeLink = (label: string, href: string, active: boolean) => (
     <Link
@@ -142,7 +147,7 @@ export default async function EditCubePage({
             </p>
           ) : (
             <div className="space-y-6">
-              <AddCards cubeId={cube.id} cards={browse![1].cards} inCube={inCube} />
+              <AddCards cubeId={cube.id} cards={browse![1].cards} holdings={holdings} />
               <CardPagination
                 filters={filters}
                 page={browse![1].page}

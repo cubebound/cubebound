@@ -5,46 +5,67 @@ import { useCallback, useState } from "react";
 import { addCardAction, listPrintingsAction } from "@/app/cube/actions";
 import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
 import type { BrowseCard } from "@/db/queries/cards";
+import type { CubeHolding } from "@/db/queries/cubes";
 import { CUBE_SECTION_LABELS, defaultSectionForType } from "@/lib/riftbound";
 
 interface Props {
   cubeId: string;
   cards: BrowseCard[];
-  /** Copies of each printing already in the cube, by card id. */
-  inCube: Record<string, number>;
+  /** What the cube holds, keyed by base card id. */
+  holdings: Record<string, CubeHolding>;
 }
 
-const buttonClass = "h-8 w-full rounded-md text-xs font-medium transition disabled:opacity-60";
-const addClass =
-  "bg-zinc-900 text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white";
+/** Local view of a card's holding, updated optimistically as you add. */
+interface Held {
+  total: number;
+  byPrinting: Record<string, number>;
+  shown: BrowseCard;
+}
 
-export default function AddCards({ cubeId, cards, inCube }: Props) {
-  const [counts, setCounts] = useState(inCube);
+const addClass =
+  "h-8 rounded-md bg-zinc-900 text-xs font-medium text-white transition hover:bg-zinc-700 " +
+  "disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white";
+
+export default function AddCards({ cubeId, cards, holdings }: Props) {
+  const [held, setHeld] = useState<Record<string, Held>>(() => toHeld(holdings));
   const [selected, setSelected] = useState<BrowseCard | null>(null);
   const [picker, setPicker] = useState<{ card: BrowseCard; printings: BrowseCard[] } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Server-side counts can change under us after a revalidate; keep in step.
-  const [synced, setSynced] = useState(inCube);
-  if (synced !== inCube) {
-    setSynced(inCube);
-    setCounts(inCube);
+  // Server holdings can change under us after a revalidate; keep in step.
+  const [synced, setSynced] = useState(holdings);
+  if (synced !== holdings) {
+    setSynced(holdings);
+    setHeld(toHeld(holdings));
   }
 
   const add = useCallback(
-    async (card: BrowseCard, section?: string) => {
-      setBusyId(card.id);
+    async (card: BrowseCard, printing: BrowseCard) => {
+      setBusyId(printing.id);
       setError(null);
-      const result = await addCardAction(cubeId, card.id, section);
+      const result = await addCardAction(cubeId, printing.id, undefined);
       setBusyId(null);
       if (result.error) {
         setError(result.error);
         return;
       }
-      // Adding again adds a copy, so reflect the increment rather than
-      // flipping to a terminal "in cube" state.
-      setCounts((prev) => ({ ...prev, [card.id]: (prev[card.id] ?? 0) + 1 }));
+      setHeld((prev) => {
+        const current = prev[card.baseId];
+        const byPrinting = {
+          ...(current?.byPrinting ?? {}),
+          [printing.id]: (current?.byPrinting?.[printing.id] ?? 0) + 1,
+        };
+        return {
+          ...prev,
+          [card.baseId]: {
+            total: (current?.total ?? 0) + 1,
+            byPrinting,
+            // Once a printing is in the cube, the tile shows that one.
+            shown: printing,
+          },
+        };
+      });
       setPicker(null);
     },
     [cubeId],
@@ -65,11 +86,6 @@ export default function AddCards({ cubeId, cards, inCube }: Props) {
     [cubeId],
   );
 
-  const addLabel = (card: BrowseCard) => {
-    const held = counts[card.id] ?? 0;
-    return held > 0 ? `Add another (${held})` : "Add";
-  };
-
   return (
     <>
       {error && (
@@ -80,33 +96,46 @@ export default function AddCards({ cubeId, cards, inCube }: Props) {
 
       <ul className={CARD_GRID_CLASS}>
         {cards.map((card) => {
-          const held = counts[card.id] ?? 0;
-          const busy = busyId === card.id;
+          const holding = held[card.baseId];
+          // Show whichever printing the cube holds, so an alt-art copy is
+          // visible here rather than the tile looking like nothing is in.
+          const shown = holding?.shown ?? card;
+          const total = holding?.total ?? 0;
+          const busy = busyId === shown.id || busyId === card.id;
+
           return (
             <CardTile
-              key={card.id}
-              card={card}
-              quantity={held}
-              onOpen={() => setSelected(card)}
+              key={card.baseId}
+              card={shown}
+              quantity={total}
+              onOpen={() => setSelected(shown)}
               action={
-                <div className="space-y-1">
+                // One row of a fixed height for every tile, so the Add buttons
+                // line up whether or not a card has other printings.
+                <div className="flex items-stretch gap-1">
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => add(card)}
-                    className={`${buttonClass} ${addClass}`}
-                    title={`Add to ${CUBE_SECTION_LABELS[defaultSectionForType(card.type)]}`}
+                    onClick={() => add(card, shown)}
+                    className={`${addClass} min-w-0 flex-1`}
+                    title={
+                      total > 0
+                        ? `Add another copy of ${shown.name}`
+                        : `Add to ${CUBE_SECTION_LABELS[defaultSectionForType(shown.type)]}`
+                    }
                   >
-                    {busy ? "Adding…" : addLabel(card)}
+                    {busy ? "…" : total > 0 ? "Add another" : "Add"}
                   </button>
                   {card.printingCount > 1 && (
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => openPicker(card)}
-                      className="h-7 w-full rounded-md border border-zinc-300 text-[11px] text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                      aria-label={`Choose a printing of ${card.name}`}
+                      title={`${card.printingCount} printings`}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-sm leading-none text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
                     >
-                      Choose printing ({card.printingCount})
+                      ▾
                     </button>
                   )}
                 </div>
@@ -123,7 +152,10 @@ export default function AddCards({ cubeId, cards, inCube }: Props) {
           footer={
             <button
               type="button"
-              onClick={() => add(selected).then(() => setSelected(null))}
+              onClick={() => {
+                const card = cards.find((c) => c.baseId === selected.baseId) ?? selected;
+                add(card, selected).then(() => setSelected(null));
+              }}
               className="h-10 rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
             >
               Add to {CUBE_SECTION_LABELS[defaultSectionForType(selected.type)]}
@@ -136,12 +168,21 @@ export default function AddCards({ cubeId, cards, inCube }: Props) {
         <PrintingPicker
           card={picker.card}
           printings={picker.printings}
-          counts={counts}
-          onPick={(printing) => add(printing)}
+          counts={held[picker.card.baseId]?.byPrinting ?? {}}
+          onPick={(printing) => add(picker.card, printing)}
           onClose={() => setPicker(null)}
         />
       )}
     </>
+  );
+}
+
+function toHeld(holdings: Record<string, CubeHolding>): Record<string, Held> {
+  return Object.fromEntries(
+    Object.entries(holdings).map(([baseId, holding]) => [
+      baseId,
+      { total: holding.total, byPrinting: holding.byPrinting, shown: holding.held },
+    ]),
   );
 }
 
@@ -189,7 +230,7 @@ function PrintingPicker({
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {printings.map((printing) => {
             const isBase = printing.id === printing.baseId;
-            const held = counts[printing.id] ?? 0;
+            const copies = counts[printing.id] ?? 0;
             return (
               <li key={printing.id}>
                 {printing.imageThumb && (
@@ -204,14 +245,14 @@ function PrintingPicker({
                 <p className="mt-1.5 text-xs text-zinc-600 dark:text-zinc-400">
                   {printing.id} · {printing.rarity}
                   {isBase && <span className="ml-1 text-zinc-400">(base)</span>}
-                  {held > 0 && <span className="ml-1 tabular-nums">· ×{held}</span>}
+                  {copies > 0 && <span className="ml-1 tabular-nums">· ×{copies}</span>}
                 </p>
                 <button
                   type="button"
                   onClick={() => onPick(printing)}
-                  className={`${buttonClass} ${addClass} mt-1`}
+                  className={`${addClass} mt-1 w-full`}
                 >
-                  {held > 0 ? "Add another" : "Add this printing"}
+                  {copies > 0 ? "Add another" : "Add this printing"}
                 </button>
               </li>
             );
