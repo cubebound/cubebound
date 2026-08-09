@@ -76,6 +76,9 @@ export const cubes = pgTable(
     name: text("name").notNull(),
     slug: text("slug").notNull(),
     description: text("description"),
+    // Long-form markdown write-up, separate from the one-line description.
+    // Rendered through src/components/primer.tsx, never as raw HTML.
+    primer: text("primer"),
     visibility: cubeVisibilityEnum("visibility").notNull().default("public"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

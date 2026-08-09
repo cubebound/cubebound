@@ -1,0 +1,1 @@
+ALTER TABLE "cubes" ADD COLUMN "primer" text;

@@ -132,6 +132,15 @@ until a source supplies them or we add a derivation step.
   `cubebound.cube-view` cookie, then visual; the toggle writes both, so a shared
   link shows what the sender saw while a personal preference follows you between
   cubes. See `src/lib/cube-view.ts`.
+- `cubes.primer` is a long-form markdown write-up, separate from the one-line
+  `description`, edited on the editor's Primer tab and rendered by
+  `src/components/primer.tsx`. **Never render it as HTML.** `rehype-raw` is
+  deliberately absent so embedded HTML is never parsed; `rehype-sanitize` runs
+  as a second layer with a narrowed tag list, and `urlTransform` allows only
+  http/https/mailto. `npm run check:primer-safety` renders hostile markdown
+  through the real component and fails if anything executable survives — run it
+  after touching that component. Milestone 6's public cube view should render
+  the primer with the same component.
 - **Every cube mutation goes through `requireOwnedCube` in
   `src/app/cube/actions.ts`.** Pages decide only what to render; the server
   re-checks ownership on each write. Non-owners get "not found" rather than

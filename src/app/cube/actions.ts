@@ -20,6 +20,7 @@ import {
   removeCubeCard,
   swapCubeCardPrinting,
   updateCube,
+  updateCubePrimer,
   type CubeVisibility,
 } from "@/db/queries/cubes";
 import type { Cube, User } from "@/db/schema";
@@ -131,6 +132,29 @@ export async function updateCubeAction(
 
   revalidateCube(owned.profile.username, owned.cube.slug);
   redirect(editorPath(owned.profile.username, owned.cube.slug));
+}
+
+const PRIMER_MAX = 50_000;
+
+/** Saves the cube's long-form markdown write-up. */
+export async function updatePrimerAction(
+  _prev: ActionState & { saved?: boolean },
+  formData: FormData,
+): Promise<ActionState & { saved?: boolean }> {
+  const owned = await requireOwnedCube(String(formData.get("cubeId") ?? ""));
+  if ("error" in owned) return { error: owned.error };
+
+  const primer = String(formData.get("primer") ?? "");
+  if (primer.length > PRIMER_MAX) {
+    return { error: `Primers must be at most ${PRIMER_MAX.toLocaleString()} characters.` };
+  }
+
+  // Stored verbatim: it is markdown, and escaping happens at render time.
+  // Never store HTML here and never render it as HTML — see components/primer.
+  await updateCubePrimer(owned.cube.id, primer.trim() || null);
+
+  revalidateCube(owned.profile.username, owned.cube.slug);
+  return { saved: true };
 }
 
 export async function deleteCubeAction(

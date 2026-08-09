@@ -15,6 +15,7 @@ import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
 
 import AddCards from "./add-cards";
 import CubeContents from "./cube-contents";
+import PrimerEditor from "./primer-editor";
 import QuickAdd from "./quick-add";
 
 export const metadata: Metadata = {
@@ -41,7 +42,9 @@ export default async function EditCubePage({
   const query = await searchParams;
   const filters = cardFiltersFromParams(query);
   const basePath = `/cube/${cube.ownerUsername}/${cube.slug}/edit`;
-  const browsing = (Array.isArray(query.mode) ? query.mode[0] : query.mode) === "browse";
+  const mode = Array.isArray(query.mode) ? query.mode[0] : query.mode;
+  const browsing = mode === "browse";
+  const writingPrimer = mode === "primer";
   const view = resolveCubeView(query.view, (await cookies()).get(CUBE_VIEW_COOKIE)?.value);
 
   const [contents, presentIds] = await Promise.all([
@@ -92,9 +95,10 @@ export default async function EditCubePage({
           </Link>
         </div>
         <nav className="mt-4 flex flex-wrap items-center gap-2">
-          {modeLink("Cube", basePath, !browsing)}
+          {modeLink("Cube", basePath, !browsing && !writingPrimer)}
           {modeLink("Browse cards", `${basePath}?mode=browse`, browsing)}
-          {!browsing && contents.length > 0 && (
+          {modeLink("Primer", `${basePath}?mode=primer`, writingPrimer)}
+          {!browsing && !writingPrimer && contents.length > 0 && (
             <span className="ml-auto">
               <CubeViewToggle active={view} />
             </span>
@@ -102,7 +106,16 @@ export default async function EditCubePage({
         </nav>
       </header>
 
-      {browsing ? (
+      {writingPrimer ? (
+        <section>
+          <p className="mb-4 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
+            A long-form write-up for people browsing your cube — the archetypes,
+            the house rules, why a card is in. Separate from the one-line
+            description, and shown on the cube&rsquo;s Primer tab.
+          </p>
+          <PrimerEditor cubeId={cube.id} primer={cube.primer} />
+        </section>
+      ) : browsing ? (
         /* Browse mode replaces the cube list rather than sitting under it, so
            the search controls are the first thing on screen. */
         <section>

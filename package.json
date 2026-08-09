@@ -14,6 +14,7 @@
     "sync-cards": "tsx scripts/sync-cards.ts",
     "check:auth-flow": "tsx scripts/check-auth-flow.mts",
     "check:printings": "tsx scripts/check-printings.mts",
+    "check:primer-safety": "tsx scripts/check-primer-safety.mts",
     "check:cube-ownership": "tsx --env-file-if-exists=.env.local scripts/check-cube-ownership.mts"
   },
   "dependencies": {
@@ -23,7 +24,10 @@
     "next": "16.3.0",
     "postgres": "^3.4.9",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

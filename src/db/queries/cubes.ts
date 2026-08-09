@@ -35,9 +35,11 @@ export async function getCubeByOwnerAndSlug(
   return row ? { ...row.cube, ownerUsername: row.ownerUsername } : null;
 }
 
-export async function listCubesForOwner(
-  ownerId: string,
-): Promise<(Cube & { cardCount: number })[]> {
+/** Summary row for the cube list — deliberately without `primer`, which can be
+ *  tens of kilobytes and is never shown in a list. */
+export type CubeSummary = Omit<Cube, "primer"> & { cardCount: number };
+
+export async function listCubesForOwner(ownerId: string): Promise<CubeSummary[]> {
   return db
     .select({
       id: cubes.id,
@@ -88,6 +90,13 @@ export async function updateCube(
     .where(eq(cubes.id, cubeId))
     .returning();
   return cube;
+}
+
+export async function updateCubePrimer(cubeId: string, primer: string | null): Promise<void> {
+  await db
+    .update(cubes)
+    .set({ primer, updatedAt: new Date() })
+    .where(eq(cubes.id, cubeId));
 }
 
 export async function deleteCube(cubeId: string): Promise<void> {
