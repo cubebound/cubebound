@@ -1,0 +1,342 @@
+"use client";
+
+import { useEffect, useRef, type ReactNode } from "react";
+
+import type { BrowseCard } from "@/db/queries/cards";
+import { aspectRatio, DOMAIN_COLORS, titleCase } from "@/lib/riftbound";
+import { parseRulesText, type RulesSymbol } from "@/lib/rules-text";
+
+/* Shared between the card browser and the cube editor.
+   Card images come straight from the source CDN — we deliberately do not proxy
+   or re-optimize them yet (see CLAUDE.md), so next/image is not used. */
+
+export function DomainDots({ domains }: { domains: string[] }) {
+  if (domains.length === 0) return null;
+  return (
+    <span className="flex shrink-0 items-center gap-1" aria-label={domains.join(", ")}>
+      {domains.map((domain) => (
+        <span
+          key={domain}
+          title={domain}
+          className="size-2.5 rounded-full ring-1 ring-black/10 dark:ring-white/15"
+          style={{ backgroundColor: DOMAIN_COLORS[domain] ?? "#9aa0a6" }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** Energy is the generic cost; distinct from Power pips and from Might. */
+export function EnergyChip({ energy }: { energy: number | null }) {
+  if (energy === null) return null;
+  return (
+    <span
+      title={`Energy ${energy}`}
+      className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-[11px] font-semibold tabular-nums text-zinc-700 dark:bg-zinc-700 dark:text-zinc-100"
+    >
+      {energy}
+    </span>
+  );
+}
+
+/** Power is a domain-specific pip cost in Riftbound, not a combat stat. */
+export function PowerPips({ powerCost }: { powerCost: Record<string, number> | null }) {
+  if (!powerCost) return null;
+  const pips = Object.entries(powerCost).flatMap(([domain, n]) =>
+    Array.from({ length: n }, (_, i) => ({ domain, key: `${domain}-${i}` })),
+  );
+  if (pips.length === 0) return null;
+  return (
+    <span className="flex items-center gap-1">
+      {pips.map(({ domain, key }) => {
+        const color = DOMAIN_COLORS[titleCase(domain)];
+        return (
+          <span
+            key={key}
+            title={color ? `${titleCase(domain)} power` : "Power (any domain)"}
+            className="size-3 rounded-full ring-1 ring-black/15 dark:ring-white/20"
+            style={{ backgroundColor: color ?? "transparent" }}
+          />
+        );
+      })}
+    </span>
+  );
+}
+
+/** One `:rb_*:` token rendered as an inline badge. */
+function SymbolBadge({ symbol }: { symbol: RulesSymbol }) {
+  const shared = "mx-0.5 inline-flex shrink-0 items-center justify-center align-[-0.15em]";
+
+  switch (symbol.kind) {
+    case "energy":
+      return (
+        <span
+          title={symbol.label}
+          className={`${shared} size-[1.15em] rounded-full bg-zinc-700 text-[0.72em] font-semibold tabular-nums text-white dark:bg-zinc-300 dark:text-zinc-900`}
+        >
+          {symbol.value}
+        </span>
+      );
+    case "power":
+      return (
+        <span
+          title={symbol.label}
+          className={`${shared} size-[0.85em] rounded-full ring-1 ring-black/20 dark:ring-white/25`}
+          style={
+            symbol.domain
+              ? { backgroundColor: DOMAIN_COLORS[symbol.domain] }
+              : {
+                  // Wild Power pays any domain — show it as the domain wheel.
+                  backgroundImage: `conic-gradient(${Object.values(DOMAIN_COLORS)
+                    .slice(0, 6)
+                    .join(",")},${DOMAIN_COLORS.Fury})`,
+                }
+          }
+        />
+      );
+    case "might":
+      return (
+        <span title="Might" className={`${shared} font-semibold text-zinc-700 dark:text-zinc-300`}>
+          ⚔
+        </span>
+      );
+    case "exhaust":
+      return (
+        <span title="Exhaust" className={`${shared} font-semibold text-zinc-700 dark:text-zinc-300`}>
+          ⟳
+        </span>
+      );
+    default:
+      // Unmapped token from a future set: show its readable name, not `:rb_…:`.
+      return (
+        <span title={symbol.token} className={`${shared} italic`}>
+          {symbol.label}
+        </span>
+      );
+  }
+}
+
+export function RulesText({ text }: { text: string }) {
+  return (
+    <p className="text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+      {parseRulesText(text).map((node, i) => {
+        if (node.type === "text") return <span key={i}>{node.value}</span>;
+        if (node.type === "keyword") {
+          return (
+            <span
+              key={i}
+              className="mx-0.5 rounded bg-zinc-200 px-1 py-px text-[0.85em] font-semibold text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100"
+            >
+              {node.value}
+            </span>
+          );
+        }
+        return <SymbolBadge key={i} symbol={node.symbol} />;
+      })}
+    </p>
+  );
+}
+
+function Stat({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <dt className="w-20 shrink-0 text-xs uppercase tracking-wide text-zinc-500">
+        {label}
+      </dt>
+      <dd className="flex items-center gap-1.5 text-sm text-zinc-900 dark:text-zinc-100">
+        {children}
+      </dd>
+    </div>
+  );
+}
+
+export function CardDetail({
+  card,
+  onClose,
+  footer,
+}: {
+  card: BrowseCard;
+  onClose: () => void;
+  /** Extra controls, e.g. the cube editor's add button. */
+  footer?: ReactNode;
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={card.name}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+    >
+      <div
+        onClick={(event) => event.stopPropagation()}
+        className="flex max-h-full w-full max-w-3xl flex-col gap-6 overflow-y-auto rounded-xl bg-white p-5 shadow-2xl md:flex-row dark:bg-zinc-900"
+      >
+        <div className="w-full shrink-0 md:w-80" style={{ aspectRatio: aspectRatio(card.type) }}>
+          {card.imageFull ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={card.imageFull}
+              alt={card.name}
+              className="size-full rounded-lg object-contain"
+            />
+          ) : (
+            <div className="flex size-full items-center justify-center rounded-lg bg-zinc-100 text-sm text-zinc-500 dark:bg-zinc-800">
+              No image
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                {card.name}
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                {card.setCode} · #{card.collectorNo} · {card.rarity}
+              </p>
+            </div>
+            <button
+              ref={closeRef}
+              onClick={onClose}
+              aria-label="Close"
+              className="rounded-md px-2 py-1 text-xl leading-none text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              ×
+            </button>
+          </div>
+
+          <dl className="mt-5 space-y-2.5">
+            <Stat label="Type">{card.type}</Stat>
+            <Stat label="Domains">
+              {card.domains.length > 0 ? (
+                <>
+                  <DomainDots domains={card.domains} />
+                  <span>{card.domains.join(" / ")}</span>
+                </>
+              ) : (
+                <span className="text-zinc-500">—</span>
+              )}
+            </Stat>
+            {card.energyCost !== null && (
+              <Stat label="Energy">
+                <EnergyChip energy={card.energyCost} />
+              </Stat>
+            )}
+            {card.powerCost && (
+              <Stat label="Power">
+                <PowerPips powerCost={card.powerCost} />
+              </Stat>
+            )}
+            {card.might !== null && <Stat label="Might">{card.might}</Stat>}
+            {card.keywords.length > 0 && (
+              <Stat label="Keywords">
+                <span className="flex flex-wrap gap-1">
+                  {card.keywords.map((keyword) => (
+                    <span
+                      key={keyword}
+                      className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800"
+                    >
+                      {titleCase(keyword)}
+                    </span>
+                  ))}
+                </span>
+              </Stat>
+            )}
+            {card.artist && <Stat label="Artist">{card.artist}</Stat>}
+          </dl>
+
+          {card.rulesText && (
+            <div className="mt-5 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+              <RulesText text={card.rulesText} />
+            </div>
+          )}
+
+          {card.printingCount > 1 && (
+            <p className="mt-4 text-xs text-zinc-500">
+              {card.printingCount} printings of this card.
+            </p>
+          )}
+
+          {footer && <div className="mt-5">{footer}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CardTile({
+  card,
+  onOpen,
+  action,
+  showPrintingCount = true,
+  dimmed = false,
+}: {
+  card: BrowseCard;
+  onOpen: () => void;
+  /** Rendered under the tile. Must not contain the tile's own button. */
+  action?: ReactNode;
+  showPrintingCount?: boolean;
+  dimmed?: boolean;
+}) {
+  const thumb = card.imageThumb ?? card.imageFull;
+  return (
+    <li className="self-start">
+      <button
+        onClick={onOpen}
+        className="group block w-full cursor-pointer text-left"
+        aria-label={`View ${card.name}`}
+      >
+        <div
+          className={`relative overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-black/5 transition group-hover:ring-2 group-hover:ring-zinc-400 group-focus-visible:ring-2 group-focus-visible:ring-zinc-500 dark:bg-zinc-800 dark:ring-white/10 ${dimmed ? "opacity-45" : ""}`}
+          style={{ aspectRatio: aspectRatio(card.type) }}
+        >
+          {thumb ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={thumb}
+              alt={card.name}
+              loading="lazy"
+              className="size-full object-cover transition group-hover:scale-[1.02]"
+            />
+          ) : (
+            <div className="flex size-full items-center justify-center px-2 text-center text-xs text-zinc-500">
+              {card.name}
+            </div>
+          )}
+          {showPrintingCount && card.printingCount > 1 && (
+            <span
+              title={`${card.printingCount} printings`}
+              className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-white"
+            >
+              ×{card.printingCount}
+            </span>
+          )}
+        </div>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <DomainDots domains={card.domains} />
+          <span className="truncate text-xs text-zinc-700 dark:text-zinc-300">{card.name}</span>
+          <span className="ml-auto">
+            <EnergyChip energy={card.energyCost} />
+          </span>
+        </div>
+      </button>
+      {action && <div className="mt-1.5">{action}</div>}
+    </li>
+  );
+}
+
+export const CARD_GRID_CLASS =
+  "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6";
