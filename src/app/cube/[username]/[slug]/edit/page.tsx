@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import CardFilterBar from "@/components/card-filter-bar";
 import CardPagination from "@/components/card-pagination";
+import CubeViewToggle from "@/components/cube-view-toggle";
 import { getFilterOptions, PAGE_SIZE, searchCards } from "@/db/queries/cards";
 import { getCubeByOwnerAndSlug, getCubeCardIds, getCubeCards } from "@/db/queries/cubes";
 import { getCurrentUser } from "@/lib/auth";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
 import { canEditCube } from "@/lib/cube-access";
+import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
 
 import AddCards from "./add-cards";
 import CubeContents from "./cube-contents";
@@ -39,6 +42,7 @@ export default async function EditCubePage({
   const filters = cardFiltersFromParams(query);
   const basePath = `/cube/${cube.ownerUsername}/${cube.slug}/edit`;
   const browsing = (Array.isArray(query.mode) ? query.mode[0] : query.mode) === "browse";
+  const view = resolveCubeView(query.view, (await cookies()).get(CUBE_VIEW_COOKIE)?.value);
 
   const [contents, presentIds] = await Promise.all([
     getCubeCards(cube.id),
@@ -90,6 +94,11 @@ export default async function EditCubePage({
         <nav className="mt-4 flex flex-wrap items-center gap-2">
           {modeLink("Cube", basePath, !browsing)}
           {modeLink("Browse cards", `${basePath}?mode=browse`, browsing)}
+          {!browsing && contents.length > 0 && (
+            <span className="ml-auto">
+              <CubeViewToggle active={view} />
+            </span>
+          )}
         </nav>
       </header>
 
@@ -134,7 +143,7 @@ export default async function EditCubePage({
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <section className="min-w-0">
-            <CubeContents cubeId={cube.id} cards={contents} />
+            <CubeContents cubeId={cube.id} cards={contents} view={view} />
           </section>
           <QuickAdd cubeId={cube.id} presentCardIds={[...presentIds]} />
         </div>

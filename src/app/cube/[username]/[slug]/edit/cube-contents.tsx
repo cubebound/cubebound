@@ -4,15 +4,19 @@ import { useState } from "react";
 
 import { moveCardAction, removeCardAction } from "@/app/cube/actions";
 import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
+import CubeTable from "@/components/cube-table";
 import type { CubeCardRow } from "@/db/queries/cubes";
+import type { CubeView } from "@/lib/cube-view";
 import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
 
 export default function CubeContents({
   cubeId,
   cards,
+  view,
 }: {
   cubeId: string;
   cards: CubeCardRow[];
+  view: CubeView;
 }) {
   const [selected, setSelected] = useState<CubeCardRow | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -67,6 +71,14 @@ export default function CubeContents({
                 {CUBE_SECTION_LABELS[section]}
                 <span className="ml-2 font-normal tabular-nums">{inSection.length}</span>
               </h3>
+              {view === "text" ? (
+                <CubeTable
+                  cards={inSection}
+                  busyKey={busy}
+                  onSelect={setSelected}
+                  onRemove={remove}
+                />
+              ) : (
               <ul className={CARD_GRID_CLASS}>
                 {inSection.map((card) => (
                   <CardTile
@@ -104,6 +116,7 @@ export default function CubeContents({
                   />
                 ))}
               </ul>
+              )}
             </section>
           );
         })}

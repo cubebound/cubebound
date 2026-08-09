@@ -126,6 +126,12 @@ until a source supplies them or we add a derivation step.
   consecutive adds — type-ahead, per-row section and printing selects, add
   without navigating. `?mode=browse` swaps in the full filter/grid browser
   **in place of** the cube list, so the add controls are never below it.
+- The cube list renders in two views: `visual` (image tiles) and `text`
+  (`src/components/cube-table.tsx` — a column per domain, one-line rows grouped
+  by energy cost with counts). Resolution is `?view=` first, then the
+  `cubebound.cube-view` cookie, then visual; the toggle writes both, so a shared
+  link shows what the sender saw while a personal preference follows you between
+  cubes. See `src/lib/cube-view.ts`.
 - **Every cube mutation goes through `requireOwnedCube` in
   `src/app/cube/actions.ts`.** Pages decide only what to render; the server
   re-checks ownership on each write. Non-owners get "not found" rather than
