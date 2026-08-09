@@ -13,6 +13,16 @@ interface Props {
   cards: BrowseCard[];
   /** What the cube holds, keyed by base card id. */
   holdings: Record<string, CubeHolding>;
+  /**
+   * Whether each row is a distinct printing rather than a card.
+   *
+   * It changes what a tile means. Grouped, a tile stands for the card, so it
+   * shows whichever printing the cube holds and counts every copy. With all
+   * printings listed, a tile stands for exactly one printing and must show
+   * itself — substituting the held printing there rendered the same art twice
+   * and hid the base printing entirely.
+   */
+  showingEveryPrinting: boolean;
 }
 
 /** Local view of a card's holding, updated optimistically as you add. */
@@ -26,7 +36,7 @@ const addClass =
   "h-8 rounded-md bg-zinc-900 text-xs font-medium text-white transition hover:bg-zinc-700 " +
   "disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white";
 
-export default function AddCards({ cubeId, cards, holdings }: Props) {
+export default function AddCards({ cubeId, cards, holdings, showingEveryPrinting }: Props) {
   const [held, setHeld] = useState<Record<string, Held>>(() => toHeld(holdings));
   const [selected, setSelected] = useState<BrowseCard | null>(null);
   const [picker, setPicker] = useState<{ card: BrowseCard; printings: BrowseCard[] } | null>(null);
@@ -97,17 +107,21 @@ export default function AddCards({ cubeId, cards, holdings }: Props) {
       <ul className={CARD_GRID_CLASS}>
         {cards.map((card) => {
           const holding = held[card.baseId];
-          // Show whichever printing the cube holds, so an alt-art copy is
-          // visible here rather than the tile looking like nothing is in.
-          const shown = holding?.shown ?? card;
-          const total = holding?.total ?? 0;
+          // Grouped: show whichever printing the cube holds, so an alt-art copy
+          // is visible rather than the tile looking empty. All printings: this
+          // row *is* a printing, so it shows and counts itself.
+          const shown = showingEveryPrinting ? card : (holding?.shown ?? card);
+          const count = showingEveryPrinting
+            ? (holding?.byPrinting[card.id] ?? 0)
+            : (holding?.total ?? 0);
           const busy = busyId === shown.id || busyId === card.id;
 
           return (
             <CardTile
-              key={card.baseId}
+              key={card.id}
               card={shown}
-              quantity={total}
+              quantity={count}
+              showPrintingCount={!showingEveryPrinting}
               onOpen={() => setSelected(shown)}
               action={
                 // One row of a fixed height for every tile, so the Add buttons
@@ -119,14 +133,15 @@ export default function AddCards({ cubeId, cards, holdings }: Props) {
                     onClick={() => add(card, shown)}
                     className={`${addClass} min-w-0 flex-1`}
                     title={
-                      total > 0
+                      count > 0
                         ? `Add another copy of ${shown.name}`
                         : `Add to ${CUBE_SECTION_LABELS[defaultSectionForType(shown.type)]}`
                     }
                   >
-                    {busy ? "…" : total > 0 ? "Add another" : "Add"}
+                    {busy ? "…" : count > 0 ? "Add another" : "Add"}
                   </button>
-                  {card.printingCount > 1 && (
+                  {/* Pointless when every printing is already a tile. */}
+                  {!showingEveryPrinting && card.printingCount > 1 && (
                     <button
                       type="button"
                       disabled={busy}

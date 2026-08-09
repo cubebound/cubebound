@@ -147,7 +147,12 @@ export default async function EditCubePage({
             </p>
           ) : (
             <div className="space-y-6">
-              <AddCards cubeId={cube.id} cards={browse![1].cards} holdings={holdings} />
+              <AddCards
+                cubeId={cube.id}
+                cards={browse![1].cards}
+                holdings={holdings}
+                showingEveryPrinting={Boolean(filters.allPrintings)}
+              />
               <CardPagination
                 filters={filters}
                 page={browse![1].page}
