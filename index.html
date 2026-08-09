@@ -60,7 +60,7 @@
     height: 100%;
     position: relative;
     transform-style: preserve-3d;
-    animation: spin 14s linear infinite;
+    transform: rotateX(-20deg) rotateY(30deg);
   }
 
   .face {
@@ -77,15 +77,6 @@
   .face:nth-child(4) { transform: rotateY(-90deg) translateZ(48px); border-color: var(--accent2); background: rgba(167, 139, 250, 0.06); }
   .face:nth-child(5) { transform: rotateX(90deg) translateZ(48px); }
   .face:nth-child(6) { transform: rotateX(-90deg) translateZ(48px); border-color: var(--accent2); background: rgba(167, 139, 250, 0.06); }
-
-  @keyframes spin {
-    from { transform: rotateX(0deg) rotateY(0deg); }
-    to { transform: rotateX(360deg) rotateY(360deg); }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .cube { animation: none; transform: rotateX(-20deg) rotateY(30deg); }
-  }
 
   .eyebrow {
     text-align: center;
@@ -190,8 +181,7 @@
     <div class="eyebrow">Project Prototype</div>
     <h1>Cubebound<span>.</span></h1>
     <p class="lede">
-      A short description of what Cubebound does goes here — replace this line
-      with one or two sentences on the problem it solves and who it's for.
+      A site to build and share riftbound cubes.
     </p>
 
     <div class="status">
@@ -202,7 +192,7 @@
     <div class="panel">
       <div class="panel-row"><span class="k">Status</span><span class="v">Early development</span></div>
       <div class="panel-row"><span class="k">Repo</span><span class="v">github.com/yourusername/cubebound</span></div>
-      <div class="panel-row"><span class="k">Contact</span><span class="v">you@example.com</span></div>
+      <div class="panel-row"><span class="k">Contact</span><span class="v">carl.ferguson96@gmail.com</span></div>
     </div>
 
     <footer>CUBEBOUND — LAST UPDATED AUGUST 2026</footer>
