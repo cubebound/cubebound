@@ -3,6 +3,10 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* What domain tints in the cube list are mixed down against, so one mix
+     percentage reads as a pale wash on light and a dark wash on dark while
+     the body text stays legible either way. */
+  --tint-base: #ffffff;
 }
 
 @theme inline {
@@ -16,6 +20,7 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --tint-base: #18181b;
   }
 }
 

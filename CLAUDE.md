@@ -127,8 +127,19 @@ until a source supplies them or we add a derivation step.
   without navigating. `?mode=browse` swaps in the full filter/grid browser
   **in place of** the cube list, so the add controls are never below it.
 - The cube list renders in two views: `visual` (image tiles) and `text`
-  (`src/components/cube-table.tsx` — a column per domain, one-line rows grouped
-  by energy cost with counts). Resolution is `?view=` first, then the
+  (`src/components/cube-table.tsx`). The text view reads domain → type → cost:
+  a column per domain, split into Units / Gear / Spells inside the main section
+  only (Champion Units are Units, Signature Spells are Spells, unknown types
+  get their own subgroup at the end), then cost groups with counts. Cost cells
+  are tinted with their domain colour mixed against `--tint-base`, which flips
+  between white and near-black so one mix percentage stays legible in both
+  themes. Multi-domain uses a diagonal blend of its actual domains rather than
+  a "multicolour gold", which would collide with Order.
+- In the text view, printings of the same card collapse to one row with a ×N
+  count — art variants are indistinguishable as text. The visual view keeps a
+  tile per printing, since there the art *is* the difference. Removing from a
+  merged row takes the last printing, so the base printing outlives its
+  variants and one click never drops two cards. Resolution is `?view=` first, then the
   `cubebound.cube-view` cookie, then visual; the toggle writes both, so a shared
   link shows what the sender saw while a personal preference follows you between
   cubes. See `src/lib/cube-view.ts`.

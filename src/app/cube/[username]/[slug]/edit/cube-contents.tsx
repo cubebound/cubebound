@@ -77,6 +77,8 @@ export default function CubeContents({
                   busyKey={busy}
                   onSelect={setSelected}
                   onRemove={remove}
+                  // Only main mixes card types; the rest are single-type.
+                  groupByType={section === "main"}
                 />
               ) : (
               <ul className={CARD_GRID_CLASS}>
