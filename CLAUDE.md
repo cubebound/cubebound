@@ -80,17 +80,27 @@ diffing, chunked upserts, and per-set reporting; adapters in
 `scripts/card-sources/` implement the `CardSource` interface and return cards
 already normalized to our `cards` row shape. Every row's `data` jsonb stores
 `{ source: "<adapter>", card: <raw payload> }` so we always know which API a
-row came from. Select with `CARD_SOURCE` env (default `riftscribe`).
+row came from. Select with `CARD_SOURCE` env (default `riftcodex`).
 
-- **riftscribe (active)** — RiftScribe open API (`https://riftscribe.gg`), no
-  auth. `GET /api/cards?limit=200&offset=N` (bare array, total in
-  `x-total-count` header) for the list, then `GET /api/cards/{id}` per card —
-  the list summaries lack rules text/keywords/tags/artist. Its ids embed a
-  RiftScribe-internal suffix (`ogn-001-298`); the adapter normalizes to
-  Riot-style ids (`OGN-001`, alt-art `OGN-100a`, signature `OGN-301-star`,
-  token `UNL-T03`) so a later source switch doesn't duplicate rows. Lowercase
-  `faction`/`rarity` values are title-cased; `image` (full PNG) and
-  `image_thumb.medium` (webp) map to `image_full`/`image_thumb`.
+- **riftcodex (active)** — Riftcodex open API (`https://api.riftcodex.com`),
+  no auth. `GET /cards?page=N&size=100` (`size` caps at 100; 422 above),
+  envelope `{ items, total, page, size, pages }`. It is the only source that
+  reports **every** domain of a multi-domain card, and the only one carrying
+  the whole pool. `riftbound_id` (`ogn-299*-298`) maps to our canonical ids:
+  `*` signature, `a`/`b` alt art, `tNN`/`rNN`/`spN` tokens and specials; the
+  trailing segment is the set size, not part of the identity. Names arrive as
+  "Champion - Title"; champion units print as "Champion, Title" but legends
+  print the title alone with the champion on the type line, so the two split
+  differently (`splitCardName`). Their feed contains stale duplicate records
+  under the same `riftbound_id` — keep the one with the newer
+  `metadata.updated_on`.
+- **riftscribe (retired but selectable)** — RiftScribe open API
+  (`https://riftscribe.gg`). Dropped as the default because its `faction` is a
+  single string, so every multi-domain card lost a domain: all legends came
+  through with one domain and Chaos/Order legends could not be found at all.
+  It also served only 950 cards (no VEN, OPP, PR or JDG) and left artist, tags
+  and supertype empty. Six UNL token rows still come from it, because
+  Riftcodex does not carry them and the sync never deletes.
 - **riot (dormant)** — `riftbound-content-v1`. Kept because it's the official
   source, but the endpoint requires app-specific approval and returns 403 on
   dev keys; our application is pending. When approved, set `CARD_SOURCE=riot`
@@ -98,8 +108,13 @@ row came from. Select with `CARD_SOURCE` env (default `riftscribe`).
   the docs' `art` object has been observed arriving as a `media` array instead
   (RiotGames/developer-relations#1093, unresolved).
 
-Neither source provides `supertype` or `champion`; those columns stay null
-until a source supplies them or we add a derivation step.
+**A card can have more than one domain** — 202 do, including nearly every
+legend, which determines two. Never assume a single domain anywhere: filters
+use array containment, and the UI has a Multi column for them.
+
+The sync never deletes, so a card the active source stops serving lingers with
+its old `data.source`. That is deliberate — losing cards is worse than keeping
+a stale row — but it means a source switch leaves residue worth checking for.
 
 ## Conventions
 

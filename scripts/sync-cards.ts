@@ -4,7 +4,10 @@
  * Sources (scripts/card-sources/) return cards already normalized to our row
  * shape; this entry point owns the idempotent diffing, chunked upserts, and
  * per-set reporting regardless of source:
- *   - riftscribe (default) — RiftScribe open API, no auth.
+ *   - riftcodex (default) — Riftcodex open API, no auth. The only source that
+ *     reports every domain of a multi-domain card.
+ *   - riftscribe          — RiftScribe open API. Single-domain only and short
+ *                           several sets; kept for comparison.
  *   - riot (dormant)       — riftbound-content-v1; 403s on dev keys until our
  *                            API application is approved. CARD_SOURCE=riot.
  *
@@ -18,6 +21,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { cards } from "../src/db/schema";
+import { createRiftcodexSource } from "./card-sources/riftcodex";
 import { createRiftScribeSource } from "./card-sources/riftscribe";
 import { createRiotSource } from "./card-sources/riot";
 import type { CardSource } from "./card-sources/types";
@@ -26,12 +30,13 @@ config({ path: ".env.local" });
 config();
 
 const SOURCES: Record<string, () => CardSource> = {
+  riftcodex: createRiftcodexSource,
   riftscribe: createRiftScribeSource,
   riot: createRiotSource,
 };
 
 function pickSource(): CardSource {
-  const name = process.env.CARD_SOURCE ?? "riftscribe";
+  const name = process.env.CARD_SOURCE ?? "riftcodex";
   const factory = SOURCES[name];
   if (!factory) {
     console.error(
