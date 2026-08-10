@@ -67,6 +67,20 @@ function describe(change: CubeChange) {
       );
     case "details_edited":
       return <>Edited the cube details.</>;
+    case "cards_imported": {
+      // toValue holds the number of distinct card/section rows the batch
+      // touched; quantity holds the copies those rows added.
+      const distinct = Number(change.toValue ?? 0);
+      return (
+        <>
+          Imported <span className="tabular-nums">{copies}</span> {plural}
+          {distinct > 0 && (
+            <> across <span className="tabular-nums">{distinct}</span> {distinct === 1 ? "card" : "cards"}</>
+          )}
+          .
+        </>
+      );
+    }
     case "primer_edited":
       return <>{change.toValue === "cleared" ? "Cleared" : "Updated"} the primer.</>;
     default:

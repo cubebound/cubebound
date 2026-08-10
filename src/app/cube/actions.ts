@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 
 import {
   getCardById,
+  getCardsByIds,
+  getImportCatalog,
   getPrintingsForBases,
   quickSearchCards,
   type BrowseCard,
@@ -31,6 +33,11 @@ import {
 import type { Cube, NewCubeChange, User } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { canEditCube, canViewCube } from "@/lib/cube-access";
+import {
+  mergeImportRows,
+  previewImport,
+  type ImportPreview,
+} from "@/lib/import-list";
 import { defaultSectionForType, isCubeSection, type CubeSection } from "@/lib/riftbound";
 
 export interface ActionState {
@@ -40,6 +47,8 @@ export interface ActionState {
 const VISIBILITIES: CubeVisibility[] = ["public", "unlisted", "private"];
 const NAME_MAX = 100;
 const DESCRIPTION_MAX = 2000;
+/** Generous for 500 lines of card names, small enough to reject a pasted file. */
+const MAX_IMPORT_CHARS = 100_000;
 
 /**
  * The single gate every cube mutation goes through.
@@ -452,4 +461,86 @@ export async function quickSearchAction(
     })),
     inCube,
   };
+}
+
+// --- Bulk import -------------------------------------------------------------
+
+export interface ImportPreviewState {
+  preview?: ImportPreview;
+  error?: string;
+}
+
+/**
+ * Resolves a pasted list against the card pool. Writes nothing.
+ *
+ * Gated on ownership like every other cube action even though it only reads:
+ * the preview reveals whether a cube id exists, and non-owners have no reason
+ * to probe that.
+ */
+export async function previewImportAction(
+  cubeId: string,
+  text: string,
+): Promise<ImportPreviewState> {
+  const owned = await requireOwnedCube(cubeId);
+  if ("error" in owned) return { error: owned.error };
+
+  if (typeof text !== "string" || text.trim().length === 0) {
+    return { error: "Paste a list of card names first." };
+  }
+  if (text.length > MAX_IMPORT_CHARS) {
+    return { error: "That list is too large to import in one go." };
+  }
+
+  const catalog = await getImportCatalog();
+  return { preview: previewImport(text, catalog) };
+}
+
+/** One resolved row the user confirmed. */
+export interface ImportCommitRow {
+  cardId: string;
+  section: string;
+  quantity: number;
+}
+
+/**
+ * Applies a confirmed import.
+ *
+ * Takes resolved rows rather than the original text: the user may have picked
+ * a suggestion or changed a section in the preview, and re-parsing would throw
+ * those choices away. Everything is re-validated here — the client is choosing
+ * from options, not dictating them.
+ */
+export async function commitImportAction(
+  cubeId: string,
+  rows: ImportCommitRow[],
+): Promise<ActionState & { added?: number }> {
+  const owned = await requireOwnedCube(cubeId);
+  if ("error" in owned) return { error: owned.error };
+
+  const merge = mergeImportRows(rows, MAX_CARD_QUANTITY);
+  if (!merge.ok) return { error: merge.error };
+  const entries = merge.rows;
+
+  // Every id has to be a real card, checked here rather than trusted from the
+  // client; an unknown one would otherwise fail on the foreign key mid-import.
+  const known = await getCardsByIds(entries.map((e) => e.cardId));
+  const namesById = new Map(known.map((c) => [c.id, c.name]));
+  const unknown = entries.find((e) => !namesById.has(e.cardId));
+  if (unknown) return { error: `That card no longer exists: ${unknown.cardId}` };
+
+  let copies = 0;
+  for (const entry of entries) {
+    await addCubeCard(owned.cube.id, entry.cardId, entry.section, entry.quantity);
+    copies += entry.quantity;
+  }
+
+  // One batch entry, not one per card — see the enum comment in the schema.
+  await logChange(owned, {
+    kind: "cards_imported",
+    quantity: copies,
+    toValue: String(entries.length),
+  });
+
+  revalidateCube(owned.profile.username, owned.cube.slug);
+  return { added: copies };
 }

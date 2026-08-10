@@ -14,10 +14,10 @@ Working: card ingestion (1,294 printings / 966 distinct cards across 8 sets),
 editor, visual and text views, primer, change log, the public cube view with
 Share and Clone, and CI.
 
-**In progress: bulk import** — pasting or uploading a card list to populate a
-cube in one go, instead of adding cards one at a time.
+**Bulk import has shipped** — paste a card list on the editor's Import tab,
+preview exactly what matched, then commit.
 
-After that, phase 2 in the order under "Product vision", starting with search
+Next: phase 2 in the order under "Product vision", starting with search
 syntax (`domain:fury cost:2 type:unit`).
 
 Open items:
@@ -27,7 +27,7 @@ Open items:
   URLs. The live domain must stay on the Supabase redirect allowlist; see
   "Auth and data access" for what breaks when it isn't.
 - **CI covers typecheck, lint, build and `check:primer-safety`** on push and PR.
-  The other seven checks need a live Supabase and are a documented pre-deploy
+  The other eight checks need a live Supabase and are a documented pre-deploy
   manual gate — see "Checks". Run that gate before deploying.
 - Work lands on `master` and pushes to `github.com/cubebound/cubebound`. The
   merged `cube-editor-redesign` branch can be deleted.
@@ -96,7 +96,8 @@ cube_changes  id, cube_id, actor_id (set null on delete), actor_username, kind,
 
 Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0002` enable RLS · `0003` recompute `base_id` as data-derived print groups ·
-`0004` `cubes.primer` · `0005` `cube_changes` (+ RLS).
+`0004` `cubes.primer` · `0005` `cube_changes` (+ RLS) ·
+`0006` the `cards_imported` change kind.
 
 `0001`'s suffix-stripping rule is superseded by `0003`; only `0003` must stay in
 step with `src/lib/card-ids.ts`. Adding a column to a populated table means
@@ -233,6 +234,21 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - The text view labels rows with their printing id only when a card sits in one
   section under more than one printing (`ambiguousBaseIds`); otherwise the
   names alone are unambiguous and the ids are noise.
+- **Bulk import never guesses.** The Import tab parses a pasted list
+  (`src/lib/import-list.ts`, pure and catalog-driven): optional leading
+  quantity (`2 Fury Rune` / `2x Fury Rune`), `#` and `//` comments, and
+  `Legends:`-style headers that set the section for the lines beneath, falling
+  back to `defaultSectionForType`. Matching is case-insensitive and exact on
+  the name; a miss becomes an **unmatched** line with suggestions to pick from,
+  and a name resolving to two distinct cards becomes an **ambiguity** — neither
+  is ever auto-resolved. Normalization folds case, whitespace and smart quotes
+  but deliberately **not** punctuation, because "Daisy!" is a real card name and
+  collapsing it would be exactly the silent guess this avoids. Capped at
+  `MAX_IMPORT_LINES`. The preview writes nothing; commit takes resolved rows
+  rather than re-parsing, so the user's picks survive, and re-validates every
+  one server-side through `mergeImportRows`. Imports append and increment, and
+  log as a single `cards_imported` batch. No name in the pool maps to two cards
+  today, so `check:import` covers ambiguity with a synthetic catalog.
 - **Runes are optional content.** A cube with no runes is a legitimate cube, so
   never warn about their absence or treat any section as required.
 - Public cube view is `/cube/{username}/{slug}`. Public and unlisted render for
@@ -304,6 +320,7 @@ touching what you changed; run the manual gate in full before a deploy.
 | `check:auth-flow` | claiming a username refreshes the nav (`revalidatePath`) | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:cube-ownership` | replays an Add under another session and with no cookie | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:magic-link` | the `redirect_to` actually sent to Supabase, and `/?code=` self-heal | `dev:probe` server + Chrome :9222 | manual gate |
+| `check:import` | import parsing, matching, the line cap and the committed result | DB | manual gate |
 
 `check:magic-link` needs the dev server started as `SIGNIN_PROBE=1 npm run
 dev:probe`, which preloads `scripts/otp-probe.mjs` to intercept the outgoing
@@ -333,7 +350,7 @@ reuses a populated `.next` and an existing `.env.local`, so it passes on state
 CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
 `npm ci`, set placeholder env, then run the steps.
 
-### Why the other seven are a manual gate, not CI
+### Why the other eight are a manual gate, not CI
 
 Five of them `INSERT` directly into `auth.users` and then exchange a password
 grant against a live GoTrue endpoint to mint a session cookie. That needs a
@@ -360,7 +377,7 @@ chrome --headless=new --remote-debugging-port=9222 --user-data-dir=/tmp/cbchrome
 npm run check:printings && npm run check:browse-grid && \
 npm run check:copies-and-log && npm run check:public-cube && \
 npm run check:auth-flow && npm run check:cube-ownership && \
-npm run check:magic-link
+npm run check:magic-link && npm run check:import
 ```
 
 Each creates throwaway accounts and deletes them again, including on failure.

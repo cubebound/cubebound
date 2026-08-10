@@ -119,6 +119,9 @@ export const cubeChangeKindEnum = pgEnum("cube_change_kind", [
   "printing_switched",
   "details_edited",
   "primer_edited",
+  // A bulk import is one entry, not one per card: a 300-card paste would
+  // otherwise bury every other edit in the cube's history.
+  "cards_imported",
 ]);
 
 /**

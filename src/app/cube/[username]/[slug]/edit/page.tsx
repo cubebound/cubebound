@@ -24,6 +24,7 @@ import { countCopies } from "@/lib/cube-cards";
 
 import AddCards from "./add-cards";
 import CubeContents from "./cube-contents";
+import ImportCards from "./import-cards";
 import PrimerEditor from "./primer-editor";
 import QuickAdd from "./quick-add";
 
@@ -55,6 +56,7 @@ export default async function EditCubePage({
   const browsing = mode === "browse";
   const writingPrimer = mode === "primer";
   const viewingLog = mode === "log";
+  const importing = mode === "import";
   const view = resolveCubeView(query.view, (await cookies()).get(CUBE_VIEW_COOKIE)?.value);
 
   const [contents, inCube] = await Promise.all([
@@ -124,8 +126,9 @@ export default async function EditCubePage({
           {modeLink("Cube", basePath, !browsing && !writingPrimer && !viewingLog)}
           {modeLink("Browse cards", `${basePath}?mode=browse`, browsing)}
           {modeLink("Primer", `${basePath}?mode=primer`, writingPrimer)}
+          {modeLink("Import", `${basePath}?mode=import`, importing)}
           {modeLink("Change log", `${basePath}?mode=log`, viewingLog)}
-          {!browsing && !writingPrimer && !viewingLog && contents.length > 0 && (
+          {!browsing && !writingPrimer && !viewingLog && !importing && contents.length > 0 && (
             <span className="ml-auto">
               <CubeViewToggle active={view} />
             </span>
@@ -133,7 +136,16 @@ export default async function EditCubePage({
         </nav>
       </header>
 
-      {viewingLog ? (
+      {importing ? (
+        <section className="max-w-4xl">
+          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+            Paste a card list to add many cards at once. You&rsquo;ll see exactly
+            what matched before anything is added, and imports append to what the
+            cube already holds.
+          </p>
+          <ImportCards cubeId={cube.id} editorPath={basePath} />
+        </section>
+      ) : viewingLog ? (
         <section>
           <p className="mb-4 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
             Every edit to this cube, newest first.

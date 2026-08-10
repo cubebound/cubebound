@@ -43,6 +43,13 @@
       "when": 1786320306644,
       "tag": "0005_unusual_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786372283820,
+      "tag": "0006_import_change_kind",
+      "breakpoints": true
     }
   ]
 }

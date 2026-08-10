@@ -245,3 +245,32 @@ export async function getFilterOptions(): Promise<FilterOptions> {
     rarities: sortByCanonical(values(rarities), RARITIES),
   };
 }
+
+/**
+ * Every canonical printing, for the bulk importer to match names against.
+ *
+ * Only base printings (`id = base_id`), because an import resolves a name to a
+ * card and the base printing is what "the card" means here — alt arts are
+ * chosen per copy afterwards. ~966 rows, small enough to match in memory,
+ * which keeps the matching rules pure and testable in src/lib/import-list.ts.
+ */
+export async function getImportCatalog(): Promise<
+  { id: string; name: string; type: string }[]
+> {
+  return db
+    .select({ id: cards.id, name: cards.name, type: cards.type })
+    .from(cards)
+    .where(eq(cards.id, cards.baseId))
+    .orderBy(cards.name);
+}
+
+/** Looks up several cards by id, for validating a confirmed import. */
+export async function getCardsByIds(
+  ids: string[],
+): Promise<{ id: string; name: string; type: string }[]> {
+  if (ids.length === 0) return [];
+  return db
+    .select({ id: cards.id, name: cards.name, type: cards.type })
+    .from(cards)
+    .where(inArray(cards.id, ids));
+}
