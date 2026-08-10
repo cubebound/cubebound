@@ -110,7 +110,8 @@ row came from. Select with `CARD_SOURCE` env (default `riftcodex`).
 
 **A card can have more than one domain** — 202 do, including nearly every
 legend, which determines two. Never assume a single domain anywhere: filters
-use array containment, and the UI has a Multi column for them.
+use array containment, and the text view gives each domain pair its own
+column.
 
 The sync never deletes, so a card the active source stops serving lingers with
 its old `data.source`. That is deliberate — losing cards is worse than keeping
@@ -156,11 +157,7 @@ a stale row — but it means a source switch leaves residue worth checking for.
   their own domains. A pair's tint is a diagonal blend of its two colours and
   its header dot is a hard split; a blend would be mud at 10px, and a
   "multicolour gold" would collide with Order.
-- In the text view, printings of the same card collapse to one row with a ×N
-  count — art variants are indistinguishable as text. The visual view keeps a
-  tile per printing, since there the art *is* the difference. Removing from a
-  merged row takes the last printing, so the base printing outlives its
-  variants and one click never drops two cards. Resolution is `?view=` first, then the
+- View resolution is `?view=` first, then the
   `cubebound.cube-view` cookie, then visual; the toggle writes both, so a shared
   link shows what the sender saw while a personal preference follows you between
   cubes. See `src/lib/cube-view.ts`.
@@ -229,7 +226,7 @@ a stale row — but it means a source switch leaves residue worth checking for.
   rendered as components or passed as props. Pure helpers that both sides need
   therefore live in `src/lib/`, never beside the component that happens to use
   them most: `cardFilterParams` in `card-search-params.ts` (the pagination
-  server component calls it) and `countCopies` in `riftbound.ts` (the cube
+  server component calls it) and `countCopies` in `cube-cards.ts` (the cube
   pages call it). This fails at request time, not at build time, so it is easy
   to ship — if a helper is shared, put it in `src/lib/` first.
 
