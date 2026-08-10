@@ -32,8 +32,9 @@ Open items:
 - **CI covers typecheck, lint, build and `check:primer-safety`** on push and PR.
   The other eight checks need a live Supabase and are a documented pre-deploy
   manual gate — see "Checks". Run that gate before deploying.
-- Work lands on `master` and pushes to `github.com/cubebound/cubebound`. The
-  merged `cube-editor-redesign` branch can be deleted.
+- Feature work lands on a branch and pushes to
+  `github.com/cubebound/cubebound`; `master` is production — see
+  "Environments". The merged `cube-editor-redesign` branch can be deleted.
 - The Riot adapter stays dormant until our API application is approved.
 - Six UNL token rows still come from the retired riftscribe source.
 
@@ -59,6 +60,60 @@ The MVP loop is shipped and live. Do NOT build ahead of the current phase.
 - Tailwind CSS
 - Deployed on Vercel
 - Card data ingested into our own DB via a sync script with pluggable sources (see "Card data sources" below); card images served from source CDN URLs stored per-card (do not proxy/cache images yet)
+
+## Environments
+
+Two Supabase projects. They share the same schema; they share no data.
+
+| | Local dev | Production |
+|---|---|---|
+| Supabase project | `cubebound-dev` | the original project |
+| Config source | `.env.local` (gitignored) | Vercel env vars |
+| URL | localhost:3000 | cubebound.vercel.app / cubebound.gg |
+| Email sender | Supabase default | custom, login@cubebound.gg |
+| Deployed from | — | `master` |
+
+Anything run from the developer's machine — `npm run dev`, `db:migrate`,
+`db:push`, `sync-cards`, any script reading `DATABASE_URL` — hits the **dev**
+database only. Local work cannot reach production data. That is what makes the
+manual gate safe to run against a live Supabase: the accounts those checks
+create and delete are dev accounts.
+
+**`.env.local` is the single switch between the two. Never edit it, never print
+its contents, and never suggest changing it as a fix.** If a task appears to
+require production credentials, stop and say so rather than reaching for them.
+
+### Migrations
+
+Migrations run manually and separately per environment. `npm run db:migrate`
+against dev is part of normal development; production is migrated deliberately
+by the owner at merge time.
+
+**A Vercel build does not run migrations**, so a feature that adds tables ships
+broken until production is migrated. Any report on work that includes a
+migration must say so explicitly — the deploy will look successful and the
+feature will fail at request time.
+
+Prefer `db:migrate` (versioned files) over `db:push` (diffs the schema and can
+drop columns).
+
+### Card data
+
+Cards come from riftcodex via `npm run sync-cards` (~1,451 records before
+duplicate collapsing). No Riot API key is needed. **Dev's card table is
+populated by re-running the sync, not copied from production** — so a data
+correction that lands through the sync (a fixed adapter mapping, a
+`--force` re-map) has to be run again against production, and is not carried
+across by deploying.
+
+### Branching
+
+`master` is production: pushing to it deploys the live site. Feature work
+happens on branches; pushing a branch produces a Vercel preview deployment and
+does not touch production. Current feature branch: `draft-engine`.
+
+Commit per logical piece of work with a descriptive message. **Do not merge to
+`master`, and do not suggest merging** — the owner decides when work goes live.
 
 ## Riftbound domain model (game concepts — get these right)
 
@@ -104,6 +159,9 @@ Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0002` enable RLS · `0003` recompute `base_id` as data-derived print groups ·
 `0004` `cubes.primer` · `0005` `cube_changes` (+ RLS) ·
 `0006` the `cards_imported` change kind · `0007` `drafts` + `draft_picks` (+ RLS).
+
+Migrations are applied **per environment and by hand** — see "Environments".
+A migration in a merged branch is not live until production is migrated.
 
 `0001`'s suffix-stripping rule is superseded by `0003`; only `0003` must stay in
 step with `src/lib/card-ids.ts`. Adding a column to a populated table means
@@ -185,7 +243,7 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - Server components by default; client components only where interactivity requires.
 - All DB access through Drizzle in `src/db/`; no raw SQL in route handlers.
 - Card sync entry point lives in `scripts/sync-cards.ts`, idempotent, diffs by card id against the stored raw payload, safe to re-run. New sets ship every ~3 months — the sync must handle unknown fields gracefully (hence the `data` jsonb column).
-- **After changing an adapter's mapping, run `npm run sync-cards -- --force`.** The diff compares stored raw payloads, so a mapping fix leaves every row looking unchanged and silently never lands — a corrected `champion` field once reported "1288 unchanged". `--force` rewrites every row from the current mapping. Dry-run first by re-mapping the stored payloads and diffing: a change to *names* would reshuffle `base_id` grouping and needs review, a change to other fields does not.
+- **After changing an adapter's mapping, run `npm run sync-cards -- --force`.** The diff compares stored raw payloads, so a mapping fix leaves every row looking unchanged and silently never lands — a corrected `champion` field once reported "1288 unchanged". `--force` rewrites every row from the current mapping. Dry-run first by re-mapping the stored payloads and diffing: a change to *names* would reshuffle `base_id` grouping and needs review, a change to other fields does not. **Run it against each environment separately** — card data is synced per project, not copied, so a fix applied to dev is not carried to production by deploying.
 - Never hand-edit card data; fix the sync instead.
 - Keep components small; colocate route-specific components under their route folder.
 - Riftbound term casing in UI: domains and card types are proper nouns (Fury, Battlefield). Sources store them lowercase; title-case at the boundary via `titleCase` in `src/lib/riftbound.ts`.
@@ -410,6 +468,8 @@ smart; C adds the deck builder.
   *ids*; details come from `cards`, which cube edits don't touch. A card
   deleted from the database outright makes the draft unresumable, and it says so
   rather than dealing a hole.
+- **Milestone A adds migration `0007`.** Production is migrated by hand, so the
+  draft route will fail there until that runs, however green the deploy looks.
 - Bot picks are stored as well as the human's, though only the human's are
   replayed — the bots' are a deterministic function of the seed, so feeding
   them back would assert them twice. They are kept for readability and to give
@@ -429,7 +489,9 @@ deck. Written down now so the builder does not have to re-derive them:
 ## Checks
 
 Each check guards a regression that already happened once. Run the ones
-touching what you changed; run the manual gate in full before a deploy.
+touching what you changed; run the manual gate in full before a deploy. The
+ones needing a database hit **dev**, never production — see "Environments" —
+which is why they can create and delete accounts freely.
 
 | Script | Guards | Needs | Runs |
 | --- | --- | --- | --- |
