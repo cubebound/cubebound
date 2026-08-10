@@ -119,6 +119,12 @@ export default async function CubePage({
               visibility={cube.visibility}
               settingsHref={isOwner ? `${basePath}/settings` : undefined}
             />
+            <Link
+              href={`${basePath}/draft`}
+              className="inline-flex h-9 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Draft
+            </Link>
             {isOwner && (
               <Link
                 href={`${basePath}/edit`}
