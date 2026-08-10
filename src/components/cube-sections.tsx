@@ -5,16 +5,16 @@ import { useCallback, useState, type ReactNode } from "react";
 import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
 import CubeTable from "@/components/cube-table";
 import type { CubeCardRow } from "@/db/queries/cubes";
+import { countCopies, expandCopies, type CopyOf } from "@/lib/cube-cards";
 import type { CubeView } from "@/lib/cube-view";
-import {
-  countCopies,
-  CUBE_SECTIONS,
-  CUBE_SECTION_LABELS,
-  type CubeSection,
-} from "@/lib/riftbound";
+import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
 
 /**
  * A cube's cards, grouped by section and rendered in the chosen view.
+ *
+ * Every copy is its own entry — a cube running three of a card shows three
+ * entries rather than one wearing a "×3" — so each can be retargeted to a
+ * different printing or section on its own.
  *
  * Shared by the owner's editor and the public page. The public page passes no
  * action props, which is what makes it read-only — there is no "is the viewer
@@ -23,7 +23,7 @@ import {
 export default function CubeSections({
   cards,
   view,
-  tileAction,
+  copyAction,
   onRemoveOne,
   busyKey,
   emptyMessage = "No cards yet.",
@@ -31,17 +31,17 @@ export default function CubeSections({
 }: {
   cards: CubeCardRow[];
   view: CubeView;
-  /** Editor controls under each tile in the visual view. */
-  tileAction?: (card: CubeCardRow) => ReactNode;
+  /** Editor controls under each copy in the visual view. */
+  copyAction?: (copy: CopyOf<CubeCardRow>) => ReactNode;
   /** Text view's per-row remove; omitted for read-only views. */
   onRemoveOne?: (card: CubeCardRow) => void;
   busyKey?: string | null;
   emptyMessage?: string;
   detailFooter?: (card: CubeCardRow) => ReactNode;
 }) {
-  // Track the selection by key, not by row: after a quantity change the page
-  // revalidates and hands us new row objects, and a held reference would show
-  // a stale count. Deriving it also closes the modal when the card is removed.
+  // Track the selection by key, not by row: after an edit the page revalidates
+  // and hands us new row objects, and a held reference would show stale data.
+  // Deriving it also closes the modal when the card is removed.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const close = useCallback(() => setSelectedKey(null), []);
   const rowKey = (card: CubeCardRow) => `${card.id}:${card.section}`;
@@ -84,14 +84,13 @@ export default function CubeSections({
                 />
               ) : (
                 <ul className={CARD_GRID_CLASS}>
-                  {inSection.map((card) => (
+                  {expandCopies(inSection).map((copy) => (
                     <CardTile
-                      key={rowKey(card)}
-                      card={card}
+                      key={copy.key}
+                      card={copy.card}
                       showPrintingCount={false}
-                      quantity={card.quantity}
-                      onOpen={() => setSelectedKey(rowKey(card))}
-                      action={tileAction?.(card)}
+                      onOpen={() => setSelectedKey(rowKey(copy.card))}
+                      action={copyAction?.(copy)}
                     />
                   ))}
                 </ul>
@@ -102,11 +101,7 @@ export default function CubeSections({
       </div>
 
       {selected && (
-        <CardDetail
-          card={selected}
-          onClose={close}
-          footer={detailFooter?.(selected)}
-        />
+        <CardDetail card={selected} onClose={close} footer={detailFooter?.(selected)} />
       )}
     </>
   );

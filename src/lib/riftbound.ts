@@ -96,16 +96,6 @@ export function isCubeSection(value: string): value is CubeSection {
 }
 
 /**
- * Total copies in a set of cube rows, not the number of rows — a cube running
- * four of a card holds four. Lives here rather than beside the components so
- * server components can call it; exports of a `"use client"` module cannot be
- * invoked from the server.
- */
-export function countCopies(cards: { quantity: number }[]): number {
-  return cards.reduce((sum, card) => sum + card.quantity, 0);
-}
-
-/**
  * Battlefields are printed landscape; every other type is portrait. Derived
  * from type because our schema has no orientation column — verified against
  * the full card pool (all 56 Battlefields landscape, all other types portrait).

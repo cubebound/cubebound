@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import CardFilterBar from "@/components/card-filter-bar";
 import CardPagination from "@/components/card-pagination";
+import ChangeLog from "@/components/change-log";
 import CubeViewToggle from "@/components/cube-view-toggle";
 import { getFilterOptions, PAGE_SIZE, searchCards } from "@/db/queries/cards";
 import {
@@ -12,12 +13,14 @@ import {
   getCubeCardQuantities,
   getCubeCards,
   getCubeHoldingsForBases,
+  listCubeChanges,
 } from "@/db/queries/cubes";
+import { getPrintingsForBases } from "@/db/queries/cards";
 import { getCurrentUser } from "@/lib/auth";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
 import { canEditCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
-import { countCopies } from "@/lib/riftbound";
+import { countCopies } from "@/lib/cube-cards";
 
 import AddCards from "./add-cards";
 import CubeContents from "./cube-contents";
@@ -51,6 +54,7 @@ export default async function EditCubePage({
   const mode = Array.isArray(query.mode) ? query.mode[0] : query.mode;
   const browsing = mode === "browse";
   const writingPrimer = mode === "primer";
+  const viewingLog = mode === "log";
   const view = resolveCubeView(query.view, (await cookies()).get(CUBE_VIEW_COOKIE)?.value);
 
   const [contents, inCube] = await Promise.all([
@@ -59,11 +63,22 @@ export default async function EditCubePage({
   ]);
   const totalCopies = countCopies(contents);
 
+  // Every printing of every card in the cube, so each copy can be switched
+  // without a round trip when the control is opened.
+  const printingRows = await getPrintingsForBases([
+    ...new Set(contents.map((card) => card.baseId)),
+  ]);
+  const printingsByBase: Record<string, typeof printingRows> = {};
+  for (const printing of printingRows) {
+    (printingsByBase[printing.baseId] ??= []).push(printing);
+  }
+
   // The browse grid is only rendered in browse mode, so don't pay for it in
   // the default view.
   const browse = browsing
     ? await Promise.all([getFilterOptions(), searchCards(filters)])
     : null;
+  const changes = viewingLog ? await listCubeChanges(cube.id) : [];
   // Which of the results the cube already holds, and in which printing.
   const holdings = browse
     ? await getCubeHoldingsForBases(cube.id, browse[1].cards.map((c) => c.baseId))
@@ -106,10 +121,11 @@ export default async function EditCubePage({
           </Link>
         </div>
         <nav className="mt-4 flex flex-wrap items-center gap-2">
-          {modeLink("Cube", basePath, !browsing && !writingPrimer)}
+          {modeLink("Cube", basePath, !browsing && !writingPrimer && !viewingLog)}
           {modeLink("Browse cards", `${basePath}?mode=browse`, browsing)}
           {modeLink("Primer", `${basePath}?mode=primer`, writingPrimer)}
-          {!browsing && !writingPrimer && contents.length > 0 && (
+          {modeLink("Change log", `${basePath}?mode=log`, viewingLog)}
+          {!browsing && !writingPrimer && !viewingLog && contents.length > 0 && (
             <span className="ml-auto">
               <CubeViewToggle active={view} />
             </span>
@@ -117,7 +133,14 @@ export default async function EditCubePage({
         </nav>
       </header>
 
-      {writingPrimer ? (
+      {viewingLog ? (
+        <section>
+          <p className="mb-4 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
+            Every edit to this cube, newest first.
+          </p>
+          <ChangeLog changes={changes} />
+        </section>
+      ) : writingPrimer ? (
         <section>
           <p className="mb-4 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
             A long-form write-up for people browsing your cube — the archetypes,
@@ -168,7 +191,12 @@ export default async function EditCubePage({
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <section className="min-w-0">
-            <CubeContents cubeId={cube.id} cards={contents} view={view} />
+            <CubeContents
+              cubeId={cube.id}
+              cards={contents}
+              view={view}
+              printingsByBase={printingsByBase}
+            />
           </section>
           <QuickAdd cubeId={cube.id} inCube={inCube} />
         </div>

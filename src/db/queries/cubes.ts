@@ -1,7 +1,16 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "..";
-import { cards, cubeCards, cubes, users, type Cube } from "../schema";
+import {
+  cards,
+  cubeCards,
+  cubeChanges,
+  cubes,
+  users,
+  type Cube,
+  type CubeChange,
+  type NewCubeChange,
+} from "../schema";
 import { browseColumns, type BrowseCard } from "./cards";
 import type { CubeSection } from "@/lib/riftbound";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -153,6 +162,30 @@ export async function countCubeCards(cubeId: string): Promise<number> {
   return value;
 }
 
+/**
+ * Appends to a cube's change log. Never throws into the caller's path: a
+ * failure to record history must not undo or block the edit itself.
+ */
+export async function recordCubeChange(entry: NewCubeChange): Promise<void> {
+  try {
+    await db.insert(cubeChanges).values(entry);
+  } catch (error) {
+    console.error("failed to record cube change", entry.kind, error);
+  }
+}
+
+export async function listCubeChanges(
+  cubeId: string,
+  limit = 200,
+): Promise<CubeChange[]> {
+  return db
+    .select()
+    .from(cubeChanges)
+    .where(eq(cubeChanges.cubeId, cubeId))
+    .orderBy(desc(cubeChanges.createdAt), desc(cubeChanges.id))
+    .limit(limit);
+}
+
 export interface CubeHolding {
   /** Copies of any printing of this card, across every section. */
   total: number;
@@ -267,12 +300,13 @@ export async function adjustCubeCardQuantity(
   return result;
 }
 
+/** Removes every copy of a printing from a section; returns how many went. */
 export async function removeCubeCard(
   cubeId: string,
   cardId: string,
   section: CubeSection,
-): Promise<void> {
-  await db
+): Promise<number> {
+  const removed = await db
     .delete(cubeCards)
     .where(
       and(
@@ -280,102 +314,80 @@ export async function removeCubeCard(
         eq(cubeCards.cardId, cardId),
         eq(cubeCards.section, section),
       ),
-    );
+    )
+    .returning({ quantity: cubeCards.quantity });
   await touchCube(cubeId);
+  return removed.reduce((sum, row) => sum + row.quantity, 0);
 }
 
 /**
- * Moves a card between sections. `section` is part of the primary key, so this
- * deletes and re-inserts; doing it in one transaction keeps the card from
- * vanishing if the insert conflicts with a copy already in the target section.
+ * Moves a single copy from one (printing, section) slot to another.
+ *
+ * Both "put this copy in the sideboard" and "make this copy the alt art" are
+ * the same operation: take one copy off the source slot and add it to the
+ * target. Copies are listed individually in the UI, so these always act on one
+ * copy — never on every copy of a card.
  */
-export async function moveCubeCard(
+async function moveOneCopy(
+  cubeId: string,
+  from: { cardId: string; section: CubeSection },
+  to: { cardId: string; section: CubeSection },
+): Promise<boolean> {
+  if (from.cardId === to.cardId && from.section === to.section) return false;
+
+  const moved = await db.transaction(async (tx) => {
+    const source = and(
+      eq(cubeCards.cubeId, cubeId),
+      eq(cubeCards.cardId, from.cardId),
+      eq(cubeCards.section, from.section),
+    );
+    const [existing] = await tx
+      .select({ quantity: cubeCards.quantity })
+      .from(cubeCards)
+      .where(source)
+      .limit(1);
+    if (!existing) return false;
+
+    if (existing.quantity <= 1) {
+      await tx.delete(cubeCards).where(source);
+    } else {
+      await tx.update(cubeCards).set({ quantity: existing.quantity - 1 }).where(source);
+    }
+
+    // Merge into whatever is already in the target slot rather than losing
+    // the copy being moved.
+    await tx
+      .insert(cubeCards)
+      .values({ cubeId, cardId: to.cardId, section: to.section, quantity: 1 })
+      .onConflictDoUpdate({
+        target: [cubeCards.cubeId, cubeCards.cardId, cubeCards.section],
+        set: { quantity: sql`least(${MAX_CARD_QUANTITY}, ${cubeCards.quantity} + 1)` },
+      });
+    return true;
+  });
+
+  if (moved) await touchCube(cubeId);
+  return moved;
+}
+
+/** Moves one copy to a different section, keeping its printing. */
+export async function moveCopyToSection(
   cubeId: string,
   cardId: string,
   from: CubeSection,
   to: CubeSection,
-): Promise<void> {
-  if (from === to) return;
-  await db.transaction(async (tx) => {
-    const [existing] = await tx
-      .select({ quantity: cubeCards.quantity })
-      .from(cubeCards)
-      .where(
-        and(
-          eq(cubeCards.cubeId, cubeId),
-          eq(cubeCards.cardId, cardId),
-          eq(cubeCards.section, from),
-        ),
-      )
-      .limit(1);
-    if (!existing) return;
-
-    await tx
-      .delete(cubeCards)
-      .where(
-        and(
-          eq(cubeCards.cubeId, cubeId),
-          eq(cubeCards.cardId, cardId),
-          eq(cubeCards.section, from),
-        ),
-      );
-    // Merge into whatever is already in the target section rather than
-    // discarding the copies being moved.
-    await tx
-      .insert(cubeCards)
-      .values({ cubeId, cardId, section: to, quantity: existing.quantity })
-      .onConflictDoUpdate({
-        target: [cubeCards.cubeId, cubeCards.cardId, cubeCards.section],
-        set: {
-          quantity: sql`least(${MAX_CARD_QUANTITY}, ${cubeCards.quantity} + ${existing.quantity})`,
-        },
-      });
-  });
-  await touchCube(cubeId);
+): Promise<boolean> {
+  return moveOneCopy(cubeId, { cardId, section: from }, { cardId, section: to });
 }
 
-/** Swaps one printing for another, keeping the section. */
-export async function swapCubeCardPrinting(
+/** Switches one copy to a different printing, keeping its section. */
+export async function switchCopyPrinting(
   cubeId: string,
   fromCardId: string,
   toCardId: string,
   section: CubeSection,
-): Promise<void> {
-  if (fromCardId === toCardId) return;
-  await db.transaction(async (tx) => {
-    const [existing] = await tx
-      .select({ quantity: cubeCards.quantity })
-      .from(cubeCards)
-      .where(
-        and(
-          eq(cubeCards.cubeId, cubeId),
-          eq(cubeCards.cardId, fromCardId),
-          eq(cubeCards.section, section),
-        ),
-      )
-      .limit(1);
-    if (!existing) return;
-
-    await tx
-      .delete(cubeCards)
-      .where(
-        and(
-          eq(cubeCards.cubeId, cubeId),
-          eq(cubeCards.cardId, fromCardId),
-          eq(cubeCards.section, section),
-        ),
-      );
-    await tx
-      .insert(cubeCards)
-      .values({ cubeId, cardId: toCardId, section, quantity: existing.quantity })
-      .onConflictDoUpdate({
-        target: [cubeCards.cubeId, cubeCards.cardId, cubeCards.section],
-        set: {
-          quantity: sql`least(${MAX_CARD_QUANTITY}, ${cubeCards.quantity} + ${existing.quantity})`,
-        },
-      });
-  });
-  await touchCube(cubeId);
+): Promise<boolean> {
+  return moveOneCopy(cubeId, { cardId: fromCardId, section }, { cardId: toCardId, section });
 }
 
 /**

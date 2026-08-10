@@ -11,8 +11,8 @@ import { getCurrentUser } from "@/lib/auth";
 import type { SearchParams } from "@/lib/card-search-params";
 import { canEditCube, canViewCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
+import { countCopies } from "@/lib/cube-cards";
 import {
-  countCopies,
   CUBE_SECTIONS,
   CUBE_SECTION_LABELS,
   type CubeSection,

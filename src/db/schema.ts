@@ -110,6 +110,50 @@ export const cubeCards = pgTable(
   ],
 );
 
+export const cubeChangeKindEnum = pgEnum("cube_change_kind", [
+  "cube_created",
+  "cube_cloned",
+  "cards_added",
+  "cards_removed",
+  "copy_moved",
+  "printing_switched",
+  "details_edited",
+  "primer_edited",
+]);
+
+/**
+ * Append-only record of edits to a cube, shown on its change log.
+ *
+ * Card name and printing id are denormalized on purpose: the log is a history
+ * of what happened, and it should still read correctly if a card is later
+ * removed from the cube or renamed by a data sync.
+ */
+export const cubeChanges = pgTable(
+  "cube_changes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cubeId: uuid("cube_id")
+      .notNull()
+      .references(() => cubes.id, { onDelete: "cascade" }),
+    // Kept if the account goes away, so the history doesn't develop holes.
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+    actorUsername: text("actor_username"),
+    kind: cubeChangeKindEnum("kind").notNull(),
+    cardId: text("card_id"),
+    cardName: text("card_name"),
+    quantity: integer("quantity"),
+    fromSection: cubeSectionEnum("from_section"),
+    toSection: cubeSectionEnum("to_section"),
+    fromValue: text("from_value"),
+    toValue: text("to_value"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("cube_changes_cube_id_created_at_idx").on(table.cubeId, table.createdAt)],
+);
+
+export type CubeChange = typeof cubeChanges.$inferSelect;
+export type NewCubeChange = typeof cubeChanges.$inferInsert;
+
 export type Card = typeof cards.$inferSelect;
 export type NewCard = typeof cards.$inferInsert;
 export type User = typeof users.$inferSelect;

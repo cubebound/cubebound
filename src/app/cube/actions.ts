@@ -20,14 +20,15 @@ import {
   getCubeCardQuantities,
   getPrintings,
   MAX_CARD_QUANTITY,
-  moveCubeCard,
+  moveCopyToSection,
+  recordCubeChange,
   removeCubeCard,
-  swapCubeCardPrinting,
+  switchCopyPrinting,
   updateCube,
   updateCubePrimer,
   type CubeVisibility,
 } from "@/db/queries/cubes";
-import type { Cube, User } from "@/db/schema";
+import type { Cube, NewCubeChange, User } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { canEditCube, canViewCube } from "@/lib/cube-access";
 import { defaultSectionForType, isCubeSection, type CubeSection } from "@/lib/riftbound";
@@ -94,6 +95,28 @@ function readMetadata(formData: FormData):
   };
 }
 
+/** Shorthand for logging an edit against the cube being edited. */
+function logChange(
+  owned: { cube: Cube; profile: User },
+  entry: Omit<NewCubeChange, "cubeId" | "actorId" | "actorUsername">,
+): Promise<void> {
+  return recordCubeChange({
+    ...entry,
+    cubeId: owned.cube.id,
+    actorId: owned.profile.id,
+    actorUsername: owned.profile.username,
+  });
+}
+
+/** One-line summary of the editable details, for before/after comparison. */
+function describeDetails(cube: {
+  name: string;
+  description: string | null;
+  visibility: string;
+}): string {
+  return [cube.name, cube.visibility, cube.description ?? ""].join(" · ");
+}
+
 export async function createCubeAction(
   _prev: ActionState,
   formData: FormData,
@@ -110,6 +133,14 @@ export async function createCubeAction(
     name: parsed.name,
     description: parsed.description,
     visibility: parsed.visibility,
+  });
+
+  await recordCubeChange({
+    cubeId: cube.id,
+    actorId: current.profile.id,
+    actorUsername: current.profile.username,
+    kind: "cube_created",
+    toValue: cube.name,
   });
 
   revalidatePath("/cubes");
@@ -134,6 +165,13 @@ export async function updateCubeAction(
     visibility: parsed.visibility,
   });
 
+  // Only log what actually changed, so the log isn't padded with no-op saves.
+  const before = describeDetails(owned.cube);
+  const after = describeDetails({ ...owned.cube, ...parsed });
+  if (before !== after) {
+    await logChange(owned, { kind: "details_edited", fromValue: before, toValue: after });
+  }
+
   revalidateCube(owned.profile.username, owned.cube.slug);
   redirect(editorPath(owned.profile.username, owned.cube.slug));
 }
@@ -155,7 +193,16 @@ export async function updatePrimerAction(
 
   // Stored verbatim: it is markdown, and escaping happens at render time.
   // Never store HTML here and never render it as HTML — see components/primer.
-  await updateCubePrimer(owned.cube.id, primer.trim() || null);
+  const next = primer.trim() || null;
+  const wasEmpty = !owned.cube.primer?.trim();
+  await updateCubePrimer(owned.cube.id, next);
+
+  if ((owned.cube.primer ?? "") !== (next ?? "")) {
+    await logChange(owned, {
+      kind: "primer_edited",
+      toValue: next ? (wasEmpty ? "written" : "updated") : "cleared",
+    });
+  }
 
   revalidateCube(owned.profile.username, owned.cube.slug);
   return { saved: true };
@@ -197,6 +244,13 @@ export async function addCardAction(
       : defaultSectionForType(card.type);
 
   await addCubeCard(owned.cube.id, card.id, target);
+  await logChange(owned, {
+    kind: "cards_added",
+    cardId: card.id,
+    cardName: card.name,
+    quantity: 1,
+    toSection: target,
+  });
   revalidateCube(owned.profile.username, owned.cube.slug);
   return {};
 }
@@ -210,7 +264,17 @@ export async function removeCardAction(
   if ("error" in owned) return { error: owned.error };
   if (!isCubeSection(section)) return { error: "Unknown section." };
 
-  await removeCubeCard(owned.cube.id, cardId, section);
+  const card = await getCardById(cardId);
+  const removed = await removeCubeCard(owned.cube.id, cardId, section);
+  if (removed > 0) {
+    await logChange(owned, {
+      kind: "cards_removed",
+      cardId,
+      cardName: card?.name ?? cardId,
+      quantity: removed,
+      fromSection: section,
+    });
+  }
   revalidateCube(owned.profile.username, owned.cube.slug);
   return {};
 }
@@ -232,7 +296,15 @@ export async function adjustQuantityAction(
     return { error: "Invalid quantity change." };
   }
 
+  const card = await getCardById(cardId);
   const quantity = await adjustCubeCardQuantity(owned.cube.id, cardId, section, delta);
+  await logChange(owned, {
+    kind: delta > 0 ? "cards_added" : "cards_removed",
+    cardId,
+    cardName: card?.name ?? cardId,
+    quantity: Math.abs(delta),
+    ...(delta > 0 ? { toSection: section } : { fromSection: section }),
+  });
   revalidateCube(owned.profile.username, owned.cube.slug);
   return { quantity };
 }
@@ -247,7 +319,18 @@ export async function moveCardAction(
   if ("error" in owned) return { error: owned.error };
   if (!isCubeSection(from) || !isCubeSection(to)) return { error: "Unknown section." };
 
-  await moveCubeCard(owned.cube.id, cardId, from, to);
+  const card = await getCardById(cardId);
+  const moved = await moveCopyToSection(owned.cube.id, cardId, from, to);
+  if (moved) {
+    await logChange(owned, {
+      kind: "copy_moved",
+      cardId,
+      cardName: card?.name ?? cardId,
+      quantity: 1,
+      fromSection: from,
+      toSection: to,
+    });
+  }
   revalidateCube(owned.profile.username, owned.cube.slug);
   return {};
 }
@@ -266,7 +349,18 @@ export async function swapPrintingAction(
   if (!from || !to) return { error: "Card not found." };
   if (from.baseId !== to.baseId) return { error: "That is not a printing of the same card." };
 
-  await swapCubeCardPrinting(owned.cube.id, fromCardId, toCardId, section);
+  const switched = await switchCopyPrinting(owned.cube.id, fromCardId, toCardId, section);
+  if (switched) {
+    await logChange(owned, {
+      kind: "printing_switched",
+      cardId: toCardId,
+      cardName: to.name,
+      quantity: 1,
+      toSection: section,
+      fromValue: fromCardId,
+      toValue: toCardId,
+    });
+  }
   revalidateCube(owned.profile.username, owned.cube.slug);
   return {};
 }
@@ -302,6 +396,15 @@ export async function cloneCubeAction(
     current.profile.id,
     `Copy of ${source.name}`.slice(0, 100),
   );
+
+  await recordCubeChange({
+    cubeId: clone.id,
+    actorId: current.profile.id,
+    actorUsername: current.profile.username,
+    kind: "cube_cloned",
+    fromValue: `${source.ownerUsername}/${source.slug}`,
+    toValue: clone.name,
+  });
 
   revalidatePath("/cubes");
   redirect(editorPath(current.profile.username, clone.slug));

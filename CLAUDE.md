@@ -152,12 +152,20 @@ until a source supplies them or we add a derivation step.
   through the real component and fails if anything executable survives — run it
   after touching that component. Milestone 6's public cube view should render
   the primer with the same component.
-- Cards carry a **quantity**: cubes commonly run multiples, so adding a card
-  that is already present increments it rather than being a no-op. Counts shown
-  anywhere — headers, section totals, column and cost-group totals — are
-  copies, not rows; use `countCopies`. Moving a card between sections or
-  swapping its printing merges into whatever is already there instead of
-  dropping the copies being moved.
+- **Every copy is its own entry in the UI.** `cube_cards` stores a quantity per
+  (card, section) because two copies of one printing are genuinely identical,
+  but nothing renders "×3" — a cube running three of a card shows three
+  entries, each with its own section and printing control. `expandCopies` in
+  `src/lib/cube-cards.ts` does the expansion; counts everywhere are copies, not
+  rows, via `countCopies`.
+- Per-copy edits move exactly one copy. "Put this copy in the sideboard" and
+  "make this copy the alt art" are the same operation — take one off the source
+  slot, add one to the target — and both merge into whatever is already there
+  rather than dropping the copy being moved. Never write an action that moves a
+  whole row when the UI is showing individual copies.
+- The text view labels rows with their printing id only when a card sits in one
+  section under more than one printing (`ambiguousBaseIds`); otherwise the
+  names alone are unambiguous and the ids are noise.
 - **Runes are optional content.** A cube with no runes is a legitimate cube, so
   never warn about their absence or treat any section as required.
 - Public cube view is `/cube/{username}/{slug}`. Public and unlisted render for
@@ -174,6 +182,12 @@ until a source supplies them or we add a derivation step.
   anyway — a second data path with its own rules, for no gain. If a future
   feature genuinely needs browser-side reads, add the policies then, and keep
   `canViewCube` and the policy in step.
+- Every cube edit is appended to `cube_changes` and shown on the editor's
+  Change log tab. Card name and printing id are denormalized into the row so
+  the history still reads correctly after a card leaves the cube. Recording is
+  best-effort: `recordCubeChange` swallows its own failures, because losing a
+  log line must never undo or block the edit that just happened. New mutations
+  should log themselves.
 - **Every cube mutation goes through `requireOwnedCube` in
   `src/app/cube/actions.ts`.** Pages decide only what to render; the server
   re-checks ownership on each write. Non-owners get "not found" rather than

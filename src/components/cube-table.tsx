@@ -1,6 +1,7 @@
 "use client";
 
 import type { CubeCardRow } from "@/db/queries/cubes";
+import { ambiguousBaseIds, countCopies, expandCopies } from "@/lib/cube-cards";
 import { COLORLESS, DOMAINS, DOMAIN_COLORS } from "@/lib/riftbound";
 
 /** Cards with more than one domain get their own column rather than being
@@ -54,47 +55,32 @@ function compareCosts(a: string, b: string): number {
 }
 
 /**
- * A card as one line, however many printings of it the cube holds. Art variants
- * are indistinguishable once they're just text, so two printings of the same
- * card collapse to one row with a count.
+ * One line per copy. A cube running three of a card shows three lines rather
+ * than one wearing a "×3", matching the visual view, so each copy can be
+ * retargeted on its own.
+ *
+ * Copies of one printing are interchangeable, so a row carries the printing it
+ * belongs to and the remove control takes one copy off it.
  */
-interface MergedRow {
-  baseId: string;
-  name: string;
-  /** Canonical printing — what the detail modal opens. */
+interface CopyRow {
+  key: string;
   card: CubeCardRow;
-  /** Canonical first; removing takes from the end so the base survives. */
-  printings: CubeCardRow[];
-  quantity: number;
+  /** Printing id, shown only when a card sits in the cube twice over in
+   *  different printings and the names would otherwise be identical. */
+  distinguishBy: string | null;
 }
 
-function mergePrintings(cards: CubeCardRow[]): MergedRow[] {
-  const rows = new Map<string, MergedRow>();
-  for (const card of cards) {
-    const existing = rows.get(card.baseId);
-    if (existing) {
-      existing.printings.push(card);
-      existing.quantity += card.quantity;
-      continue;
-    }
-    rows.set(card.baseId, {
-      baseId: card.baseId,
-      name: card.name,
+function toCopyRows(cards: CubeCardRow[], ambiguous: Set<string>): CopyRow[] {
+  return expandCopies(cards)
+    .map(({ card, key }) => ({
+      key,
       card,
-      printings: [card],
-      quantity: card.quantity,
-    });
-  }
-
-  for (const row of rows.values()) {
-    row.printings.sort((a, b) => {
-      const canonical = Number(b.id === b.baseId) - Number(a.id === a.baseId);
-      return canonical !== 0 ? canonical : a.id.localeCompare(b.id);
-    });
-    row.card = row.printings[0];
-  }
-
-  return [...rows.values()].sort((a, b) => a.name.localeCompare(b.name));
+      distinguishBy: ambiguous.has(card.baseId) ? card.id : null,
+    }))
+    .sort(
+      (a, b) =>
+        a.card.name.localeCompare(b.card.name) || a.card.id.localeCompare(b.card.id),
+    );
 }
 
 /**
@@ -130,13 +116,13 @@ function CostCell({
   busyKey,
 }: {
   cost: string;
-  rows: MergedRow[];
+  rows: CopyRow[];
   background: string;
   onSelect: (card: CubeCardRow) => void;
   onRemove?: (card: CubeCardRow) => void;
   busyKey?: string | null;
 }) {
-  const total = rows.reduce((sum, row) => sum + row.quantity, 0);
+  const total = rows.length;
 
   return (
     <div className="mb-1.5 overflow-hidden rounded border border-black/10 dark:border-white/10">
@@ -149,43 +135,29 @@ function CostCell({
       </p>
       <ul style={{ background }}>
         {rows.map((row) => {
-          // Removing takes the last printing, so the base printing outlives
-          // its variants and one click never drops two cards.
-          const target = row.printings[row.printings.length - 1];
-          const key = `${target.id}:${target.section}`;
+          const key = `${row.card.id}:${row.card.section}`;
           return (
-            <li key={row.baseId} className="group flex items-center gap-1 px-1.5">
+            <li key={row.key} className="group flex items-center gap-1 px-1.5">
               <button
                 type="button"
                 onClick={() => onSelect(row.card)}
-                title={`${row.name} · ${row.card.type} · ${row.card.setCode}`}
+                title={`${row.card.name} · ${row.card.type} · ${row.card.id}`}
                 className="min-w-0 flex-1 truncate rounded py-0.5 text-left text-xs text-zinc-900 hover:underline dark:text-zinc-100"
               >
-                {row.name}
+                {row.card.name}
+                {row.distinguishBy && (
+                  <span className="ml-1 text-[10px] text-black/45 dark:text-white/45">
+                    {row.distinguishBy}
+                  </span>
+                )}
               </button>
-              {row.quantity > 1 && (
-                <span
-                  title={`${row.quantity} printings in this cube`}
-                  className="shrink-0 rounded bg-black/10 px-1 text-[10px] font-medium tabular-nums text-zinc-700 dark:bg-white/15 dark:text-zinc-200"
-                >
-                  ×{row.quantity}
-                </span>
-              )}
               {onRemove && (
                 <button
                   type="button"
-                  onClick={() => onRemove(target)}
+                  onClick={() => onRemove(row.card)}
                   disabled={busyKey === key}
-                  aria-label={
-                    row.quantity > 1
-                      ? `Remove one printing of ${row.name}`
-                      : `Remove ${row.name}`
-                  }
-                  title={
-                    row.quantity > 1
-                      ? `Remove one printing (${row.quantity} in cube)`
-                      : "Remove from cube"
-                  }
+                  aria-label={`Remove one ${row.card.name}`}
+                  title="Remove this copy"
                   className="shrink-0 rounded px-0.5 text-xs text-black/25 opacity-0 transition hover:text-red-700 focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-40 dark:text-white/30 dark:hover:text-red-400"
                 >
                   ×
@@ -235,6 +207,10 @@ export default function CubeTable({
   const present = COLUMN_ORDER.filter((column) => columns.has(column));
   if (present.length === 0) return null;
 
+  // Only annotate rows with a printing id where the same card sits in the cube
+  // under more than one printing; otherwise the names alone are unambiguous.
+  const ambiguous = ambiguousBaseIds(cards);
+
   // Columns keep a readable minimum and the wrapper scrolls rather than
   // squeezing names to nothing. The maximum matters as much: without it a
   // single-domain section (Legends, Battlefields) would stretch one column
@@ -251,7 +227,7 @@ export default function CubeTable({
           const allCards = [...bySubgroup.values()].flatMap((byCost) =>
             [...byCost.values()].flat(),
           );
-          const columnTotal = allCards.reduce((sum, card) => sum + card.quantity, 0);
+          const columnTotal = countCopies(allCards);
           // Multi columns blend the domains actually present in them.
           const multiDomains = [
             ...new Set(allCards.flatMap((card) => card.domains)),
@@ -279,9 +255,7 @@ export default function CubeTable({
               {orderSubgroups([...bySubgroup.keys()]).map((subgroup) => {
                 const byCost = bySubgroup.get(subgroup)!;
                 const costs = [...byCost.keys()].sort(compareCosts);
-                const subgroupTotal = [...byCost.values()]
-                  .flat()
-                  .reduce((sum, card) => sum + card.quantity, 0);
+                const subgroupTotal = countCopies([...byCost.values()].flat());
 
                 return (
                   <div key={subgroup || "all"} className="mb-2">
@@ -295,7 +269,7 @@ export default function CubeTable({
                       <CostCell
                         key={cost}
                         cost={cost}
-                        rows={mergePrintings(byCost.get(cost)!)}
+                        rows={toCopyRows(byCost.get(cost)!, ambiguous)}
                         background={background}
                         onSelect={onSelect}
                         onRemove={onRemove}
