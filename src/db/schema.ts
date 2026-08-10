@@ -162,3 +162,66 @@ export type NewCard = typeof cards.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type Cube = typeof cubes.$inferSelect;
 export type CubeCard = typeof cubeCards.$inferSelect;
+
+export const draftStatusEnum = pgEnum("draft_status", ["active", "complete"]);
+
+/**
+ * A solo draft against bots.
+ *
+ * `config` and `packs` are **snapshots taken when the draft starts**: editing
+ * the cube mid-draft must not change the packs already dealt, and a card later
+ * removed from the cube has to keep resolving. `packs` holds card ids by
+ * round and seat; card details are read from `cards`, which is stable.
+ *
+ * The seed is what makes the draft reproducible — state is rebuilt by replaying
+ * picks through src/lib/draft/engine.ts rather than being stored as a blob, so
+ * the engine and the row can never drift apart about whose turn it is.
+ */
+export const drafts = pgTable(
+  "drafts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    cubeId: uuid("cube_id")
+      .notNull()
+      .references(() => cubes.id, { onDelete: "cascade" }),
+    drafterId: uuid("drafter_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    seed: text("seed").notNull(),
+    config: jsonb("config").$type<Record<string, unknown>>().notNull(),
+    packs: jsonb("packs").$type<string[][][]>().notNull(),
+    seats: integer("seats").notNull(),
+    humanSeat: integer("human_seat").notNull().default(0),
+    status: draftStatusEnum("status").notNull().default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("drafts_drafter_id_created_at_idx").on(table.drafterId, table.createdAt)],
+);
+
+/**
+ * Every pick, human and bot, in the order it happened.
+ *
+ * Bot picks are derivable from the seed, but storing them makes a finished
+ * draft readable without re-running the engine and gives milestone B's smarter
+ * bots something to be compared against.
+ */
+export const draftPicks = pgTable(
+  "draft_picks",
+  {
+    draftId: uuid("draft_id")
+      .notNull()
+      .references(() => drafts.id, { onDelete: "cascade" }),
+    round: integer("round").notNull(),
+    pickNumber: integer("pick_number").notNull(),
+    seat: integer("seat").notNull(),
+    cardId: text("card_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.draftId, table.round, table.pickNumber, table.seat] }),
+  ],
+);
+
+export type Draft = typeof drafts.$inferSelect;
+export type DraftPick = typeof draftPicks.$inferSelect;

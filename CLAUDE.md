@@ -17,8 +17,11 @@ Share and Clone, and CI.
 **Bulk import has shipped** — paste a card list on the editor's Import tab,
 preview exactly what matched, then commit.
 
-Next: phase 2 in the order under "Product vision", starting with search
-syntax (`domain:fury cost:2 type:unit`).
+**Solo bot drafting, milestone A, has shipped** — deal a cube into packs,
+draft against seven bots, save the pool as a cube. Milestone B makes the bots
+smart; milestone C adds the post-draft deck builder. See "Draft".
+
+Then the rest of phase 2 in the order under "Product vision".
 
 Open items:
 - **The production origin is derived from the request**, not from config —
@@ -41,7 +44,7 @@ The core loop (MVP): create a cube → search/add cards → view it organized by
 Later phases, in priority order:
 1. Search syntax (`domain:fury cost:2 type:unit`)
 2. Cube analytics (curve, domain balance, legend/champion coverage, rune/battlefield counts)
-3. Solo bot drafting
+3. Solo bot drafting — **milestone A is done, ahead of 1 and 2 by request**
 4. Multiplayer draft lobbies (websockets)
 5. Community features (clone, changelogs, card pick data)
 6. Exports (proxy sheets, deck lists compatible with other Riftbound tools)
@@ -92,12 +95,15 @@ cube_cards    pk (cube_id, card_id, section), quantity, added_at
 cube_changes  id, cube_id, actor_id (set null on delete), actor_username, kind,
               card_id, card_name, quantity, from_section, to_section,
               from_value, to_value, created_at    -- indexed (cube_id, created_at)
+drafts        id, cube_id, drafter_id, seed, config jsonb, packs jsonb, seats,
+              human_seat, status ('active'|'complete'), created_at, updated_at
+draft_picks   pk (draft_id, round, pick_number, seat), card_id, created_at
 ```
 
 Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0002` enable RLS · `0003` recompute `base_id` as data-derived print groups ·
 `0004` `cubes.primer` · `0005` `cube_changes` (+ RLS) ·
-`0006` the `cards_imported` change kind.
+`0006` the `cards_imported` change kind · `0007` `drafts` + `draft_picks` (+ RLS).
 
 `0001`'s suffix-stripping rule is superseded by `0003`; only `0003` must stay in
 step with `src/lib/card-ids.ts`. Adding a column to a populated table means
@@ -113,9 +119,11 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /cube/{username}/{slug}               public view — visibility-gated
 /cube/{username}/{slug}/edit          owner editor; ?mode=browse|primer|log
 /cube/{username}/{slug}/settings      rename, visibility, delete
+/cube/{username}/{slug}/draft         solo draft against bots — any viewer, not just the owner
 ```
 
-Server Actions live in `src/app/cube/actions.ts` and `src/app/auth/actions.ts`.
+Server Actions live in `src/app/cube/actions.ts`, `src/app/auth/actions.ts` and
+`src/app/cube/[username]/[slug]/draft/actions.ts`.
 
 ## Card data sources
 
@@ -346,6 +354,78 @@ a stale row — but it means a source switch leaves residue worth checking for.
   pages call it). This fails at request time, not at build time, so it is easy
   to ship — if a helper is shared, put it in `src/lib/` first.
 
+## Draft
+
+Solo drafting against bots lives at `/cube/{username}/{slug}/draft`. **Milestone
+A is done**: fixed configuration, dumb bots, pool-only result. B makes the bots
+smart; C adds the deck builder.
+
+- **The engine is pure and deterministic** — `src/lib/draft/`, no database, no
+  React, no clock. Given a seed, config and packs, a sequence of human picks
+  always yields the same draft. That is why the persisted draft is a *log*
+  rather than a snapshot: state is rebuilt by replaying picks through the
+  engine, so the row and the engine cannot disagree about whose turn it is.
+  Every random decision goes through `createRng(seed, ...parts)`, whose streams
+  are derived per seat and pick rather than drawn from one shared generator —
+  replay then cannot drift if call order ever changes.
+- **Configuration is fixed and lives in named constants** (`draft/config.ts`):
+  3 packs per seat, 12 cards per pack, 1 legend-or-battlefield slot, 8 seats,
+  passing left-right-left. The engine takes a config object so the numbers are
+  named and snapshotted, not because there is a settings UI — there isn't one.
+- **The pack template follows Riftbound's Legacy booster**: eleven cards from
+  the cube's main section plus one Legend-or-Battlefield, chosen 50/50 per
+  pack. Legends and battlefields are a deck's *identity* rather than its body —
+  you play one legend and a handful of battlefields — so dealing them from the
+  main pool would both flood packs with cards nobody can use twice and starve
+  drafters of the one card that fixes their domains. A guaranteed slot gives
+  every seat three shots at each.
+- **Rarity plays no part in pack construction.** A cube is already a curated
+  pool; re-imposing the printed rarity distribution would double-filter it and
+  put Riot's choices above the cube owner's.
+- **Dealing is without replacement across the whole draft, respecting
+  quantity**: a card the cube holds twice appears in at most two packs, total.
+  Copies are expanded into individual entries before shuffling, so the limit
+  holds by construction rather than by a counter someone must remember to
+  decrement. Only the **main** section is drafted — never sideboard (a holding
+  area for cards the owner deliberately removed) or runes (resources, not
+  draftable cards).
+- **Fallbacks.** Too few legends and battlefields to fill their slots: fill from
+  main and warn before the draft starts. Too few main cards for
+  `seats × packs × 11`: **block** with the actual numbers, because a draft that
+  silently ran short packs reads as an engine bug to whoever hits it, and the
+  cube owner can fix it by adding cards.
+- **Bots are deliberately dumb.** Each commits to the domains of its first pick
+  (at most two) and thereafter takes a random in-domain card, falling back to
+  random when the pack offers none. That drains packs in a plausible *shape*
+  without pretending to a skill the engine does not have — and it keeps a bot
+  bug distinguishable from a bot opinion. A one-domain first pick commits to
+  one domain; there is nothing principled to invent for the second.
+- **Drafting is gated on viewing, not owning** — the point of sharing a cube.
+  Sign-in is still required because the draft is persisted to survive a
+  refresh and a row has to belong to someone; signed-out visitors get a prompt.
+  `requireDraftableCube` gates starting, `requireOwnDraft` gates picking and
+  saving: a public cube does not make someone else's draft yours to pick in.
+- **Config and the dealt cards are snapshotted at draft start**, so editing the
+  cube mid-draft cannot change packs already dealt. `drafts.packs` stores card
+  *ids*; details come from `cards`, which cube edits don't touch. A card
+  deleted from the database outright makes the draft unresumable, and it says so
+  rather than dealing a hole.
+- Bot picks are stored as well as the human's, though only the human's are
+  replayed — the bots' are a deterministic function of the seed, so feeding
+  them back would assert them twice. They are kept for readability and to give
+  milestone B's smarter bots something to be compared against.
+
+### Format rules (for milestone C's deck builder)
+
+Not enforced anywhere yet — the draft produces a pool, and nothing validates a
+deck. Written down now so the builder does not have to re-derive them:
+
+- A deck may use cards from **up to three domains**.
+- **Any signature spell is usable regardless of which champions the deck runs.**
+  Signature spells are tied to a champion by flavour, not by a deckbuilding
+  restriction.
+- **No legend or champion is required.** A legal deck need contain neither.
+
 ## Checks
 
 Each check guards a regression that already happened once. Run the ones
@@ -362,6 +442,7 @@ touching what you changed; run the manual gate in full before a deploy.
 | `check:cube-ownership` | replays an Add under another session and with no cookie | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:magic-link` | the `redirect_to` actually sent to Supabase, and `/?code=` self-heal | `dev:probe` server + Chrome :9222 | manual gate |
 | `check:import` | import parsing, matching, the line cap and the committed result | DB | manual gate |
+| `check:draft` | a full seeded 8-seat draft: quantities, pack template, passing, bots, determinism | nothing | **CI** |
 
 `check:magic-link` needs the dev server started as `SIGNIN_PROBE=1 npm run
 dev:probe`, which preloads `scripts/otp-probe.mjs` to intercept the outgoing
@@ -372,12 +453,14 @@ localhost worked and the code read fine.
 
 `check:cube-ownership` is also structural: it fails if a new action in
 `src/app/cube/actions.ts` skips `requireOwnedCube` without a documented
-exemption naming the gate it uses instead.
+exemption naming the gate it uses instead. It scans the **draft** actions the
+same way, against their own gates — a mutation living in a file the check does
+not read would escape the guarantee entirely, which is worse than an exemption.
 
 ### What CI runs
 
 `.github/workflows/ci.yml`, on every push and pull request: typecheck, lint,
-`check:primer-safety`, and a production build. It uses **placeholder** Supabase
+`check:primer-safety`, `check:draft`, and a production build. It uses **placeholder** Supabase
 values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**

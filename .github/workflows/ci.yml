@@ -71,5 +71,11 @@ jobs:
       - name: Check primer safety
         run: npm run check:primer-safety
 
+      # The draft engine is pure — seeded RNG, no database, no network — so the
+      # one check that covers it belongs on every push rather than in the
+      # manual gate.
+      - name: Check draft engine
+        run: npm run check:draft
+
       - name: Build
         run: npm run build

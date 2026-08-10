@@ -142,6 +142,40 @@ try {
     },
   };
 
+  // Draft actions live in their own file and are gated on *viewing* a cube
+  // rather than owning it — anyone who can open a cube can draft it. They are
+  // scanned here anyway: a mutation in a file this check does not read would
+  // escape the guarantee entirely, which is worse than an exemption.
+  const DRAFT_GATES: Record<string, { gate: string; why: string }> = {
+    startDraftAction: {
+      gate: "requireDraftableCube",
+      why: "anyone who can view a cube may draft it; ownership is not required",
+    },
+    makePickAction: {
+      gate: "requireOwnDraft",
+      why: "picks belong to the drafter, not the cube owner",
+    },
+    saveDraftAsCubeAction: {
+      gate: "requireOwnDraft",
+      why: "reads the caller's own draft and writes a new cube they own",
+    },
+  };
+  const draftSource = readFileSync(
+    "src/app/cube/[username]/[slug]/draft/actions.ts",
+    "utf8",
+  );
+  for (const body of draftSource.split(/export async function /).slice(1)) {
+    const name = body.slice(0, body.indexOf("("));
+    const gate = DRAFT_GATES[name];
+    if (!gate) {
+      failures.push(`draft action ${name} has no documented authorization gate`);
+      continue;
+    }
+    if (!body.includes(gate.gate)) {
+      failures.push(`draft action ${name} does not call ${gate.gate} (${gate.why})`);
+    }
+  }
+
   const source = readFileSync("src/app/cube/actions.ts", "utf8");
   const exported = [...source.matchAll(/export async function (\w+)/g)].map((m) => m[1]);
   const bodies = source.split(/export async function /).slice(1);
