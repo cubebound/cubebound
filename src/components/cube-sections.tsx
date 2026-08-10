@@ -37,15 +37,42 @@ export default function CubeSections({
   onRemoveOne?: (card: CubeCardRow) => void;
   busyKey?: string | null;
   emptyMessage?: string;
-  detailFooter?: (card: CubeCardRow) => ReactNode;
+  /**
+   * `retarget` follows the open card after an edit made from inside the modal.
+   * Needed because an edit can leave the original row standing: switching one
+   * of two copies to another printing keeps the old row, so resolving by key
+   * alone would leave the modal showing the copy you did not touch.
+   */
+  detailFooter?: (
+    card: CubeCardRow,
+    retarget: (next: { id?: string; section?: CubeSection }) => void,
+  ) => ReactNode;
 }) {
   // Track the selection by key, not by row: after an edit the page revalidates
   // and hands us new row objects, and a held reference would show stale data.
-  // Deriving it also closes the modal when the card is removed.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const close = useCallback(() => setSelectedKey(null), []);
-  const rowKey = (card: CubeCardRow) => `${card.id}:${card.section}`;
-  const selected = cards.find((card) => rowKey(card) === selectedKey) ?? null;
+  const rowKey = (card: CubeCardRow) => `${card.baseId}|${card.id}|${card.section}`;
+
+  /**
+   * Resolves the open card against the current rows.
+   *
+   * Editing from inside the modal changes the very thing the key points at:
+   * switching a printing changes the card id, moving a copy changes the
+   * section. Matching on the exact row alone would make the modal vanish the
+   * moment you used it, so it falls back to the same card in the same section,
+   * then the same card anywhere, and only closes when the card is really gone.
+   */
+  const selected = (() => {
+    if (!selectedKey) return null;
+    const [baseId, , section] = selectedKey.split("|");
+    return (
+      cards.find((card) => rowKey(card) === selectedKey) ??
+      cards.find((card) => card.baseId === baseId && card.section === section) ??
+      cards.find((card) => card.baseId === baseId) ??
+      null
+    );
+  })();
 
   if (cards.length === 0) {
     return (
@@ -101,7 +128,15 @@ export default function CubeSections({
       </div>
 
       {selected && (
-        <CardDetail card={selected} onClose={close} footer={detailFooter?.(selected)} />
+        <CardDetail
+          card={selected}
+          onClose={close}
+          footer={detailFooter?.(selected, (next) =>
+            setSelectedKey(
+              `${selected.baseId}|${next.id ?? selected.id}|${next.section ?? selected.section}`,
+            ),
+          )}
+        />
       )}
     </>
   );

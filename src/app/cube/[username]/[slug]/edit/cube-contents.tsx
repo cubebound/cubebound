@@ -41,6 +41,7 @@ export default function CubeContents({
     const result = await work();
     setBusy(null);
     if (result.error) setError(result.error);
+    return !result.error;
   }
 
   /** Every control here acts on ONE copy, matching what the list shows. */
@@ -56,12 +57,19 @@ export default function CubeContents({
   const switchPrinting = (card: CubeCardRow, toCardId: string) =>
     run(card, () => swapPrintingAction(cubeId, card.id, toCardId, card.section));
 
-  const sectionSelect = (card: CubeCardRow, className: string) => (
+  const sectionSelect = (
+    card: CubeCardRow,
+    className: string,
+    onMoved?: (to: CubeSection) => void,
+  ) => (
     <select
       aria-label={`Section for ${card.name}`}
       value={card.section}
       disabled={busy === rowKey(card)}
-      onChange={(event) => moveCopy(card, event.target.value as CubeSection)}
+      onChange={async (event) => {
+        const to = event.target.value as CubeSection;
+        if (await moveCopy(card, to)) onMoved?.(to);
+      }}
       className={className}
     >
       {CUBE_SECTIONS.map((value) => (
@@ -72,7 +80,11 @@ export default function CubeContents({
     </select>
   );
 
-  const printingControl = (card: CubeCardRow, className: string) => {
+  const printingControl = (
+    card: CubeCardRow,
+    className: string,
+    onSwitched?: (toCardId: string) => void,
+  ) => {
     const printings = printingsByBase[card.baseId] ?? [];
     // A static label when there's nothing to choose between, so every tile
     // keeps the same height and the controls stay in line.
@@ -91,7 +103,10 @@ export default function CubeContents({
         aria-label={`Printing for ${card.name}`}
         value={card.id}
         disabled={busy === rowKey(card)}
-        onChange={(event) => switchPrinting(card, event.target.value)}
+        onChange={async (event) => {
+          const to = event.target.value;
+          if (await switchPrinting(card, to)) onSwitched?.(to);
+        }}
         className={className}
       >
         {printings.map((printing) => (
@@ -136,17 +151,21 @@ export default function CubeContents({
             {printingControl(card, `${selectClass} w-full`)}
           </div>
         )}
-        detailFooter={(card) => (
+        detailFooter={(card, retarget) => (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs uppercase tracking-wide text-zinc-500">Section</label>
-              {sectionSelect(card, `${selectClass} h-9 px-2 text-sm`)}
+              {sectionSelect(card, `${selectClass} h-9 px-2 text-sm`, (section) =>
+                retarget({ section }),
+              )}
               {(printingsByBase[card.baseId]?.length ?? 0) > 1 && (
                 <>
                   <label className="text-xs uppercase tracking-wide text-zinc-500">
                     Printing
                   </label>
-                  {printingControl(card, `${selectClass} h-9 px-2 text-sm`)}
+                  {printingControl(card, `${selectClass} h-9 px-2 text-sm`, (id) =>
+                    retarget({ id }),
+                  )}
                 </>
               )}
             </div>
