@@ -2,6 +2,28 @@
 
 Cube construction and drafting platform for Riftbound (Riot's League of Legends TCG). Think Cube Cobra, but Riftbound-native. Unofficial fan project under Riot's Legal Jibber Jabber policy — every page footer must include: "cubebound.gg is not endorsed by Riot Games and does not reflect the views or opinions of Riot Games or anyone officially involved in producing or managing Riot Games properties."
 
+## Current status
+
+**Milestones 1–6 are done.** The MVP loop closes: sign in → create a cube →
+search and add cards → view it by domain/cost/type → share a public URL that
+anyone can browse and clone.
+
+Working: card ingestion (1,294 printings / 966 distinct cards across 8 sets),
+`/cards` browser, magic-link auth with username claim, cube CRUD, the quick-add
+editor, visual and text views, primer, change log, and the public cube view
+with cloning.
+
+**Next: milestone 7 — deploy to Vercel on the production domain.** After that,
+phase 2 opens with search syntax (`domain:fury cost:2 type:unit`).
+
+Open items:
+- **No CI.** Milestone 1 called for typecheck + lint on push; there is no
+  `.github/workflows`. The checks below are run by hand today.
+- Work lands on `master` and pushes to `github.com/cubebound/cubebound`. The
+  merged `cube-editor-redesign` branch can be deleted.
+- The Riot adapter stays dormant until our API application is approved.
+- Six UNL token rows still come from the retired riftscribe source.
+
 ## Product vision
 
 The core loop (MVP): create a cube → search/add cards → view it organized by domain/cost/type → share a public URL others can browse and clone.
@@ -14,7 +36,8 @@ Later phases, in priority order:
 5. Community features (clone, changelogs, card pick data)
 6. Exports (proxy sheets, deck lists compatible with other Riftbound tools)
 
-Do NOT build ahead of the current phase. Ship the MVP loop first.
+The MVP loop is shipped. Do NOT build ahead of the current phase — deploy it
+before starting phase 2.
 
 ## Stack
 
@@ -30,48 +53,59 @@ Do NOT build ahead of the current phase. Ship the MVP loop first.
 Riftbound is NOT Magic. Key differences that must be reflected in the schema and UI:
 
 - **Domains** (colors): Fury (red), Calm (green), Mind (blue), Body (orange), Chaos (purple), Order (yellow). Cards can have multiple domains.
-- **Card types**: Unit, Champion Unit, Spell, Signature Spell, Gear, Rune, Battlefield, Legend.
+- **Card types**: Unit, Spell, Gear, Rune, Battlefield, Legend. "Champion Unit"
+  and "Signature Spell" are **not** stored as types — they are a `type` plus a
+  `supertype` (`Unit`/`Champion`, `Spell`/`Signature`). Anything grouping or
+  filtering by type must read both columns; `type = 'Champion Unit'` matches
+  nothing. Observed supertypes: Champion, Signature, Basic, Token.
 - **Costs**: cards have an **energy** cost (generic) and may have a **power** cost (domain-specific pips). Units have **might** (combat stat).
-- **Legends**: a player's identity card; determines 2 accessible domains. Champions and Signature Spells are tied to specific champions.
+- **Legends**: a player's identity card; determines 2 accessible domains. Champions and Signature Spells are tied to specific champions via the `champion` column.
 - **Constructed decks**: main deck + separate rune deck + legend + battlefields. Cube drafting conventions are still community-defined; common house rules draft legends in a separate first phase, then the main cube.
 
-## Database schema (initial)
+## Database schema
+
+`src/db/schema.ts` is the source of truth; this is orientation. Card *types* are
+`text`, not a pg enum, because new sets ship every ~3 months and the sync must
+ingest an unknown type without a migration. Sections and visibility *are* enums —
+they're ours, not the game's.
 
 ```
-cards
-  id            text pk           -- e.g. "OGN-001"
-  name          text not null
-  set_code      text not null     -- e.g. "OGN"
-  collector_no  text not null
-  rarity        text not null
-  type          text not null     -- enum above
-  supertype     text              -- e.g. champion linkage
-  domains       text[] not null default '{}'
-  energy_cost   int
-  power_cost    jsonb             -- per-domain pips, e.g. {"fury": 2}
-  might         int
-  rules_text    text
-  keywords      text[] not null default '{}'
-  tags          text[] not null default '{}'   -- e.g. "Ionia"
-  champion      text              -- linked champion name, if any
-  artist        text
-  image_full    text
-  image_thumb   text
-  data          jsonb             -- raw API payload for forward-compat
-  updated_at    timestamptz
-
-users            -- from Supabase auth; profile table with username (unique, url-safe)
-
-cubes
-  id, owner_id fk users, name, slug (unique per owner), description,
-  visibility ('public'|'unlisted'|'private'), created_at, updated_at
-
-cube_cards
-  cube_id fk, card_id fk, section ('main'|'legends'|'runes'|'battlefields'|'sideboard'),
-  quantity int default 1, added_at
+cards         id pk ("OGN-001"), base_id (indexed), name, set_code, collector_no,
+              rarity, type, supertype, domains text[], energy_cost, power_cost jsonb,
+              might, rules_text, keywords[], tags[], champion, artist,
+              image_full, image_thumb, data jsonb, updated_at
+users         id uuid pk (mirrors auth.users.id), username unique, created_at
+cubes         id, owner_id → users, name, slug, description, primer,
+              visibility ('public'|'unlisted'|'private'), created_at, updated_at
+              unique (owner_id, slug)
+cube_cards    pk (cube_id, card_id, section), quantity, added_at
+              section ('main'|'legends'|'runes'|'battlefields'|'sideboard')
+cube_changes  id, cube_id, actor_id (set null on delete), actor_username, kind,
+              card_id, card_name, quantity, from_section, to_section,
+              from_value, to_value, created_at    -- indexed (cube_id, created_at)
 ```
 
-Cubes are referenced by URL as `/cube/{owner_username}/{slug}`.
+Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
+`0002` enable RLS · `0003` recompute `base_id` as data-derived print groups ·
+`0004` `cubes.primer` · `0005` `cube_changes` (+ RLS).
+
+`0001`'s suffix-stripping rule is superseded by `0003`; only `0003` must stay in
+step with `src/lib/card-ids.ts`. Adding a column to a populated table means
+add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
+
+## Routes
+
+```
+/                                     landing
+/cards                                card browser (milestone 3)
+/login  /welcome  /auth/callback      magic link, username claim, PKCE exchange
+/cubes  /cubes/new                    the signed-in user's cubes
+/cube/{username}/{slug}               public view — visibility-gated
+/cube/{username}/{slug}/edit          owner editor; ?mode=browse|primer|log
+/cube/{username}/{slug}/settings      rename, visibility, delete
+```
+
+Server Actions live in `src/app/cube/actions.ts` and `src/app/auth/actions.ts`.
 
 ## Card data sources
 
@@ -119,12 +153,16 @@ a stale row — but it means a source switch leaves residue worth checking for.
 
 ## Conventions
 
+- **Keep this file true in the same commit.** Any change to behavior, schema or
+  conventions updates CLAUDE.md alongside the code, not in a follow-up — a doc
+  that lags by even one commit starts costing more than it saves.
 - Server components by default; client components only where interactivity requires.
 - All DB access through Drizzle in `src/db/`; no raw SQL in route handlers.
 - Card sync entry point lives in `scripts/sync-cards.ts`, idempotent, diffs by card id against the stored raw payload, safe to re-run. New sets ship every ~3 months — the sync must handle unknown fields gracefully (hence the `data` jsonb column).
 - Never hand-edit card data; fix the sync instead.
 - Keep components small; colocate route-specific components under their route folder.
-- Riftbound term casing in UI: domains and card types are proper nouns (Fury, Champion Unit). Sources store them lowercase; title-case at the boundary via `titleCase` in `src/lib/riftbound.ts`.
+- Riftbound term casing in UI: domains and card types are proper nouns (Fury, Battlefield). Sources store them lowercase; title-case at the boundary via `titleCase` in `src/lib/riftbound.ts`.
+- Filter dropdowns are built from the **distinct values actually in the DB**, then sorted by the canonical lists in `src/lib/riftbound.ts` with unrecognized values kept at the end (`sortByCanonical`). A new set's new rarity therefore appears without a code change — `Promo` already does, and is not in `RARITIES`.
 - Card rendering rules live in `src/lib/riftbound.ts` (domain colors, canonical orderings, orientation). Battlefields are printed landscape (7:5), every other type portrait (5:7) — the printed image already reads upside-down on its top half, that is correct.
 - Card images render with a plain `<img>`, never `next/image`: optimizing through Vercel would proxy and cache them, which we are deliberately not doing yet.
 - Rules text contains symbol tokens (`:rb_energy_1:`, `:rb_rune_fury:`). Never render `rules_text` raw — go through `parseRulesText` in `src/lib/rules-text.ts`, which resolves the tokens to badges and degrades unknown ones to readable words. Note the source names domain symbols `rune_*` but they are **Power** costs; runes are the resource cards you exhaust or recycle to produce Energy and Power.
@@ -134,19 +172,21 @@ a stale row — but it means a source switch leaves residue worth checking for.
 
 ## Cubes
 
-- Owner editor lives at `/cube/{username}/{slug}/edit`, settings at
-  `.../settings`. The bare `/cube/{username}/{slug}` is reserved for the public
-  view (milestone 6) and does not exist yet.
-- The editor has two modes. Default: the cube is the page, with a **quick-add**
-  panel (sticky sidebar on desktop, bottom sheet below `lg`) for rapid
-  consecutive adds — type-ahead, per-row section and printing selects, add
-  without navigating. `?mode=browse` swaps in the full filter/grid browser
-  **in place of** the cube list, so the add controls are never below it.
+- The editor has four tabs, all on `/edit` behind `?mode=`. Default (no param):
+  the cube is the page, with a **quick-add** panel (sticky sidebar on desktop,
+  bottom sheet below `lg`) for rapid consecutive adds — type-ahead, per-row
+  section and printing selects, add without navigating. `?mode=browse` swaps in
+  the full filter/grid browser **in place of** the cube list, so the add
+  controls are never below it; `?mode=primer` and `?mode=log` are the Primer
+  and Change log tabs. Browse mode is only rendered when active, so the
+  unfiltered card query isn't paid for on every editor load.
 - The cube list renders in two views: `visual` (image tiles) and `text`
   (`src/components/cube-table.tsx`). The text view reads domain → type → cost:
   a column per domain, split into Units / Gear / Spells inside the main section
-  only (Champion Units are Units, Signature Spells are Spells, unknown types
-  get their own subgroup at the end), then cost groups with counts. Cost cells
+  only, then cost groups with counts. Champion Units are `type = 'Unit'` and
+  Signature Spells are `type = 'Spell'`, so they land in the right subgroup for
+  free; an unrecognized type gets its own subgroup at the end rather than being
+  dropped. Cost cells
   are tinted with their domain colour mixed against `--tint-base`, which flips
   between white and near-black so one mix percentage stays legible in both
   themes.
@@ -168,8 +208,8 @@ a stale row — but it means a source switch leaves residue worth checking for.
   as a second layer with a narrowed tag list, and `urlTransform` allows only
   http/https/mailto. `npm run check:primer-safety` renders hostile markdown
   through the real component and fails if anything executable survives — run it
-  after touching that component. Milestone 6's public cube view should render
-  the primer with the same component.
+  after touching that component. The public cube view renders the primer with
+  the same component.
 - **Every copy is its own entry in the UI.** `cube_cards` stores a quantity per
   (card, section) because two copies of one printing are genuinely identical,
   but nothing renders "×3" — a cube running three of a card shows three
@@ -215,9 +255,10 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - Slugs come from the name once and never change on rename — they are shared
   URLs. Uniqueness is per owner (`slugify` + `uniqueSlug` in `src/lib/slug.ts`).
 - Adding a card infers its section from the card type via
-  `defaultSectionForType`; cards can be moved afterwards. Cubes are singleton
-  pools, so adding a card already present is a no-op rather than a quantity
-  bump (the `quantity` column stays 1 for now).
+  `defaultSectionForType` (Legend → legends, Rune → runes, Battlefield →
+  battlefields, else main); cards can be moved afterwards. **Re-adding a card
+  already in the cube increments its quantity** rather than being a no-op —
+  cubes commonly run multiples. Nothing about a cube is singleton.
 - Card search inside the editor reuses the browser's machinery — `searchCards`,
   `CardFilterBar`, `CardPagination` and the shared tiles in
   `src/components/card-visuals.tsx`. Route-specific wrappers stay under their
@@ -229,6 +270,30 @@ a stale row — but it means a source switch leaves residue worth checking for.
   server component calls it) and `countCopies` in `cube-cards.ts` (the cube
   pages call it). This fails at request time, not at build time, so it is easy
   to ship — if a helper is shared, put it in `src/lib/` first.
+
+## Checks
+
+Beyond `npm run typecheck` and `npm run lint`, each check guards a regression
+that already happened once. Run the ones touching what you changed; run all of
+them before a release.
+
+| Script | Guards | Needs |
+| --- | --- | --- |
+| `check:printings` | the TS and SQL `base_id` rules agree on every row | DB (read-only) |
+| `check:primer-safety` | hostile markdown renders inert through the real component | — |
+| `check:browse-grid` | a grouped tile is a card, an all-printings tile is itself | dev server |
+| `check:copies-and-log` | quantity 2 lists as two entries; per-copy edits move one copy; edits reach the log | dev server |
+| `check:public-cube` | visibility gating, cloning, quantity-aware counts | dev server |
+| `check:auth-flow` | claiming a username refreshes the nav (`revalidatePath`) | dev server + Chrome :9222 |
+| `check:cube-ownership` | replays an Add under another session and with no cookie | dev server + Chrome :9222 |
+
+The browser ones need headless Chrome with remote debugging:
+`chrome --headless=new --remote-debugging-port=9222 --user-data-dir=<tmp> about:blank`.
+Each creates throwaway accounts and deletes them again, including on failure.
+
+`check:cube-ownership` is also structural: it fails if a new action in
+`src/app/cube/actions.ts` skips `requireOwnedCube` without a documented
+exemption naming the gate it uses instead.
 
 ## Auth and data access
 
@@ -257,12 +322,16 @@ a stale row — but it means a source switch leaves residue worth checking for.
   into the browser bundle, and `sb_secret_…` / `service_role` keys bypass RLS.
   `src/lib/supabase/config.ts` refuses to start if it detects one.
 
-## Phase 1 milestones (work in this order)
+## Phase 1 milestones
 
-1. Scaffold: Next.js + Tailwind + Drizzle + Supabase wiring, env setup, CI (typecheck + lint).
-2. Card ingestion: sync script pulling all sets from the Riot API into `cards`; verify counts per set.
-3. Card browser: `/cards` with basic filters (set, domain, type, rarity) and name search.
-4. Auth + profiles: Supabase auth, username claim flow.
-5. Cube CRUD: create/edit/delete cube, add/remove cards from the card browser, sections.
-6. Cube view: public page grouped by domain then energy cost, with type/cost toggles; clone button.
-7. Deploy to Vercel with the production domain.
+1. ✅ Scaffold — Next.js + Tailwind + Drizzle + Supabase, env setup. **CI was
+   part of this and is still missing.**
+2. ✅ Card ingestion — sync script, all sets, per-set counts verified.
+3. ✅ Card browser — `/cards`, filters for set/domain/type/rarity, name search.
+4. ✅ Auth + profiles — magic links, username claim.
+5. ✅ Cube CRUD — create/edit/delete, add/remove cards, sections.
+6. ✅ Cube view — public page, domain/cost grouping, view toggle, clone.
+7. ⬜ **Deploy to Vercel with the production domain.**
+
+Then phase 2 in the order under "Product vision", starting with search syntax.
+Do NOT build ahead of it.
