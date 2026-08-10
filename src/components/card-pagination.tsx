@@ -1,6 +1,5 @@
-import Link from "next/link";
-
 import type { CardFilters } from "@/db/queries/cards";
+import Pagination from "@/components/pagination";
 import { cardFilterParams } from "@/lib/card-search-params";
 
 interface Props {
@@ -13,9 +12,11 @@ interface Props {
   extraParams?: Record<string, string>;
 }
 
-const linkClass =
-  "rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";
-
+/**
+ * The card browser's pagination: generic controls plus the filter-carrying
+ * link. Losing the active filters when you turn the page would be the bug
+ * worth guarding, so building the href is the only thing that lives here.
+ */
 export default function CardPagination({
   filters,
   page,
@@ -32,36 +33,13 @@ export default function CardPagination({
     return query ? `${basePath}?${query}` : basePath;
   };
 
-  const first = (page - 1) * pageSize + 1;
-  const last = Math.min(page * pageSize, total);
-
   return (
-    <nav
-      aria-label="Pagination"
-      className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800"
-    >
-      <p className="text-sm text-zinc-600 tabular-nums dark:text-zinc-400">
-        Showing {first.toLocaleString()}–{last.toLocaleString()} of {total.toLocaleString()}
-      </p>
-      <div className="flex items-center gap-2">
-        {page > 1 ? (
-          <Link href={href(page - 1)} className={linkClass} rel="prev">
-            ← Previous
-          </Link>
-        ) : (
-          <span className={`${linkClass} cursor-default opacity-40`}>← Previous</span>
-        )}
-        <span className="text-sm text-zinc-600 tabular-nums dark:text-zinc-400">
-          Page {page} of {pageCount}
-        </span>
-        {page < pageCount ? (
-          <Link href={href(page + 1)} className={linkClass} rel="next">
-            Next →
-          </Link>
-        ) : (
-          <span className={`${linkClass} cursor-default opacity-40`}>Next →</span>
-        )}
-      </div>
-    </nav>
+    <Pagination
+      page={page}
+      pageCount={pageCount}
+      total={total}
+      pageSize={pageSize}
+      href={href}
+    />
   );
 }

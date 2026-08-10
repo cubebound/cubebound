@@ -523,6 +523,15 @@ smart; C adds the deck builder.
   latest draft of that cube, which is why a finished draft used to become
   unreachable the moment a new one started. A draft id belonging to someone
   else, or to another cube, falls back to the latest rather than opening.
+- **Deleting a draft takes its picks with it** (`draft_picks` cascades) and is
+  gated on being the drafter, in the action and again in the query's `WHERE`.
+  It confirms first: it is the only irreversible thing on the list and sits
+  next to the link that opens a draft. `/drafts` pages at
+  `DRAFTS_PAGE_SIZE`, and an out-of-range `?page=` clamps rather than 404s so
+  deleting the last draft on a page still lands somewhere real.
+- Generic page controls live in `src/components/pagination.tsx`; the card
+  browser's `CardPagination` wraps them to carry its filters through the link,
+  which is the only part that differs between the two.
 - **"New draft" confirms when the current one is unfinished.** Nothing is
   destroyed — the old draft stays in the list — but the button is one click
   from twenty picks of work, and the screen should say so before it acts.

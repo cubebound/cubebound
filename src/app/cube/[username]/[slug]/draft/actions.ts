@@ -11,6 +11,7 @@ import {
 } from "@/db/queries/cubes";
 import {
   createDraftRow,
+  deleteDraft,
   getDraft,
   getDraftPicks,
   getDraftPools,
@@ -147,6 +148,16 @@ export async function setCardBoardAction(
 
   await setPickBoard(owned.draft.id, owned.draft.humanSeat, round, pickNumber, board);
   revalidatePath(returnPath.startsWith("/") ? returnPath : "/");
+  return {};
+}
+
+/** Deletes one of the caller's own drafts, and its picks with it. */
+export async function deleteDraftAction(draftId: string): Promise<DraftActionState> {
+  const owned = await requireOwnDraft(draftId);
+  if ("error" in owned) return { error: owned.error };
+
+  await deleteDraft(owned.draft.id, owned.profile.id);
+  revalidatePath("/drafts");
   return {};
 }
 

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "..";
 import { cards, cubeCards, cubes, draftPicks, drafts, users, type Draft } from "../schema";
@@ -123,7 +123,25 @@ export interface DraftSummary {
  * column of ids, and counts only the drafter's own picks — the bot rows would
  * multiply the number by the number of seats.
  */
-export async function listDraftsForUser(userId: string): Promise<DraftSummary[]> {
+export const DRAFTS_PAGE_SIZE = 20;
+
+export interface DraftPage {
+  drafts: DraftSummary[];
+  total: number;
+}
+
+export async function countDraftsForUser(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(drafts)
+    .where(eq(drafts.drafterId, userId));
+  return row?.n ?? 0;
+}
+
+export async function listDraftsForUser(
+  userId: string,
+  options: { limit?: number; offset?: number } = {},
+): Promise<DraftSummary[]> {
   const rows = await db
     .select({
       id: drafts.id,
@@ -140,7 +158,9 @@ export async function listDraftsForUser(userId: string): Promise<DraftSummary[]>
     .innerJoin(cubes, eq(cubes.id, drafts.cubeId))
     .innerJoin(users, eq(users.id, cubes.ownerId))
     .where(eq(drafts.drafterId, userId))
-    .orderBy(desc(drafts.createdAt));
+    .orderBy(desc(drafts.createdAt))
+    .limit(options.limit ?? 500)
+    .offset(options.offset ?? 0);
 
   if (rows.length === 0) return [];
 
@@ -216,6 +236,19 @@ export async function setPickBoard(
         eq(draftPicks.pickNumber, pickNumber),
       ),
     );
+}
+
+/**
+ * Removes a draft and everything it recorded.
+ *
+ * `draft_picks` cascades on the foreign key, so the picks go with it. Scoped
+ * by drafter as well as id: the id alone is a guessable handle, and the caller
+ * is checked in the action too — this is the second lock, not the only one.
+ */
+export async function deleteDraft(draftId: string, drafterId: string): Promise<void> {
+  await db
+    .delete(drafts)
+    .where(and(eq(drafts.id, draftId), eq(drafts.drafterId, drafterId)));
 }
 
 export async function markDraftComplete(draftId: string): Promise<void> {
