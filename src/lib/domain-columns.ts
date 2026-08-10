@@ -10,7 +10,7 @@
  * swallow most of them and say nothing.
  */
 
-import { COLORLESS, DOMAINS } from "@/lib/riftbound";
+import { COLORLESS, DOMAINS, DOMAIN_COLORS } from "@/lib/riftbound";
 
 export function sortDomains(domains: string[]): string[] {
   return [...domains].sort(
@@ -86,4 +86,21 @@ export function compareForDisplay(
 
   if (costA !== null && costB !== null && costA !== costB) return costA - costB;
   return a.name.localeCompare(b.name);
+}
+
+/**
+ * The little colour dot that stands for a card's domains.
+ *
+ * A hard split rather than a blend for multi-domain: at 10px a blend is mud,
+ * and it has to stay legible next to the single-domain dots it sits beside.
+ */
+export function domainDot(domains: readonly string[]): string {
+  const colors = domains
+    .map((domain) => DOMAIN_COLORS[domain])
+    .filter(Boolean);
+  if (colors.length === 0) return DOMAIN_COLORS[COLORLESS];
+  if (colors.length === 1) return colors[0];
+  const step = 100 / colors.length;
+  const bands = colors.map((color, i) => `${color} ${i * step}% ${(i + 1) * step}%`);
+  return `linear-gradient(135deg, ${bands.join(", ")})`;
 }

@@ -8,15 +8,6 @@ export async function getProfileById(id: string): Promise<User | null> {
   return profile ?? null;
 }
 
-export async function getProfileByUsername(username: string): Promise<User | null> {
-  const [profile] = await db
-    .select()
-    .from(users)
-    .where(eq(users.username, username.toLowerCase()))
-    .limit(1);
-  return profile ?? null;
-}
-
 /** Postgres unique_violation, raised when two people race for a username. */
 const UNIQUE_VIOLATION = "23505";
 

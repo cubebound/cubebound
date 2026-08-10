@@ -11,6 +11,7 @@ import { ambiguousBaseIds, countCopies, expandCopies } from "@/lib/cube-cards";
 import {
   columnKey,
   compareColumns,
+  domainDot,
   domainsOfColumn,
 } from "@/lib/domain-columns";
 import { COLORLESS, DOMAIN_COLORS } from "@/lib/riftbound";
@@ -144,19 +145,6 @@ function cellBackground(column: string): string {
   if (stops.length === 0) return wash(DOMAIN_COLORS[COLORLESS]);
   if (stops.length === 1) return stops[0];
   return `linear-gradient(135deg, ${stops.join(", ")})`;
-}
-
-/** The header dot: solid for one domain, split for a pair. */
-function dotBackground(column: string): string {
-  const colors = domainsOfColumn(column)
-    .map((domain) => DOMAIN_COLORS[domain])
-    .filter(Boolean);
-  if (colors.length === 0) return DOMAIN_COLORS[COLORLESS];
-  if (colors.length === 1) return colors[0];
-  // A hard split reads better than a blend at 10px.
-  const step = 100 / colors.length;
-  const bands = colors.map((c, i) => `${c} ${i * step}% ${(i + 1) * step}%`);
-  return `linear-gradient(135deg, ${bands.join(", ")})`;
 }
 
 function CostCell({
@@ -308,7 +296,7 @@ export default function CubeTable({
               <h4 className="mb-1.5 flex items-center gap-1.5 border-b border-zinc-200 pb-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-800">
                 <span
                   className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
-                  style={{ background: dotBackground(column) }}
+                  style={{ background: domainDot(domainsOfColumn(column)) }}
                 />
                 <span className="truncate">{column}</span>
                 <span className="ml-auto font-normal tabular-nums text-zinc-500">

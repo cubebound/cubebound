@@ -20,8 +20,20 @@
 
 const RESIZABLE_HOSTS = new Set(["cmsassets.rgpub.io"]);
 
-/** Widths in CSS pixels; the CDN returns 2× for crispness on dense screens. */
-export const THUMB_WIDTH = 320;
+/**
+ * Source widths in pixels, not CSS pixels.
+ *
+ * Tiles render at 246 CSS px across the card browser, the cube views and the
+ * draft, so 512 is a shade over 2× — enough to stay sharp on a 2× display,
+ * which is where an undersized image reads as blurry rather than merely small.
+ * 320 was tried first and card text was hard to read for exactly that reason.
+ * The cost is modest: 512 is ~48KB against ~27KB, still roughly 18× smaller
+ * than the 875KB PNG the source serves natively.
+ *
+ * `FULL_WIDTH` matches the source's own resolution, so the detail view loses
+ * nothing but the PNG encoding.
+ */
+export const THUMB_WIDTH = 512;
 export const FULL_WIDTH = 744;
 
 function sized(url: string | null | undefined, width: number): string | null {

@@ -9,7 +9,7 @@
  */
 
 import { chooseBotPick, commitDomains } from "./bots";
-import { finalPoolSize, type DraftConfig, type PassDirection } from "./config";
+import type { DraftConfig, PassDirection } from "./config";
 import type { DraftCard, PackGrid } from "./packs";
 
 export interface DraftState {
@@ -90,11 +90,6 @@ export function createDraft({
     committed: Array.from({ length: config.seats }, () => null),
     status: "active",
   };
-}
-
-/** The pack the human is looking at right now. */
-export function currentPack(state: DraftState): DraftCard[] {
-  return state.packs[state.humanSeat] ?? [];
 }
 
 function takeFromPack(pack: DraftCard[], cardId: string): DraftCard | undefined {
@@ -196,13 +191,4 @@ export function replay(initial: DraftState, humanPicks: readonly string[]): Draf
     state = applyPick(state, cardId).state;
   }
   return state;
-}
-
-/** True once every seat holds a full pool. */
-export function isComplete(state: DraftState): boolean {
-  return state.status === "complete";
-}
-
-export function expectedPoolSize(config: DraftConfig): number {
-  return finalPoolSize(config);
 }

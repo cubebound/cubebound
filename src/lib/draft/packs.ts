@@ -170,8 +170,3 @@ export function generatePacks(
 
   return { ok: true, packs, warnings };
 }
-
-/** Every card dealt, for asserting quantity limits and snapshotting. */
-export function allDealtCards(packs: PackGrid): DraftCard[] {
-  return packs.flat().flat();
-}

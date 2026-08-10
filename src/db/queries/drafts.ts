@@ -257,7 +257,3 @@ export async function markDraftComplete(draftId: string): Promise<void> {
     .set({ status: "complete", updatedAt: new Date() })
     .where(eq(drafts.id, draftId));
 }
-
-export async function touchDraft(draftId: string): Promise<void> {
-  await db.update(drafts).set({ updatedAt: new Date() }).where(eq(drafts.id, draftId));
-}

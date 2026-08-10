@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { cardThumb } from "@/lib/card-images";
+import { domainDot } from "@/lib/domain-columns";
 import { aspectRatio } from "@/lib/riftbound";
 
 import {
@@ -12,7 +13,7 @@ import {
   startDraftAction,
   type DraftActionState,
 } from "./actions";
-import PoolPiles, { domainDot, type PoolCard } from "./pool-piles";
+import PoolPiles, { type PoolCard } from "./pool-piles";
 
 export interface DraftTile {
   id: string;

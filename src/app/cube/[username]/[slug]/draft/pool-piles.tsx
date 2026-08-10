@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { cardThumb } from "@/lib/card-images";
-import { aspectRatio, isLandscape, COLORLESS, DOMAIN_COLORS } from "@/lib/riftbound";
+import { aspectRatio, isLandscape } from "@/lib/riftbound";
 
 export interface PoolCard {
   /** (round, pickNumber) identifies the copy — a pool can hold two of a card. */
@@ -23,16 +23,6 @@ const LEGENDS = "Legends";
 const BATTLEFIELDS = "Battlefields";
 /** Anything else without a cost still needs somewhere to go. */
 const NO_COST = "—";
-
-export function domainDot(domains: string[]): string {
-  if (domains.length === 0) return DOMAIN_COLORS[COLORLESS];
-  if (domains.length === 1) return DOMAIN_COLORS[domains[0]] ?? DOMAIN_COLORS[COLORLESS];
-  const step = 100 / domains.length;
-  const bands = domains.map(
-    (d, i) => `${DOMAIN_COLORS[d] ?? DOMAIN_COLORS[COLORLESS]} ${i * step}% ${(i + 1) * step}%`,
-  );
-  return `linear-gradient(135deg, ${bands.join(", ")})`;
-}
 
 function pileOf(card: PoolCard): string {
   if (card.type === "Legend") return LEGENDS;
