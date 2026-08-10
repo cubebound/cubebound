@@ -207,12 +207,16 @@ a stale row — but it means a source switch leaves residue worth checking for.
   only, then cost groups with counts. Champion Units are `type = 'Unit'` and
   Signature Spells are `type = 'Spell'`, so they land in the right subgroup for
   free; an unrecognized type gets its own subgroup at the end rather than being
-  dropped. **Every column fits the viewport — the only scrolling is vertical.**
-  `minmax(0, 1fr)` is what allows it: the 0 minimum lets a column shrink below
-  its content and the names truncate. The grid is capped at `columns × 11rem`
-  so a single-column section (Battlefields) doesn't stretch one column across
-  the page. The cost of fitting is real: a cube spanning 18 domain
-  combinations gives each column ~63px at 1400px, which truncates names hard.
+  dropped. **Columns wrap; they never shrink to fit and never scroll
+  sideways.** The count per row steps at breakpoints — 8 at ≥1280px, 4 at
+  ≥768px, 3 below, never fewer — and columns flex within a tier, which is how
+  Cube Cobra keeps names readable at every width. Squeezing all of them onto
+  one row was tried and fails on real data: a cube spanning 18 domain
+  combinations left each column ~63px, truncating names to about six
+  characters. The tier is read through `useSyncExternalStore` so the value
+  stays out of render-time state and the server still gets a defined snapshot.
+  The grid is also capped at `columns × 11rem` so a section with fewer columns
+  than the tier allows (Battlefields has one) doesn't stretch across the page.
   Cost cells
   are tinted with their domain colour mixed against `--tint-base`, which flips
   between white and near-black so one mix percentage stays legible in both

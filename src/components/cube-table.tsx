@@ -1,5 +1,7 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
+
 import type { CubeCardRow } from "@/db/queries/cubes";
 import { ambiguousBaseIds, countCopies, expandCopies } from "@/lib/cube-cards";
 import {
@@ -8,6 +10,49 @@ import {
   domainsOfColumn,
 } from "@/lib/domain-columns";
 import { COLORLESS, DOMAIN_COLORS } from "@/lib/riftbound";
+
+
+/**
+ * How many columns a row may hold, by viewport width.
+ *
+ * Cube Cobra's behaviour, and the reason it stays readable: columns flex
+ * within a tier, and at a threshold the *count* drops rather than the columns
+ * continuing to narrow. Three is the floor — below that a column is too thin
+ * for a card name to survive at all.
+ *
+ * Squeezing every column onto one row was the alternative and it does not work
+ * here: a cube spanning 18 domain combinations left each column ~63px, which
+ * truncated names to about six characters.
+ */
+const COLUMN_TIERS = [
+  { from: 1280, columns: 8 },
+  { from: 768, columns: 4 },
+  { from: 0, columns: 3 },
+] as const;
+
+function maxColumnsFor(width: number): number {
+  return COLUMN_TIERS.find((tier) => width >= tier.from)?.columns ?? 3;
+}
+
+function subscribeToWidth(onChange: () => void): () => void {
+  window.addEventListener("resize", onChange);
+  return () => window.removeEventListener("resize", onChange);
+}
+
+/**
+ * Read through `useSyncExternalStore` rather than an effect: it keeps the value
+ * out of render-time state (which the compiler lint rejects) and gives the
+ * server a defined snapshot instead of a hydration mismatch.
+ */
+function useMaxColumns(): number {
+  return useSyncExternalStore(
+    subscribeToWidth,
+    () => maxColumnsFor(window.innerWidth),
+    // Widest tier on the server: desktop is the common case, so this is the
+    // layout least likely to visibly correct itself after hydration.
+    () => 8,
+  );
+}
 
 /**
  * Type subgroups inside a domain column, so the main section reads
@@ -190,6 +235,8 @@ export default function CubeTable({
    *  mixes types; the others are single-type already. */
   groupByType?: boolean;
 }) {
+  const maxColumns = useMaxColumns();
+
   // column -> subgroup -> cost -> cards. Non-main sections use a single
   // unnamed subgroup so the render path stays the same.
   const columns = new Map<string, Map<string, Map<string, CubeCardRow[]>>>();
@@ -219,12 +266,15 @@ export default function CubeTable({
   // below its content, and the card names inside truncate. A section with a
   // column per domain *pair* can run to a dozen, and they still share the
   // width rather than pushing the rest off-screen or onto a second row.
-  const gridTemplateColumns = `repeat(${present.length}, minmax(0, 1fr))`;
-  // Without a ceiling, a single-column section (Battlefields) would stretch one
-  // column across the whole page and stop lining up with the section above it.
-  // Capping the whole grid keeps columns at a sane width when there are few,
-  // and is simply ignored when there are many — they still shrink to fit.
-  const maxWidth = `${present.length * 11}rem`;
+  // Columns beyond what a row holds wrap onto the next row and the page scrolls
+  // vertically; there is never a horizontal scrollbar, and a column never
+  // shrinks below its tier to force everything onto one line.
+  const perRow = Math.min(present.length, maxColumns);
+  const gridTemplateColumns = `repeat(${perRow}, minmax(0, 1fr))`;
+  // Without a ceiling, a section with fewer columns than the tier allows
+  // (Battlefields has one) would stretch them across the whole page and stop
+  // lining up with the section above it.
+  const maxWidth = `${perRow * 11}rem`;
 
   return (
     <div>
