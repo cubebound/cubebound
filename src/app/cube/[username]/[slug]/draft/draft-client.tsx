@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { aspectRatio, DOMAIN_COLORS, COLORLESS } from "@/lib/riftbound";
@@ -31,6 +30,40 @@ function domainDot(domains: string[]): string {
   return `linear-gradient(135deg, ${bands.join(", ")})`;
 }
 
+
+/**
+ * Runs a server action without letting a failure strand the UI.
+ *
+ * A rejected action inside `startTransition` — a stopped dev server, a dropped
+ * connection, a sleeping laptop — leaves `isPending` true forever, which
+ * disables every card and shows "Bots picking…" with no way back. Draft state
+ * is persisted server-side, so the honest recovery is to say so and let the
+ * page be reloaded.
+ *
+ * A `redirect()` inside an action surfaces as a thrown NEXT_REDIRECT, which
+ * must be re-thrown or the navigation is swallowed.
+ */
+async function runAction<T extends { error?: string }>(
+  call: () => Promise<T>,
+  onError: (message: string) => void,
+): Promise<T | null> {
+  try {
+    const result = await call();
+    if (result?.error) {
+      onError(result.error);
+      return null;
+    }
+    return result;
+  } catch (error) {
+    const digest = (error as { digest?: string })?.digest;
+    if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) throw error;
+    onError(
+      "Lost contact with the server. Your draft is saved — reload the page to pick up where you left off.",
+    );
+    return null;
+  }
+}
+
 /** Start screen: what the draft will be, plus anything worth knowing first. */
 export function StartDraft({
   cubeId,
@@ -45,7 +78,6 @@ export function StartDraft({
   warnings: string[];
   blocked: string | null;
 }) {
-  const router = useRouter();
   const [state, setState] = useState<DraftActionState>({});
   const [pending, startTransition] = useTransition();
 
@@ -75,9 +107,11 @@ export function StartDraft({
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
-              const result = await startDraftAction(cubeId, returnPath);
-              setState(result);
-              if (!result.error) router.refresh();
+              setState({});
+              await runAction(
+                () => startDraftAction(cubeId, returnPath),
+                (message) => setState({ error: message }),
+              );
             })
           }
           className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
@@ -219,7 +253,6 @@ export function PickScreen({
   totalRounds: number;
   packSize: number;
 }) {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -249,9 +282,10 @@ export function PickScreen({
               onPick={() =>
                 startTransition(async () => {
                   setError(null);
-                  const result = await makePickAction(draftId, card.id, returnPath);
-                  if (result.error) setError(result.error);
-                  else router.refresh();
+                  await runAction(
+                    () => makePickAction(draftId, card.id, returnPath),
+                    setError,
+                  );
                 })
               }
             />
@@ -295,8 +329,7 @@ export function EndScreen({
           onClick={() =>
             startTransition(async () => {
               setError(null);
-              const result = await saveDraftAsCubeAction(draftId, name);
-              if (result?.error) setError(result.error);
+              await runAction(() => saveDraftAsCubeAction(draftId, name), setError);
             })
           }
           className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
