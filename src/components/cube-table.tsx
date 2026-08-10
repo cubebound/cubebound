@@ -4,16 +4,44 @@ import type { CubeCardRow } from "@/db/queries/cubes";
 import { ambiguousBaseIds, countCopies, expandCopies } from "@/lib/cube-cards";
 import { COLORLESS, DOMAINS, DOMAIN_COLORS } from "@/lib/riftbound";
 
-/** Cards with more than one domain get their own column rather than being
- *  filed under an arbitrary one. */
-const MULTI = "Multi";
-
-const COLUMN_ORDER = [...DOMAINS, COLORLESS, MULTI];
-
-function columnFor(card: CubeCardRow): string {
+/**
+ * A column per domain combination, not one "Multi" bucket.
+ *
+ * Nearly every legend has two domains, so a single multi column would collect
+ * most of them and say nothing useful. Fury/Chaos and Fury/Order are different
+ * cards to draft around, and they get their own columns.
+ */
+function columnKey(card: CubeCardRow): string {
   if (card.domains.length === 0) return COLORLESS;
-  if (card.domains.length > 1) return MULTI;
-  return card.domains[0];
+  return sortDomains(card.domains).join("/");
+}
+
+function sortDomains(domains: string[]): string[] {
+  return [...domains].sort((a, b) => DOMAINS.indexOf(a as never) - DOMAINS.indexOf(b as never));
+}
+
+function domainsOfColumn(column: string): string[] {
+  return column === COLORLESS ? [] : column.split("/");
+}
+
+/**
+ * Single domains in the game's order, then Colorless, then the pairs — each
+ * ordered by its own domains, so Fury/… come before Calm/… .
+ */
+function columnRank(column: string): number[] {
+  if (column === COLORLESS) return [1];
+  const domains = domainsOfColumn(column).map((d) => DOMAINS.indexOf(d as never));
+  return [domains.length === 1 ? 0 : 2, ...domains];
+}
+
+function compareColumns(a: string, b: string): number {
+  const left = columnRank(a);
+  const right = columnRank(b);
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const diff = (left[i] ?? -1) - (right[i] ?? -1);
+    if (diff !== 0) return diff;
+  }
+  return a.localeCompare(b);
 }
 
 /**
@@ -92,19 +120,29 @@ function toCopyRows(cards: CubeCardRow[], ambiguous: Set<string>): CopyRow[] {
  * "multicolour gold" — gold would sit right on top of Order, which is already
  * the yellow domain.
  */
-function cellBackground(column: string, domains: string[]): string {
+function cellBackground(column: string): string {
   const wash = (color: string) => `color-mix(in srgb, ${color} 16%, var(--tint-base))`;
-
-  if (column !== MULTI) {
-    return wash(DOMAIN_COLORS[column] ?? DOMAIN_COLORS[COLORLESS]);
-  }
-  const stops = domains
+  const stops = domainsOfColumn(column)
     .map((domain) => DOMAIN_COLORS[domain])
     .filter(Boolean)
     .map(wash);
+
   if (stops.length === 0) return wash(DOMAIN_COLORS[COLORLESS]);
   if (stops.length === 1) return stops[0];
   return `linear-gradient(135deg, ${stops.join(", ")})`;
+}
+
+/** The header dot: solid for one domain, split for a pair. */
+function dotBackground(column: string): string {
+  const colors = domainsOfColumn(column)
+    .map((domain) => DOMAIN_COLORS[domain])
+    .filter(Boolean);
+  if (colors.length === 0) return DOMAIN_COLORS[COLORLESS];
+  if (colors.length === 1) return colors[0];
+  // A hard split reads better than a blend at 10px.
+  const step = 100 / colors.length;
+  const bands = colors.map((c, i) => `${c} ${i * step}% ${(i + 1) * step}%`);
+  return `linear-gradient(135deg, ${bands.join(", ")})`;
 }
 
 function CostCell({
@@ -191,7 +229,7 @@ export default function CubeTable({
   // unnamed subgroup so the render path stays the same.
   const columns = new Map<string, Map<string, Map<string, CubeCardRow[]>>>();
   for (const card of cards) {
-    const column = columnFor(card);
+    const column = columnKey(card);
     if (!columns.has(column)) columns.set(column, new Map());
     const bySubgroup = columns.get(column)!;
 
@@ -204,7 +242,7 @@ export default function CubeTable({
     byCost.get(cost)!.push(card);
   }
 
-  const present = COLUMN_ORDER.filter((column) => columns.has(column));
+  const present = [...columns.keys()].sort(compareColumns);
   if (present.length === 0) return null;
 
   // Only annotate rows with a printing id where the same card sits in the cube
@@ -228,23 +266,14 @@ export default function CubeTable({
             [...byCost.values()].flat(),
           );
           const columnTotal = countCopies(allCards);
-          // Multi columns blend the domains actually present in them.
-          const multiDomains = [
-            ...new Set(allCards.flatMap((card) => card.domains)),
-          ].sort((a, b) => DOMAINS.indexOf(a as never) - DOMAINS.indexOf(b as never));
-          const background = cellBackground(column, multiDomains);
+          const background = cellBackground(column);
 
           return (
             <section key={column} className="min-w-0">
               <h4 className="mb-1.5 flex items-center gap-1.5 border-b border-zinc-200 pb-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-800">
                 <span
                   className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
-                  style={{
-                    background:
-                      column === MULTI && multiDomains.length > 1
-                        ? `linear-gradient(135deg, ${multiDomains.map((d) => DOMAIN_COLORS[d]).join(", ")})`
-                        : (DOMAIN_COLORS[column] ?? DOMAIN_COLORS[COLORLESS]),
-                  }}
+                  style={{ background: dotBackground(column) }}
                 />
                 <span className="truncate">{column}</span>
                 <span className="ml-auto font-normal tabular-nums text-zinc-500">

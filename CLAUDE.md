@@ -148,8 +148,14 @@ a stale row — but it means a source switch leaves residue worth checking for.
   get their own subgroup at the end), then cost groups with counts. Cost cells
   are tinted with their domain colour mixed against `--tint-base`, which flips
   between white and near-black so one mix percentage stays legible in both
-  themes. Multi-domain uses a diagonal blend of its actual domains rather than
-  a "multicolour gold", which would collide with Order.
+  themes.
+- **Multi-domain cards get a column per pair** (Fury/Chaos, Fury/Order, ...),
+  not one shared "Multi" bucket — nearly every legend has two domains, so a
+  single bucket would swallow most of them and say nothing. Columns sort as:
+  single domains in the game's order, then Colorless, then the pairs ordered by
+  their own domains. A pair's tint is a diagonal blend of its two colours and
+  its header dot is a hard split; a blend would be mud at 10px, and a
+  "multicolour gold" would collide with Order.
 - In the text view, printings of the same card collapse to one row with a ×N
   count — art variants are indistinguishable as text. The visual view keeps a
   tile per printing, since there the art *is* the difference. Removing from a
