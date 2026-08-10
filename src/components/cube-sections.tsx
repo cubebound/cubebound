@@ -2,10 +2,12 @@
 
 import { useCallback, useState, type ReactNode } from "react";
 
+import BackToTop from "@/components/back-to-top";
 import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
 import CubeTable from "@/components/cube-table";
 import type { CubeCardRow } from "@/db/queries/cubes";
 import { countCopies, expandCopies, type CopyOf } from "@/lib/cube-cards";
+import { compareForDisplay } from "@/lib/domain-columns";
 import type { CubeView } from "@/lib/cube-view";
 import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
 
@@ -111,7 +113,10 @@ export default function CubeSections({
                 />
               ) : (
                 <ul className={CARD_GRID_CLASS}>
-                  {expandCopies(inSection).map((copy) => (
+                  {/* Domain, then cost, with the costless cards kept together
+                      at the end — see compareForDisplay. Sorted here rather
+                      than in the query so both views order from one rule. */}
+                  {expandCopies([...inSection].sort(compareForDisplay)).map((copy) => (
                     <CardTile
                       key={copy.key}
                       card={copy.card}
@@ -126,6 +131,10 @@ export default function CubeSections({
           );
         })}
       </div>
+
+      {/* Image tiles make for a very long page; the text view is compact
+          enough not to need it. */}
+      {view === "visual" && <BackToTop />}
 
       {selected && (
         <CardDetail

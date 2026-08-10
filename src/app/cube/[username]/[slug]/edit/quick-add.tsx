@@ -261,7 +261,14 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
   );
 }
 
-/** Sticky sidebar on desktop, bottom sheet on small screens. */
+/**
+ * Opened on demand, never docked.
+ *
+ * It used to hold a permanent 20rem column on desktop, which taxed every visit
+ * to the cube for a panel you only want while adding. Now the cube list gets
+ * the full width and this slides in over it: a right-hand drawer at desktop
+ * widths, a bottom sheet on small screens.
+ */
 export default function QuickAdd(props: Props) {
   const [open, setOpen] = useState(false);
 
@@ -276,21 +283,19 @@ export default function QuickAdd(props: Props) {
 
   return (
     <>
-      <aside className="sticky top-4 hidden h-[calc(100vh-6rem)] rounded-lg border border-zinc-200 bg-white lg:block dark:border-zinc-800 dark:bg-zinc-950">
-        <QuickAddPanel {...props} />
-      </aside>
-
+      {/* Floating so it stays reachable part-way down a long cube list. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-30 rounded-full bg-zinc-900 px-5 py-3 text-sm font-medium text-white shadow-lg lg:hidden dark:bg-zinc-100 dark:text-zinc-900"
+        aria-expanded={open}
+        className="fixed bottom-4 right-4 z-30 rounded-full bg-zinc-900 px-5 py-3 text-sm font-medium text-white shadow-lg hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
       >
         Quick add
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-40 flex items-end bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 flex items-end bg-black/60 lg:items-stretch lg:justify-end"
           onClick={() => setOpen(false)}
           role="dialog"
           aria-modal="true"
@@ -298,7 +303,7 @@ export default function QuickAdd(props: Props) {
         >
           <div
             onClick={(event) => event.stopPropagation()}
-            className="h-[80vh] w-full rounded-t-xl bg-white dark:bg-zinc-950"
+            className="h-[80vh] w-full rounded-t-xl bg-white lg:h-full lg:w-[22rem] lg:rounded-none lg:border-l lg:border-zinc-200 dark:bg-zinc-950 dark:lg:border-zinc-800"
           >
             <QuickAddPanel {...props} onClose={() => setOpen(false)} />
           </div>

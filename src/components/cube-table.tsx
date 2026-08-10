@@ -2,47 +2,12 @@
 
 import type { CubeCardRow } from "@/db/queries/cubes";
 import { ambiguousBaseIds, countCopies, expandCopies } from "@/lib/cube-cards";
-import { COLORLESS, DOMAINS, DOMAIN_COLORS } from "@/lib/riftbound";
-
-/**
- * A column per domain combination, not one "Multi" bucket.
- *
- * Nearly every legend has two domains, so a single multi column would collect
- * most of them and say nothing useful. Fury/Chaos and Fury/Order are different
- * cards to draft around, and they get their own columns.
- */
-function columnKey(card: CubeCardRow): string {
-  if (card.domains.length === 0) return COLORLESS;
-  return sortDomains(card.domains).join("/");
-}
-
-function sortDomains(domains: string[]): string[] {
-  return [...domains].sort((a, b) => DOMAINS.indexOf(a as never) - DOMAINS.indexOf(b as never));
-}
-
-function domainsOfColumn(column: string): string[] {
-  return column === COLORLESS ? [] : column.split("/");
-}
-
-/**
- * Single domains in the game's order, then Colorless, then the pairs — each
- * ordered by its own domains, so Fury/… come before Calm/… .
- */
-function columnRank(column: string): number[] {
-  if (column === COLORLESS) return [1];
-  const domains = domainsOfColumn(column).map((d) => DOMAINS.indexOf(d as never));
-  return [domains.length === 1 ? 0 : 2, ...domains];
-}
-
-function compareColumns(a: string, b: string): number {
-  const left = columnRank(a);
-  const right = columnRank(b);
-  for (let i = 0; i < Math.max(left.length, right.length); i++) {
-    const diff = (left[i] ?? -1) - (right[i] ?? -1);
-    if (diff !== 0) return diff;
-  }
-  return a.localeCompare(b);
-}
+import {
+  columnKey,
+  compareColumns,
+  domainsOfColumn,
+} from "@/lib/domain-columns";
+import { COLORLESS, DOMAIN_COLORS } from "@/lib/riftbound";
 
 /**
  * Type subgroups inside a domain column, so the main section reads
@@ -249,17 +214,21 @@ export default function CubeTable({
   // under more than one printing; otherwise the names alone are unambiguous.
   const ambiguous = ambiguousBaseIds(cards);
 
-  // Columns keep a readable minimum and the wrapper scrolls rather than
-  // squeezing names to nothing. The maximum matters as much: without it a
-  // single-domain section (Legends, Battlefields) would stretch one column
-  // across the whole page and stop lining up with the section above it.
-  // 11rem keeps all seven domain columns on screen next to the quick-add
-  // sidebar at desktop widths, while still capping single-column sections.
-  const gridTemplateColumns = `repeat(${present.length}, minmax(8.5rem, 11rem))`;
+  // Every column fits across the viewport, so the only scrolling is vertical.
+  // `minmax(0, 1fr)` is what allows it: the 0 minimum lets a column shrink
+  // below its content, and the card names inside truncate. A section with a
+  // column per domain *pair* can run to a dozen, and they still share the
+  // width rather than pushing the rest off-screen or onto a second row.
+  const gridTemplateColumns = `repeat(${present.length}, minmax(0, 1fr))`;
+  // Without a ceiling, a single-column section (Battlefields) would stretch one
+  // column across the whole page and stop lining up with the section above it.
+  // Capping the whole grid keeps columns at a sane width when there are few,
+  // and is simply ignored when there are many — they still shrink to fit.
+  const maxWidth = `${present.length * 11}rem`;
 
   return (
-    <div className="overflow-x-auto">
-      <div className="grid min-w-max gap-3" style={{ gridTemplateColumns }}>
+    <div>
+      <div className="grid gap-3" style={{ gridTemplateColumns, maxWidth }}>
         {present.map((column) => {
           const bySubgroup = columns.get(column)!;
           const allCards = [...bySubgroup.values()].flatMap((byCost) =>

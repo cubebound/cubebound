@@ -201,7 +201,7 @@ export default async function EditCubePage({
           )}
         </section>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="grid gap-6">
           <section className="min-w-0">
             <CubeContents
               cubeId={cube.id}

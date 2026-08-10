@@ -192,9 +192,11 @@ a stale row — but it means a source switch leaves residue worth checking for.
 ## Cubes
 
 - The editor has four tabs, all on `/edit` behind `?mode=`. Default (no param):
-  the cube is the page, with a **quick-add** panel (sticky sidebar on desktop,
-  bottom sheet below `lg`) for rapid consecutive adds — type-ahead, per-row
-  section and printing selects, add without navigating. `?mode=browse` swaps in
+  the cube is the page, and **quick add opens on demand** — a button, then a
+  right-hand drawer on desktop and a bottom sheet below `lg`. It used to hold a
+  permanent 20rem column, which taxed every visit for a panel you only want
+  while adding. Type-ahead, per-row section and printing selects, add without
+  navigating; Escape closes it. `?mode=browse` swaps in
   the full filter/grid browser **in place of** the cube list, so the add
   controls are never below it; `?mode=primer` and `?mode=log` are the Primer
   and Change log tabs. Browse mode is only rendered when active, so the
@@ -205,7 +207,13 @@ a stale row — but it means a source switch leaves residue worth checking for.
   only, then cost groups with counts. Champion Units are `type = 'Unit'` and
   Signature Spells are `type = 'Spell'`, so they land in the right subgroup for
   free; an unrecognized type gets its own subgroup at the end rather than being
-  dropped. Cost cells
+  dropped. **Every column fits the viewport — the only scrolling is vertical.**
+  `minmax(0, 1fr)` is what allows it: the 0 minimum lets a column shrink below
+  its content and the names truncate. The grid is capped at `columns × 11rem`
+  so a single-column section (Battlefields) doesn't stretch one column across
+  the page. The cost of fitting is real: a cube spanning 18 domain
+  combinations gives each column ~63px at 1400px, which truncates names hard.
+  Cost cells
   are tinted with their domain colour mixed against `--tint-base`, which flips
   between white and near-black so one mix percentage stays legible in both
   themes.
@@ -216,6 +224,16 @@ a stale row — but it means a source switch leaves residue worth checking for.
   their own domains. A pair's tint is a diagonal blend of its two colours and
   its header dot is a hard split; a blend would be mud at 10px, and a
   "multicolour gold" would collide with Order.
+- The visual view sorts by domain, then by cost, with the cards that have
+  **neither** an energy nor a power cost kept together at the end rather than
+  scattered as if they were zero-cost — legends, runes and battlefields are off
+  that scale entirely. Both views order domains through `compareColumns` in
+  `src/lib/domain-columns.ts`, which is shared precisely so "sorted by colour"
+  cannot come to mean two different things.
+- The visual view carries a floating **Back to top** button, since image tiles
+  make for a very long page. It appears only past 600px of scroll and sits
+  above the editor's Quick add button; both are bottom-right, and stacking
+  keeps either from shifting depending on whether the other is rendered.
 - View resolution is `?view=` first, then the
   `cubebound.cube-view` cookie, then visual; the toggle writes both, so a shared
   link shows what the sender saw while a personal preference follows you between
