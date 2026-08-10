@@ -18,6 +18,8 @@ import { readFileSync } from "node:fs";
 
 import postgres from "postgres";
 
+import { cardThumb } from "../src/lib/card-images";
+
 import { addCubeCard, createCube } from "../src/db/queries/cubes";
 import { claimUsername } from "../src/db/queries/users";
 
@@ -57,7 +59,15 @@ const expect = (ok: boolean, message: string) => {
  */
 function countImage(html: string, thumbUrl: string | null): number {
   if (!thumbUrl) return 0;
-  return html.split(`src="${thumbUrl}"`).length - 1;
+  // Tiles request a resized rendition from the CDN rather than the stored URL,
+  // so build the expected src with the same helper the app renders with —
+  // hardcoding the stored URL here would fail on a change that is correct.
+  const rendered = cardThumb(thumbUrl);
+  if (!rendered) return 0;
+  // The sized URL carries several query parameters, and React escapes `&` as
+  // `&amp;` inside an attribute — matching the raw URL finds nothing.
+  const escaped = rendered.replace(/&/g, "&amp;");
+  return html.split(`src="${escaped}"`).length - 1;
 }
 
 let userId: string | undefined;

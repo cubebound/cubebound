@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
 import type { BrowseCard } from "@/db/queries/cards";
+import { cardFull, cardThumb } from "@/lib/card-images";
 import { aspectRatio, DOMAIN_COLORS, titleCase } from "@/lib/riftbound";
 import { parseRulesText, type RulesSymbol } from "@/lib/rules-text";
 
@@ -187,7 +188,7 @@ export function CardDetail({
           {card.imageFull ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={card.imageFull}
+              src={cardFull(card.imageFull) ?? undefined}
               alt={card.name}
               className="size-full rounded-lg object-contain"
             />
@@ -294,7 +295,7 @@ export function CardTile({
   /** Copies of this printing in the cube; the badge shows only above one. */
   quantity?: number;
 }) {
-  const thumb = card.imageThumb ?? card.imageFull;
+  const thumb = cardThumb(card.imageThumb ?? card.imageFull);
   return (
     <li className="self-start">
       <button

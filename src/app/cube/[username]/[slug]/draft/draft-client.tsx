@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import { cardThumb } from "@/lib/card-images";
 import { aspectRatio } from "@/lib/riftbound";
 
 import {
@@ -129,9 +130,11 @@ function CardButton({
   onPick: () => void;
   disabled: boolean;
 }) {
-  // Art comes straight from the source CDN and occasionally fails; a blank
-  // tile in a pack you are choosing from is the worst place for that.
-  const [artFailed, setArtFailed] = useState(false);
+  // Art comes straight from the source CDN; a blank tile in a pack you are
+  // choosing from is the worst place for a slow or missing image.
+  const [artState, setArtState] = useState<"loading" | "ready" | "failed">(
+    card.imageThumb ? "loading" : "failed",
+  );
 
   return (
     <li>
@@ -143,23 +146,27 @@ function CardButton({
         className="group block w-full text-left disabled:opacity-50"
       >
         <div
-          className="overflow-hidden rounded-lg ring-1 ring-black/10 transition group-hover:ring-2 group-hover:ring-zinc-900 dark:ring-white/15 dark:group-hover:ring-zinc-100"
+          className="relative overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-black/10 transition group-hover:ring-2 group-hover:ring-zinc-900 dark:bg-zinc-900 dark:ring-white/15 dark:group-hover:ring-zinc-100"
           style={{ aspectRatio: aspectRatio(card.type) }}
         >
-          {card.imageThumb && !artFailed ? (
+          {/* The name shows underneath until the art covers it — art is ~25KB
+              of WebP now, but a slow tile should still say what it is. */}
+          {artState !== "ready" && (
+            <div className="absolute inset-0 flex items-center justify-center p-2 text-center text-xs text-zinc-600 dark:text-zinc-300">
+              {card.name}
+            </div>
+          )}
+          {card.imageThumb && artState !== "failed" && (
             // Plain <img> on purpose — see CLAUDE.md on not proxying card art.
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={card.imageThumb}
+              src={cardThumb(card.imageThumb) ?? undefined}
               alt={card.name}
               loading="lazy"
-              onError={() => setArtFailed(true)}
-              className="size-full object-contain"
+              onLoad={() => setArtState("ready")}
+              onError={() => setArtState("failed")}
+              className="relative size-full object-contain"
             />
-          ) : (
-            <div className="flex size-full items-center justify-center bg-zinc-100 p-2 text-center text-xs dark:bg-zinc-900">
-              {card.name}
-            </div>
           )}
         </div>
         <p className="mt-1 flex items-center gap-1.5 text-xs">

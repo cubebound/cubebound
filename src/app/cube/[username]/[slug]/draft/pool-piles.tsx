@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 
-import { aspectRatio, COLORLESS, DOMAIN_COLORS } from "@/lib/riftbound";
+import { cardThumb } from "@/lib/card-images";
+import { aspectRatio, isLandscape, COLORLESS, DOMAIN_COLORS } from "@/lib/riftbound";
 
 export interface PoolCard {
   /** (round, pickNumber) identifies the copy — a pool can hold two of a card. */
@@ -57,30 +58,58 @@ function comparePiles(a: string, b: string): number {
  * which matters most in a pile you are trying to read at a glance.
  */
 function CardArt({ card }: { card: PoolCard }) {
-  const [failed, setFailed] = useState(false);
-  const showImage = card.imageThumb && !failed;
+  const [state, setState] = useState<"loading" | "ready" | "failed">(
+    card.imageThumb ? "loading" : "failed",
+  );
 
   return (
     <div
-      className="overflow-hidden rounded ring-1 ring-black/10 dark:ring-white/15"
+      className="relative overflow-hidden rounded bg-zinc-100 ring-1 ring-black/10 dark:bg-zinc-900 dark:ring-white/15"
       style={{ aspectRatio: aspectRatio(card.type) }}
     >
-      {showImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={card.imageThumb!}
-          alt={card.name}
-          loading="lazy"
-          onError={() => setFailed(true)}
-          className="size-full object-contain"
-        />
-      ) : (
-        <div className="flex size-full items-center justify-center bg-zinc-100 p-1 text-center text-[10px] leading-tight dark:bg-zinc-900">
+      {/* The name sits underneath until the art covers it, so a slow or failed
+          image reads as the card rather than as an empty box. */}
+      {state !== "ready" && (
+        <div className="absolute inset-0 flex items-center justify-center p-1 text-center text-[10px] leading-tight text-zinc-600 dark:text-zinc-300">
           {card.name}
         </div>
       )}
+      {card.imageThumb && state !== "failed" && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={cardThumb(card.imageThumb)!}
+          alt={card.name}
+          loading="lazy"
+          onLoad={() => setState("ready")}
+          onError={() => setState("failed")}
+          className="relative size-full object-contain"
+        />
+      )}
     </div>
   );
+}
+
+/**
+ * How much of a covered card stays visible, as a fraction of its own height.
+ *
+ * Cube Cobra can stack to a thin sliver because Magic prints the card name
+ * along the top edge. Riftbound puts the name band around 60% down, so a
+ * sliver shows cost and art but not the name — which is why hovering raises
+ * the whole card. Raise this toward 0.65 to trade density for legibility.
+ */
+const REVEAL = 0.3;
+
+/**
+ * Negative margin that pulls a card up over the one before it.
+ *
+ * Percentage margins resolve against the container's *width*, and so does the
+ * card's height via its aspect ratio, so expressing the overlap this way keeps
+ * the stack correct at any column width. The covered card decides the offset,
+ * which is why a battlefield (landscape) overlaps differently to a unit.
+ */
+function overlapPercent(covered: PoolCard): number {
+  const heightPerWidth = isLandscape(covered.type) ? 5 / 7 : 7 / 5;
+  return heightPerWidth * (1 - REVEAL) * 100;
 }
 
 function Pile({
@@ -96,32 +125,48 @@ function Pile({
   busy: boolean;
   actionLabel: string;
 }) {
+  // Which card is raised. Held in state rather than done with `hover:z-…`
+  // because the stacking order is an inline style, and inline styles win over
+  // classes — a hover class could never lift a card above its neighbours.
+  const [raised, setRaised] = useState<number | null>(null);
+
   return (
     <div className="min-w-0">
       <p className="mb-1 flex items-baseline gap-1 border-b border-zinc-200 pb-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-800">
         <span className="truncate">{label}</span>
         <span className="ml-auto font-normal tabular-nums text-zinc-500">{cards.length}</span>
       </p>
-      <ul className="space-y-1.5">
-        {cards.map((card) => (
-          <li key={`${card.round}-${card.pickNumber}`}>
+      <ul className="relative">
+        {cards.map((card, index) => (
+          <li
+            key={`${card.round}-${card.pickNumber}`}
+            className="relative"
+            style={{
+              marginTop: index === 0 ? 0 : `-${overlapPercent(cards[index - 1])}%`,
+              zIndex: raised === index ? cards.length + 10 : index,
+            }}
+            onMouseEnter={() => setRaised(index)}
+            onMouseLeave={() => setRaised((current) => (current === index ? null : current))}
+          >
             <button
               type="button"
               onClick={() => onMove(card)}
+              onFocus={() => setRaised(index)}
+              onBlur={() => setRaised((current) => (current === index ? null : current))}
               disabled={busy}
               title={`${card.name} — ${actionLabel}`}
-              className="group block w-full text-left disabled:opacity-50"
+              aria-label={`${card.name}, ${actionLabel}`}
+              className="block w-full rounded text-left transition disabled:opacity-50"
             >
-              <div className="transition group-hover:opacity-80">
+              <div
+                className={
+                  raised === index
+                    ? "rounded shadow-xl ring-2 ring-zinc-900 dark:ring-zinc-100"
+                    : ""
+                }
+              >
                 <CardArt card={card} />
               </div>
-              <p className="mt-0.5 flex items-center gap-1 text-[11px]">
-                <span
-                  className="size-2 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
-                  style={{ background: domainDot(card.domains) }}
-                />
-                <span className="truncate">{card.name}</span>
-              </p>
             </button>
           </li>
         ))}

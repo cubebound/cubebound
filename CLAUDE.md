@@ -271,6 +271,8 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - Filter dropdowns are built from the **distinct values actually in the DB**, then sorted by the canonical lists in `src/lib/riftbound.ts` with unrecognized values kept at the end (`sortByCanonical`). A new set's new rarity therefore appears without a code change — `Promo` already does, and is not in `RARITIES`.
 - Card rendering rules live in `src/lib/riftbound.ts` (domain colors, canonical orderings, orientation). Battlefields are printed landscape (7:5), every other type portrait (5:7) — the printed image already reads upside-down on its top half, that is correct.
 - Card images render with a plain `<img>`, never `next/image`: optimizing through Vercel would proxy and cache them, which we are deliberately not doing yet.
+- **`image_thumb` and `image_full` are the same URL on every row** — the source has no thumbnail rendition, so a grid of tiles was pulling a ~900KB PNG per card and a twelve-card draft pack came to roughly 10MB. Riot's CDN is Sanity and resizes on request, so `cardThumb`/`cardFull` in `src/lib/card-images.ts` append `?w=…&fm=webp`: that same 896KB PNG becomes 25KB of WebP, about 36× smaller. This is still the source CDN serving its own asset, so it stays inside the no-proxy rule. It happens at render time rather than in the sync so it applies to rows already stored, and an unrecognised host passes through untouched.
+- **A card tile shows its name until the art covers it.** Art arrives over the network and a blank tile is indistinguishable from a bug — that exact confusion was reported once. Tiles render the name underneath and let the image paint over it, falling back permanently on `onError`.
 - Rules text contains symbol tokens (`:rb_energy_1:`, `:rb_rune_fury:`). Never render `rules_text` raw — go through `parseRulesText` in `src/lib/rules-text.ts`, which resolves the tokens to badges and degrades unknown ones to readable words. Note the source names domain symbols `rune_*` but they are **Power** costs; runes are the resource cards you exhaust or recycle to produce Energy and Power.
 - Printings: `cards.base_id` is the id of the **canonical printing** of a card, resolved from card data — not from the id string. Sets reprint cards in their high-numbered showcase slots, within a set (`SFD-049` → `SFD-224`) and across sets (`OGN-013` "Pouty Poro" → `UNL-220`), so no amount of suffix-stripping can group them. Identity is `(lower(name), type)`; see `assignBaseIds` in `src/lib/card-ids.ts` and the matching SQL in `drizzle/0003_base_id_print_groups.sql`, which must stay in step. Because identity is name-based, different cards sharing a collector number (`UNL-T01` "Baron Pit" vs `UNL-001` "Arena Kingpin") never group. `npm run check:printings` asserts all of this.
 - Do **not** use rules text as card identity: showcase reprints drop the parenthetical reminder text and sometimes reword the ability outright.
@@ -491,7 +493,17 @@ smart; C adds the deck builder.
   rather than dealing a hole.
 - **The pool sits beneath the packs as a curve**, not beside them: piles by
   energy cost with legends and battlefields kept separate, because those are
-  off the cost scale rather than at the cheap end of it. One click is the whole
+  off the cost scale rather than at the cheap end of it. Cards **stack** within
+  a pile and hovering raises one to full view. The overlap is a negative
+  percentage margin, which resolves against the container's *width* — and so
+  does card height via its aspect ratio, so the stack stays correct at any
+  column width, with the covered card deciding the offset so a landscape
+  battlefield overlaps differently to a unit. `REVEAL` controls how much of a
+  covered card shows: Cube Cobra can stack to a sliver because Magic prints the
+  name along the top edge, whereas Riftbound puts it around 60% down, so a
+  sliver shows cost and art but not the name. That is what makes the hover
+  necessary rather than a nicety. Raising is React state, not a `hover:z-…`
+  class, because the stacking order is an inline style and inline styles win. One click is the whole
   interaction — a card in the pack goes to the mainboard, a mainboard card goes
   to the sideboard, a sideboard card comes back. The board is stored per pick
   (`draft_picks.board`) and keyed by `(round, pickNumber)` rather than card id,
