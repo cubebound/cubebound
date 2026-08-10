@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -21,7 +21,9 @@ import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-para
 import { canEditCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
 import { countCopies } from "@/lib/cube-cards";
+import { resolveSiteUrl } from "@/lib/site-url";
 
+import ShareButton from "../share-button";
 import AddCards from "./add-cards";
 import CubeContents from "./cube-contents";
 import ImportCards from "./import-cards";
@@ -51,7 +53,11 @@ export default async function EditCubePage({
 
   const query = await searchParams;
   const filters = cardFiltersFromParams(query);
-  const basePath = `/cube/${cube.ownerUsername}/${cube.slug}/edit`;
+  const publicPath = `/cube/${cube.ownerUsername}/${cube.slug}`;
+  const basePath = `${publicPath}/edit`;
+  // Absolute, built from this request's origin — the same helper the magic
+  // links use, so a copied link is never relative or pinned to the wrong host.
+  const shareUrl = `${resolveSiteUrl(await headers())}${publicPath}`;
   const mode = Array.isArray(query.mode) ? query.mode[0] : query.mode;
   const browsing = mode === "browse";
   const writingPrimer = mode === "primer";
@@ -115,12 +121,27 @@ export default async function EditCubePage({
           <span className="text-sm text-zinc-500 tabular-nums">
             {totalCopies} {totalCopies === 1 ? "card" : "cards"}
           </span>
-          <Link
-            href={`/cube/${cube.ownerUsername}/${cube.slug}/settings`}
-            className="ml-auto rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-          >
-            Settings
-          </Link>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {/* The owner works here, so this is where they reach for a link to
+                hand out. Same component and same URL as the public page. */}
+            <ShareButton
+              url={shareUrl}
+              visibility={cube.visibility}
+              settingsHref={`${publicPath}/settings`}
+            />
+            <Link
+              href={`${publicPath}`}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              View
+            </Link>
+            <Link
+              href={`${publicPath}/settings`}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Settings
+            </Link>
+          </div>
         </div>
         <nav className="mt-4 flex flex-wrap items-center gap-2">
           {modeLink("Cube", basePath, !browsing && !writingPrimer && !viewingLog)}

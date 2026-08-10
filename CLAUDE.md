@@ -295,9 +295,12 @@ a stale row — but it means a source switch leaves residue worth checking for.
   single definition, next to `canEditCube`.
 - The public page's actions are ordered by who is looking: a visitor's primary
   action is **Clone** (filled), the owner's is **Edit**, and Clone steps down to
-  a quiet button on your own cube. **Share** copies the absolute cube URL, built
-  server-side with `resolveSiteUrl` so it doesn't depend on where the client is,
-  and is visibility-aware — unlisted says the link works for anyone who has it,
+  a quiet button on your own cube. **Share** sits on both the public page and
+  the editor header — the owner works in the editor, so that is where they
+  reach for a link. It copies the absolute cube URL, built server-side with
+  `resolveSiteUrl` so it doesn't depend on where the client is, and the link
+  works for signed-out visitors because public and unlisted cubes render
+  without a session. It is visibility-aware — unlisted says the link works for anyone who has it,
   private says only you can open it and links to Settings. Private still copies
   rather than refusing: handing someone a link that 404s is the failure worth
   naming, not the copy itself. `navigator.clipboard` needs a secure context, so

@@ -220,6 +220,15 @@ try {
 
   const ownerHtml = await body(publicPath, owner.cookie);
   expect(ownerHtml.includes(">Share<"), "the owner should also get a Share button");
+
+  // The owner works in the editor, so the link has to be reachable from there
+  // too — that is where they are when they want to hand the cube to someone.
+  const editorHtml = await body(`${publicPath}/edit`, owner.cookie);
+  expect(editorHtml.includes(">Share<"), "the editor should offer a Share button");
+  expect(
+    editorHtml.includes(`${APP}${publicPath}`),
+    `the editor's Share should carry the absolute URL ${APP}${publicPath}`,
+  );
   const editPosition = ownerHtml.indexOf(">Edit<");
   expect(editPosition !== -1, "the owner should see Edit");
   expect(
