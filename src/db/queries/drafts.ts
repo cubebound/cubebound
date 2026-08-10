@@ -124,6 +124,32 @@ export async function recordPicks(
     .onConflictDoNothing();
 }
 
+/**
+ * Moves one drafted card between the main board and the sideboard.
+ *
+ * Keyed by (round, pickNumber) rather than card id: a pool can hold two copies
+ * of a card, and they must be movable independently.
+ */
+export async function setPickBoard(
+  draftId: string,
+  seat: number,
+  round: number,
+  pickNumber: number,
+  board: "main" | "side",
+): Promise<void> {
+  await db
+    .update(draftPicks)
+    .set({ board })
+    .where(
+      and(
+        eq(draftPicks.draftId, draftId),
+        eq(draftPicks.seat, seat),
+        eq(draftPicks.round, round),
+        eq(draftPicks.pickNumber, pickNumber),
+      ),
+    );
+}
+
 export async function markDraftComplete(draftId: string): Promise<void> {
   await db
     .update(drafts)

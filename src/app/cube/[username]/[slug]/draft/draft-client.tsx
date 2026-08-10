@@ -2,14 +2,16 @@
 
 import { useState, useTransition } from "react";
 
-import { aspectRatio, DOMAIN_COLORS, COLORLESS } from "@/lib/riftbound";
+import { aspectRatio } from "@/lib/riftbound";
 
 import {
   makePickAction,
   saveDraftAsCubeAction,
+  setCardBoardAction,
   startDraftAction,
   type DraftActionState,
 } from "./actions";
+import PoolPiles, { domainDot, type PoolCard } from "./pool-piles";
 
 export interface DraftTile {
   id: string;
@@ -19,17 +21,6 @@ export interface DraftTile {
   imageThumb: string | null;
   energyCost: number | null;
 }
-
-function domainDot(domains: string[]): string {
-  if (domains.length === 0) return DOMAIN_COLORS[COLORLESS];
-  if (domains.length === 1) return DOMAIN_COLORS[domains[0]] ?? DOMAIN_COLORS[COLORLESS];
-  const step = 100 / domains.length;
-  const bands = domains.map(
-    (d, i) => `${DOMAIN_COLORS[d] ?? DOMAIN_COLORS[COLORLESS]} ${i * step}% ${(i + 1) * step}%`,
-  );
-  return `linear-gradient(135deg, ${bands.join(", ")})`;
-}
-
 
 /**
  * Runs a server action without letting a failure strand the UI.
@@ -138,6 +129,10 @@ function CardButton({
   onPick: () => void;
   disabled: boolean;
 }) {
+  // Art comes straight from the source CDN and occasionally fails; a blank
+  // tile in a pack you are choosing from is the worst place for that.
+  const [artFailed, setArtFailed] = useState(false);
+
   return (
     <li>
       <button
@@ -151,13 +146,14 @@ function CardButton({
           className="overflow-hidden rounded-lg ring-1 ring-black/10 transition group-hover:ring-2 group-hover:ring-zinc-900 dark:ring-white/15 dark:group-hover:ring-zinc-100"
           style={{ aspectRatio: aspectRatio(card.type) }}
         >
-          {card.imageThumb ? (
+          {card.imageThumb && !artFailed ? (
             // Plain <img> on purpose — see CLAUDE.md on not proxying card art.
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={card.imageThumb}
               alt={card.name}
               loading="lazy"
+              onError={() => setArtFailed(true)}
               className="size-full object-contain"
             />
           ) : (
@@ -181,59 +177,7 @@ function CardButton({
   );
 }
 
-/** Pool, grouped by domain combination. */
-export function Pool({ cards, title }: { cards: DraftTile[]; title: string }) {
-  const groups = new Map<string, DraftTile[]>();
-  for (const card of cards) {
-    const key = card.domains.length === 0 ? COLORLESS : card.domains.join("/");
-    const bucket = groups.get(key) ?? [];
-    bucket.push(card);
-    groups.set(key, bucket);
-  }
-  const keys = [...groups.keys()].sort();
-
-  return (
-    <section>
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-        {title}
-        <span className="ml-2 font-normal tabular-nums">{cards.length}</span>
-      </h2>
-      {cards.length === 0 ? (
-        <p className="text-sm text-zinc-500">Nothing picked yet.</p>
-      ) : (
-        <div className="space-y-3">
-          {keys.map((key) => (
-            <div key={key}>
-              <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                <span
-                  className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
-                  style={{ background: domainDot(key === COLORLESS ? [] : key.split("/")) }}
-                />
-                {key}
-                <span className="tabular-nums text-zinc-500">
-                  ({groups.get(key)!.length})
-                </span>
-              </p>
-              <ul className="space-y-0.5 text-sm">
-                {groups
-                  .get(key)!
-                  .slice()
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((card, i) => (
-                    <li key={`${card.id}-${i}`} className="truncate">
-                      {card.name}
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-/** Pick screen: the pack in front of you, the counter, and your pool. */
+/** Pick screen: the pack on top, the pool laid out as a curve beneath it. */
 export function PickScreen({
   draftId,
   returnPath,
@@ -247,7 +191,7 @@ export function PickScreen({
   draftId: string;
   returnPath: string;
   pack: DraftTile[];
-  pool: DraftTile[];
+  pool: PoolCard[];
   round: number;
   pickNumber: number;
   totalRounds: number;
@@ -256,8 +200,16 @@ export function PickScreen({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const move = async (card: PoolCard, board: "main" | "side") => {
+    setError(null);
+    await runAction(
+      () => setCardBoardAction(draftId, card.round, card.pickNumber, board, returnPath),
+      setError,
+    );
+  };
+
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_16rem]">
+    <div className="space-y-8">
       <div>
         <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
           Pack <span className="font-medium tabular-nums">{round + 1}</span> of{" "}
@@ -293,24 +245,34 @@ export function PickScreen({
         </ul>
       </div>
 
-      <Pool cards={pool} title="Your pool" />
+      <PoolPiles cards={pool} onMove={move} />
     </div>
   );
 }
 
-/** End screen: the finished pool, and a way to keep it. */
+/** End screen: the finished pool, still sortable, and a way to keep it. */
 export function EndScreen({
   draftId,
+  returnPath,
   pool,
   defaultName,
 }: {
   draftId: string;
-  pool: DraftTile[];
+  returnPath: string;
+  pool: PoolCard[];
   defaultName: string;
 }) {
   const [name, setName] = useState(defaultName);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const move = async (card: PoolCard, board: "main" | "side") => {
+    setError(null);
+    await runAction(
+      () => setCardBoardAction(draftId, card.round, card.pickNumber, board, returnPath),
+      setError,
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -336,7 +298,9 @@ export function EndScreen({
         >
           {pending ? "Saving…" : "Save as cube"}
         </button>
-        <span className="text-sm text-zinc-500">Creates a private cube you own.</span>
+        <span className="text-sm text-zinc-500">
+          Creates a private cube you own; sidelined cards go to its sideboard.
+        </span>
       </div>
 
       {error && (
@@ -345,7 +309,7 @@ export function EndScreen({
         </p>
       )}
 
-      <Pool cards={pool} title="Your drafted pool" />
+      <PoolPiles cards={pool} onMove={move} />
     </div>
   );
 }

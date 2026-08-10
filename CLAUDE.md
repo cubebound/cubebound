@@ -172,13 +172,14 @@ cube_changes  id, cube_id, actor_id (set null on delete), actor_username, kind,
               from_value, to_value, created_at    -- indexed (cube_id, created_at)
 drafts        id, cube_id, drafter_id, seed, config jsonb, packs jsonb, seats,
               human_seat, status ('active'|'complete'), created_at, updated_at
-draft_picks   pk (draft_id, round, pick_number, seat), card_id, created_at
+draft_picks   pk (draft_id, round, pick_number, seat), card_id, board, created_at
 ```
 
 Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0002` enable RLS · `0003` recompute `base_id` as data-derived print groups ·
 `0004` `cubes.primer` · `0005` `cube_changes` (+ RLS) ·
-`0006` the `cards_imported` change kind · `0007` `drafts` + `draft_picks` (+ RLS).
+`0006` the `cards_imported` change kind · `0007` `drafts` + `draft_picks` (+ RLS) ·
+`0008` `draft_picks.board`.
 
 Migrations are applied **per environment and by hand** — see "Environments".
 A migration in a merged branch is not live until production is migrated.
@@ -488,6 +489,18 @@ smart; C adds the deck builder.
   *ids*; details come from `cards`, which cube edits don't touch. A card
   deleted from the database outright makes the draft unresumable, and it says so
   rather than dealing a hole.
+- **The pool sits beneath the packs as a curve**, not beside them: piles by
+  energy cost with legends and battlefields kept separate, because those are
+  off the cost scale rather than at the cheap end of it. One click is the whole
+  interaction — a card in the pack goes to the mainboard, a mainboard card goes
+  to the sideboard, a sideboard card comes back. The board is stored per pick
+  (`draft_picks.board`) and keyed by `(round, pickNumber)` rather than card id,
+  so two copies of one card move independently. Saving as a cube keeps the
+  split: sidelined cards land in the new cube's sideboard section.
+- **Card art degrades to the card name.** Images come straight from the source
+  CDN and one occasionally fails; a blank tile in a pack you are choosing from
+  is the worst place for that, so both the pack tiles and the pool piles fall
+  back to the name on `onError`.
 - **Milestone A adds migration `0007`**, which was applied to production before
   the environment split (see "Environments"). The general rule still holds for
   the next one: a deploy does not migrate, so a feature adding tables fails at

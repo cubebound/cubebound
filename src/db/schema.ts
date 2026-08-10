@@ -165,6 +165,9 @@ export type CubeCard = typeof cubeCards.$inferSelect;
 
 export const draftStatusEnum = pgEnum("draft_status", ["active", "complete"]);
 
+/** Where a drafted card sits while the pool is being sorted. */
+export const draftBoardEnum = pgEnum("draft_board", ["main", "side"]);
+
 /**
  * A solo draft against bots.
  *
@@ -216,6 +219,8 @@ export const draftPicks = pgTable(
     pickNumber: integer("pick_number").notNull(),
     seat: integer("seat").notNull(),
     cardId: text("card_id").notNull(),
+    // Only meaningful for the human seat: bots never sort a pool.
+    board: draftBoardEnum("board").notNull().default("main"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

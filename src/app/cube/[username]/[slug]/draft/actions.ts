@@ -12,9 +12,11 @@ import {
 import {
   createDraftRow,
   getDraft,
+  getDraftPicks,
   getDraftPools,
   markDraftComplete,
   recordPicks,
+  setPickBoard,
 } from "@/db/queries/drafts";
 import type { Cube, Draft, User } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
@@ -131,6 +133,23 @@ export async function makePickAction(
   return {};
 }
 
+/** Moves one drafted card between the main board and the sideboard. */
+export async function setCardBoardAction(
+  draftId: string,
+  round: number,
+  pickNumber: number,
+  board: "main" | "side",
+  returnPath: string,
+): Promise<DraftActionState> {
+  const owned = await requireOwnDraft(draftId);
+  if ("error" in owned) return { error: owned.error };
+  if (board !== "main" && board !== "side") return { error: "Unknown board." };
+
+  await setPickBoard(owned.draft.id, owned.draft.humanSeat, round, pickNumber, board);
+  revalidatePath(returnPath.startsWith("/") ? returnPath : "/");
+  return {};
+}
+
 /** Turns a finished pool into a private cube of the drafter's own. */
 export async function saveDraftAsCubeAction(
   draftId: string,
@@ -145,6 +164,13 @@ export async function saveDraftAsCubeAction(
   const pool = restored.state.pools[restored.state.humanSeat] ?? [];
   if (pool.length === 0) return { error: "There's nothing in your pool yet." };
 
+  // Keep the main/side split the drafter made: their sideboard becomes the
+  // cube's sideboard rather than being flattened back into the deck.
+  const picks = (await getDraftPicks(owned.draft.id))
+    .filter((pick) => pick.seat === owned.draft.humanSeat)
+    .sort((a, b) => a.round - b.round || a.pickNumber - b.pickNumber);
+  const boards = picks.map((pick) => pick.board);
+
   const cube = await createCube({
     ownerId: owned.profile.id,
     name: (name.trim() || "Drafted pool").slice(0, 100),
@@ -153,8 +179,10 @@ export async function saveDraftAsCubeAction(
   });
 
   // One row per card, quantity-merged by addCubeCard when a pool holds two.
-  for (const card of pool) {
-    await addCubeCard(cube.id, card.id, defaultSectionForType(card.type), 1);
+  for (const [index, card] of pool.entries()) {
+    const section =
+      boards[index] === "side" ? "sideboard" : defaultSectionForType(card.type);
+    await addCubeCard(cube.id, card.id, section, 1);
   }
   await recordCubeChange({
     cubeId: cube.id,

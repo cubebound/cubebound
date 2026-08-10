@@ -57,6 +57,13 @@
       "when": 1786377995539,
       "tag": "0007_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786396221587,
+      "tag": "0008_draft_board",
+      "breakpoints": true
     }
   ]
 }

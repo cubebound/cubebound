@@ -155,6 +155,10 @@ try {
       gate: "requireOwnDraft",
       why: "picks belong to the drafter, not the cube owner",
     },
+    setCardBoardAction: {
+      gate: "requireOwnDraft",
+      why: "sorts the caller's own pool between mainboard and sideboard",
+    },
     saveDraftAsCubeAction: {
       gate: "requireOwnDraft",
       why: "reads the caller's own draft and writes a new cube they own",

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getCubeByOwnerAndSlug } from "@/db/queries/cubes";
-import { getDraftPools, getLatestDraft } from "@/db/queries/drafts";
+import { getDraftPicks, getDraftPools, getLatestDraft } from "@/db/queries/drafts";
 import { getCurrentUser } from "@/lib/auth";
 import { canViewCube } from "@/lib/cube-access";
 import {
@@ -14,6 +14,7 @@ import {
 import { generatePacks } from "@/lib/draft/packs";
 
 import { EndScreen, PickScreen, StartDraft, type DraftTile } from "./draft-client";
+import type { PoolCard } from "./pool-piles";
 import { restoreDraftState, type DetailedCard } from "./state";
 
 export const metadata: Metadata = { title: "Draft · cubebound.gg" };
@@ -111,10 +112,32 @@ export default async function DraftPage({
     );
   }
 
-  const { state } = restored;
-  const pool = (state.pools[state.humanSeat] ?? []).map((card) =>
-    toTile(card as DetailedCard),
-  );
+  const { state, cardsById } = restored;
+
+  // The pool is built from the stored picks rather than from engine state:
+  // only the rows carry which board a card is on and the (round, pickNumber)
+  // that tells two copies of one card apart.
+  const humanPicks = (await getDraftPicks(draft.id))
+    .filter((pick) => pick.seat === draft.humanSeat)
+    .sort((a, b) => a.round - b.round || a.pickNumber - b.pickNumber);
+
+  const pool: PoolCard[] = humanPicks.flatMap((pick) => {
+    const card = cardsById.get(pick.cardId);
+    if (!card) return [];
+    return [
+      {
+        round: pick.round,
+        pickNumber: pick.pickNumber,
+        id: card.id,
+        name: card.name,
+        type: card.type,
+        domains: card.domains,
+        imageThumb: card.imageThumb,
+        energyCost: card.energyCost,
+        board: pick.board,
+      },
+    ];
+  });
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
@@ -122,6 +145,7 @@ export default async function DraftPage({
       {state.status === "complete" ? (
         <EndScreen
           draftId={draft.id}
+          returnPath={draftPath}
           pool={pool}
           defaultName={`${cube.name} draft`}
         />
