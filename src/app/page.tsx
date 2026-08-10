@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { getCurrentUser } from "@/lib/auth";
+
 /** First value of a param that may arrive repeated. */
 function one(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -29,21 +31,52 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     redirect(`/auth/callback?${forward.toString()}`);
   }
 
+  // Signed in without a profile means the username was never claimed, and
+  // cube creation needs one — send them to finish that instead of to a form
+  // that would bounce them.
+  const current = await getCurrentUser();
+  const build = current?.profile
+    ? { href: "/cubes/new", label: "Create a cube" }
+    : current
+      ? { href: "/welcome", label: "Choose a username" }
+      : { href: "/login", label: "Sign in to build" };
+
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-24 sm:px-6">
       <h1 className="text-3xl font-semibold tracking-tight">
         Cube construction and drafting for Riftbound
       </h1>
       <p className="mt-4 text-zinc-600 dark:text-zinc-400">
-        Cube building is still in progress. In the meantime, browse the full
-        card pool.
+        Build a cube from the full card pool, organize it by domain, cost and
+        type, and write a primer explaining how it drafts. Every cube gets a
+        public page you can share — and anyone can clone one into their own
+        account to make it theirs.
       </p>
-      <Link
-        href="/cards"
-        className="mt-8 inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-      >
-        Browse cards
-      </Link>
+
+      <div className="mt-8 flex flex-wrap items-center gap-3">
+        <Link
+          href={build.href}
+          className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+        >
+          {build.label}
+        </Link>
+        <Link
+          href="/cards"
+          className="inline-flex h-10 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        >
+          Browse cards
+        </Link>
+      </div>
+
+      {current?.profile && (
+        <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">
+          Or pick up where you left off in{" "}
+          <Link href="/cubes" className="font-medium underline underline-offset-2">
+            your cubes
+          </Link>
+          .
+        </p>
+      )}
     </div>
   );
 }

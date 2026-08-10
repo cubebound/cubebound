@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -17,8 +17,10 @@ import {
   CUBE_SECTION_LABELS,
   type CubeSection,
 } from "@/lib/riftbound";
+import { resolveSiteUrl } from "@/lib/site-url";
 
 import CloneButton from "./clone-button";
+import ShareButton from "./share-button";
 
 interface RouteParams {
   username: string;
@@ -82,6 +84,10 @@ export default async function CubePage({
   const sectionCounts = CUBE_SECTIONS.filter((section) => bySection.has(section));
 
   const basePath = `/cube/${cube.ownerUsername}/${cube.slug}`;
+  // Built server-side from the request origin (same helper the magic links
+  // use), so the copied link is absolute and stable rather than depending on
+  // where the client happens to be.
+  const shareUrl = `${resolveSiteUrl(await headers())}${basePath}`;
   const tabLink = (label: string, href: string, active: boolean) => (
     <Link
       href={href}
@@ -107,11 +113,16 @@ export default async function CubePage({
               {cube.visibility}
             </span>
           )}
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <ShareButton
+              url={shareUrl}
+              visibility={cube.visibility}
+              settingsHref={isOwner ? `${basePath}/settings` : undefined}
+            />
             {isOwner && (
               <Link
                 href={`${basePath}/edit`}
-                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                className="inline-flex h-9 items-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
               >
                 Edit
               </Link>
@@ -120,6 +131,7 @@ export default async function CubePage({
               username={cube.ownerUsername}
               slug={cube.slug}
               signedIn={Boolean(current?.profile)}
+              prominent={!isOwner}
             />
           </div>
         </div>

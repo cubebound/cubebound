@@ -196,6 +196,37 @@ try {
   expect((await status(publicPath, stranger.cookie)) === 200, "a public cube should render for others");
   expect((await status(publicPath, owner.cookie)) === 200, "a public cube should render for its owner");
 
+  // --- Share button ----------------------------------------------------------
+  // The link it copies has to be absolute: a relative one is useless the moment
+  // it leaves the page, which is the entire point of the button.
+  const body = async (path: string, cookie?: string) =>
+    (await fetch(`${APP}${path}`, { headers: cookie ? { cookie } : {} })).text();
+
+  const visitorHtml = await body(publicPath, stranger.cookie);
+  expect(visitorHtml.includes(">Share<"), "the public page should offer a Share button");
+  expect(
+    visitorHtml.includes(`${APP}${publicPath}`),
+    `Share should carry the absolute cube URL ${APP}${publicPath}`,
+  );
+  // A visitor's primary action is cloning; the owner's is editing. Prominence
+  // is the filled button style, so exactly one of them should carry it.
+  const filled = /bg-zinc-900 px-3 text-sm font-medium text-white/;
+  const clonePosition = visitorHtml.indexOf(">Clone<");
+  expect(clonePosition !== -1, "a visitor should see Clone");
+  expect(
+    filled.test(visitorHtml.slice(Math.max(0, clonePosition - 600), clonePosition)),
+    "Clone should be the prominent button for a visitor",
+  );
+
+  const ownerHtml = await body(publicPath, owner.cookie);
+  expect(ownerHtml.includes(">Share<"), "the owner should also get a Share button");
+  const editPosition = ownerHtml.indexOf(">Edit<");
+  expect(editPosition !== -1, "the owner should see Edit");
+  expect(
+    filled.test(ownerHtml.slice(Math.max(0, editPosition - 600), editPosition)),
+    "Edit should be the prominent button for the owner",
+  );
+
   await updateCube(cube.id, {
     name: cube.name,
     description: cube.description,

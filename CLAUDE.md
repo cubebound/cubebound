@@ -4,21 +4,30 @@ Cube construction and drafting platform for Riftbound (Riot's League of Legends 
 
 ## Current status
 
-**Milestones 1–6 are done.** The MVP loop closes: sign in → create a cube →
+**Live at https://cubebound.gg.** Phase 1 is complete — all seven milestones,
+deploy included — and **the MVP loop is closed**: sign in → create a cube →
 search and add cards → view it by domain/cost/type → share a public URL that
 anyone can browse and clone.
 
 Working: card ingestion (1,294 printings / 966 distinct cards across 8 sets),
 `/cards` browser, magic-link auth with username claim, cube CRUD, the quick-add
-editor, visual and text views, primer, change log, and the public cube view
-with cloning.
+editor, visual and text views, primer, change log, the public cube view with
+Share and Clone, and CI.
 
-**Next: milestone 7 — deploy to Vercel on the production domain.** After that,
-phase 2 opens with search syntax (`domain:fury cost:2 type:unit`).
+**In progress: bulk import** — pasting or uploading a card list to populate a
+cube in one go, instead of adding cards one at a time.
+
+After that, phase 2 in the order under "Product vision", starting with search
+syntax (`domain:fury cost:2 type:unit`).
 
 Open items:
+- **The production origin is derived from the request**, not from config —
+  `resolveSiteUrl` reads the forwarded host, so cubebound.gg, preview
+  deployments and localhost each build their own correct magic-link and share
+  URLs. The live domain must stay on the Supabase redirect allowlist; see
+  "Auth and data access" for what breaks when it isn't.
 - **CI covers typecheck, lint, build and `check:primer-safety`** on push and PR.
-  The other six checks need a live Supabase and are a documented pre-deploy
+  The other seven checks need a live Supabase and are a documented pre-deploy
   manual gate — see "Checks". Run that gate before deploying.
 - Work lands on `master` and pushes to `github.com/cubebound/cubebound`. The
   merged `cube-editor-redesign` branch can be deleted.
@@ -37,8 +46,7 @@ Later phases, in priority order:
 5. Community features (clone, changelogs, card pick data)
 6. Exports (proxy sheets, deck lists compatible with other Riftbound tools)
 
-The MVP loop is shipped. Do NOT build ahead of the current phase — deploy it
-before starting phase 2.
+The MVP loop is shipped and live. Do NOT build ahead of the current phase.
 
 ## Stack
 
@@ -231,6 +239,15 @@ a stale row — but it means a source switch leaves residue worth checking for.
   anyone including signed-out visitors; private 404s for non-owners, the same
   convention the mutations use. `canViewCube` in `src/lib/cube-access.ts` is the
   single definition, next to `canEditCube`.
+- The public page's actions are ordered by who is looking: a visitor's primary
+  action is **Clone** (filled), the owner's is **Edit**, and Clone steps down to
+  a quiet button on your own cube. **Share** copies the absolute cube URL, built
+  server-side with `resolveSiteUrl` so it doesn't depend on where the client is,
+  and is visibility-aware — unlisted says the link works for anyone who has it,
+  private says only you can open it and links to Settings. Private still copies
+  rather than refusing: handing someone a link that 404s is the failure worth
+  naming, not the copy itself. `navigator.clipboard` needs a secure context, so
+  the button falls back to a selectable input when it's unavailable.
 - **Public reads go through the server connection, not RLS policies.** RLS
   stays deny-all: it exists to shut the PostgREST API that Supabase exposes
   automatically, not to authorize the app. Every read already happens in a
@@ -316,7 +333,7 @@ reuses a populated `.next` and an existing `.env.local`, so it passes on state
 CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
 `npm ci`, set placeholder env, then run the steps.
 
-### Why the other six are a manual gate, not CI
+### Why the other seven are a manual gate, not CI
 
 Five of them `INSERT` directly into `auth.users` and then exchange a password
 grant against a live GoTrue endpoint to mint a session cookie. That needs a
@@ -401,7 +418,7 @@ no shared state — not a hosted test project.
 4. ✅ Auth + profiles — magic links, username claim.
 5. ✅ Cube CRUD — create/edit/delete, add/remove cards, sections.
 6. ✅ Cube view — public page, domain/cost grouping, view toggle, clone.
-7. ⬜ **Deploy to Vercel with the production domain.**
+7. ✅ Deploy to Vercel with the production domain — live at cubebound.gg.
 
-Then phase 2 in the order under "Product vision", starting with search syntax.
-Do NOT build ahead of it.
+Phase 1 is done. Bulk import is in flight; then phase 2 in the order under
+"Product vision", starting with search syntax. Do NOT build ahead of it.
