@@ -299,6 +299,15 @@ values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**
 
+`npm run typecheck` runs `next typegen` first, because Next generates the global
+route helpers (`LayoutProps<"/">`, `PageProps<…>`) into `.next/types` and
+tsconfig includes them — plain `tsc` fails on a tree that has never been built.
+
+**Verify CI changes from a fresh clone, not the working tree.** A local run
+reuses a populated `.next` and an existing `.env.local`, so it passes on state
+CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
+`npm ci`, set placeholder env, then run the steps.
+
 ### Why the other six are a manual gate, not CI
 
 Five of them `INSERT` directly into `auth.users` and then exchange a password

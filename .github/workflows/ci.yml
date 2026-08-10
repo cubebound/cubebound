@@ -39,9 +39,9 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -54,6 +54,11 @@ jobs:
       # the install scripts are only a legacy fallback.
       - run: npm ci
 
+      # `npm run typecheck` runs `next typegen` first. Next generates the
+      # global route helpers (LayoutProps<"/">, PageProps<…>) into .next/types,
+      # which tsconfig includes — without it, tsc fails on a tree that has never
+      # been built. That bit CI while passing locally, where .next was stale
+      # from an earlier build.
       - name: Typecheck
         run: npm run typecheck
 
