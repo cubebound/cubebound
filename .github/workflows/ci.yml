@@ -1,0 +1,70 @@
+# Typecheck, lint, build and the checks that need no database and no credentials.
+#
+# The other six checks are deliberately NOT here — see "Checks" in CLAUDE.md.
+# Five of them INSERT directly into `auth.users` and exchange a password grant
+# against a live GoTrue endpoint, so they need a real Supabase project rather
+# than a Postgres container; check:printings reads the synced card pool, which
+# only changes when the sync runs. They are a documented pre-deploy gate.
+#
+# No production credentials are used here, and none should ever be added.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# A new push to the same branch supersedes the run in flight.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: typecheck · lint · build · pure checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Placeholders, not credentials. Every route is dynamic, so `next build`
+      # never renders a page or opens a connection — but src/lib/supabase/config.ts
+      # throws when these are unset, and the build imports it. The key must not
+      # look secret: that same module rejects `sb_secret_…` and service_role JWTs
+      # in a NEXT_PUBLIC_ slot.
+      NEXT_PUBLIC_SUPABASE_URL: https://ci.invalid
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci_unused
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # npm 11 prints "allow-scripts" warnings for esbuild and unrs-resolver and
+      # skips their postinstall. That is fine and must not be "fixed" by enabling
+      # scripts: the lockfile carries the prebuilt linux-x64 binaries as optional
+      # dependencies (@esbuild/linux-x64, @unrs/resolver-binding-linux-x64-gnu,
+      # @next/swc-linux-x64-gnu, …), so npm installs them by cpu/os directly and
+      # the install scripts are only a legacy fallback.
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Guards stored XSS in cube primers: renders adversarial markdown through
+      # the real component and fails if anything executable survives. Pure —
+      # no database, no network, no server.
+      - name: Check primer safety
+        run: npm run check:primer-safety
+
+      - name: Build
+        run: npm run build

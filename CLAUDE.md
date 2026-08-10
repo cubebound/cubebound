@@ -17,8 +17,9 @@ with cloning.
 phase 2 opens with search syntax (`domain:fury cost:2 type:unit`).
 
 Open items:
-- **No CI.** Milestone 1 called for typecheck + lint on push; there is no
-  `.github/workflows`. The checks below are run by hand today.
+- **CI covers typecheck, lint, build and `check:primer-safety`** on push and PR.
+  The other six checks need a live Supabase and are a documented pre-deploy
+  manual gate — see "Checks". Run that gate before deploying.
 - Work lands on `master` and pushes to `github.com/cubebound/cubebound`. The
   merged `cube-editor-redesign` branch can be deleted.
 - The Riot adapter stays dormant until our API application is approved.
@@ -273,27 +274,64 @@ a stale row — but it means a source switch leaves residue worth checking for.
 
 ## Checks
 
-Beyond `npm run typecheck` and `npm run lint`, each check guards a regression
-that already happened once. Run the ones touching what you changed; run all of
-them before a release.
+Each check guards a regression that already happened once. Run the ones
+touching what you changed; run the manual gate in full before a deploy.
 
-| Script | Guards | Needs |
-| --- | --- | --- |
-| `check:printings` | the TS and SQL `base_id` rules agree on every row | DB (read-only) |
-| `check:primer-safety` | hostile markdown renders inert through the real component | — |
-| `check:browse-grid` | a grouped tile is a card, an all-printings tile is itself | dev server |
-| `check:copies-and-log` | quantity 2 lists as two entries; per-copy edits move one copy; edits reach the log | dev server |
-| `check:public-cube` | visibility gating, cloning, quantity-aware counts | dev server |
-| `check:auth-flow` | claiming a username refreshes the nav (`revalidatePath`) | dev server + Chrome :9222 |
-| `check:cube-ownership` | replays an Add under another session and with no cookie | dev server + Chrome :9222 |
-
-The browser ones need headless Chrome with remote debugging:
-`chrome --headless=new --remote-debugging-port=9222 --user-data-dir=<tmp> about:blank`.
-Each creates throwaway accounts and deletes them again, including on failure.
+| Script | Guards | Needs | Runs |
+| --- | --- | --- | --- |
+| `check:primer-safety` | hostile markdown renders inert through the real component | nothing | **CI** |
+| `check:printings` | the TS and SQL `base_id` rules agree on every row | DB (read-only) | manual gate |
+| `check:browse-grid` | a grouped tile is a card, an all-printings tile is itself | Supabase + dev server | manual gate |
+| `check:copies-and-log` | quantity 2 lists as two entries; per-copy edits move one copy; edits reach the log | Supabase + dev server | manual gate |
+| `check:public-cube` | visibility gating, cloning, quantity-aware counts | Supabase + dev server | manual gate |
+| `check:auth-flow` | claiming a username refreshes the nav (`revalidatePath`) | Supabase + dev server + Chrome :9222 | manual gate |
+| `check:cube-ownership` | replays an Add under another session and with no cookie | Supabase + dev server + Chrome :9222 | manual gate |
 
 `check:cube-ownership` is also structural: it fails if a new action in
 `src/app/cube/actions.ts` skips `requireOwnedCube` without a documented
 exemption naming the gate it uses instead.
+
+### What CI runs
+
+`.github/workflows/ci.yml`, on every push and pull request: typecheck, lint,
+`check:primer-safety`, and a production build. It uses **placeholder** Supabase
+values, never real ones — every route is dynamic, so the build renders no page
+and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
+are absent. **No production credentials belong in CI under any arrangement.**
+
+### Why the other six are a manual gate, not CI
+
+Five of them `INSERT` directly into `auth.users` and then exchange a password
+grant against a live GoTrue endpoint to mint a session cookie. That needs a
+real Supabase project, not a Postgres service container — and migration `0002`
+adds a foreign key into `auth.users`, so migrations don't even apply to bare
+Postgres. Standing up a dedicated test project was the alternative, and it
+loses on three counts: it is shared mutable state, so concurrent runs collide
+(we have already had seed data collide with browse page 1); GitHub does not
+expose secrets to pull requests from forks, so the job would fail on exactly
+the contributions most worth checking; and it means maintaining a second live
+project whose auth schema has to track production's.
+
+`check:printings` is excluded for a different reason — it validates the *card
+pool*, which changes only when `sync-cards` runs, not when app code changes.
+Running it per-push against a freshly synced throwaway database would test less
+than running it by hand against the real pool. **Run it after every sync.**
+
+The gate, before deploying and after any card sync:
+
+```bash
+npm run dev                 # terminal 1
+chrome --headless=new --remote-debugging-port=9222 --user-data-dir=/tmp/cbchrome about:blank
+npm run check:printings && npm run check:browse-grid && \
+npm run check:copies-and-log && npm run check:public-cube && \
+npm run check:auth-flow && npm run check:cube-ownership
+```
+
+Each creates throwaway accounts and deletes them again, including on failure.
+
+If these ever need to be automated, the path is the Supabase CLI (`supabase
+start`) in CI, which brings up Postgres and GoTrue per run with no secrets and
+no shared state — not a hosted test project.
 
 ## Auth and data access
 
@@ -324,8 +362,7 @@ exemption naming the gate it uses instead.
 
 ## Phase 1 milestones
 
-1. ✅ Scaffold — Next.js + Tailwind + Drizzle + Supabase, env setup. **CI was
-   part of this and is still missing.**
+1. ✅ Scaffold — Next.js + Tailwind + Drizzle + Supabase, env setup, CI.
 2. ✅ Card ingestion — sync script, all sets, per-set counts verified.
 3. ✅ Card browser — `/cards`, filters for set/domain/type/rarity, name search.
 4. ✅ Auth + profiles — magic links, username claim.
