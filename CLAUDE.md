@@ -97,6 +97,19 @@ feature will fail at request time.
 Prefer `db:migrate` (versioned files) over `db:push` (diffs the schema and can
 drop columns).
 
+### How the split happened
+
+The dev project was created partway through development, after the Share button
+went live. Everything up to and including migration `0007` and the champion
+re-sync was applied **directly to production** before that; dev was then created
+empty and brought to the same point with `db:migrate` and `sync-cards`. So the
+two start aligned, and dev's card table has no riftscribe residue where
+production has six rows.
+
+That history is worth knowing because git does not record it: a migration file
+present in the repo says nothing about which project has run it. Confirm
+production's state before assuming a migration still needs applying there.
+
 ### Card data
 
 Cards come from riftcodex via `npm run sync-cards` (~1,451 records before
@@ -110,7 +123,14 @@ across by deploying.
 
 `master` is production: pushing to it deploys the live site. Feature work
 happens on branches; pushing a branch produces a Vercel preview deployment and
-does not touch production. Current feature branch: `draft-engine`.
+does not touch production *code*. Current feature branch: `draft-engine`.
+
+**A preview deployment is not automatically a dev environment.** Vercel injects
+whichever environment variables are configured for Preview, and unless those
+point at `cubebound-dev`, a preview build talks to the **production** database
+— so drafting on a preview URL would write production rows. Local
+`npm run dev` is the safe place to test; check Vercel's Preview environment
+variables before relying on a preview URL.
 
 Commit per logical piece of work with a descriptive message. **Do not merge to
 `master`, and do not suggest merging** — the owner decides when work goes live.
@@ -468,8 +488,10 @@ smart; C adds the deck builder.
   *ids*; details come from `cards`, which cube edits don't touch. A card
   deleted from the database outright makes the draft unresumable, and it says so
   rather than dealing a hole.
-- **Milestone A adds migration `0007`.** Production is migrated by hand, so the
-  draft route will fail there until that runs, however green the deploy looks.
+- **Milestone A adds migration `0007`**, which was applied to production before
+  the environment split (see "Environments"). The general rule still holds for
+  the next one: a deploy does not migrate, so a feature adding tables fails at
+  request time however green the build looks.
 - Bot picks are stored as well as the human's, though only the human's are
   replayed — the bots' are a deterministic function of the seed, so feeding
   them back would assert them twice. They are kept for readability and to give
