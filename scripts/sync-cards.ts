@@ -47,6 +47,12 @@ function pickSource(): CardSource {
   return factory();
 }
 
+/**
+ * Rewrite every row instead of only payload-changed ones. Needed whenever an
+ * adapter's mapping changes, since the raw payload alone cannot reveal that.
+ */
+const force = process.argv.includes("--force");
+
 /** JSON.stringify with sorted keys, so jsonb round-trips compare stably. */
 function stableStringify(value: unknown): string {
   if (Array.isArray(value)) {
@@ -86,6 +92,11 @@ async function main() {
     }
 
     // Diff against stored raw payloads so re-runs are cheap no-ops.
+    //
+    // The payload is the wrong signal when the ADAPTER changes: fixing how a
+    // field is mapped leaves the raw payload identical, so every row reads as
+    // unchanged and the fix never lands. `--force` rewrites every row from the
+    // current mapping. Use it after touching a card source.
     const ids = rows.map((r) => r.id);
     const existing =
       ids.length > 0
@@ -93,9 +104,9 @@ async function main() {
         : [];
     const existingById = new Map(existing.map((r) => [r.id, stableStringify(r.data)]));
 
-    const toWrite = rows.filter(
-      (r) => existingById.get(r.id) !== stableStringify(r.data),
-    );
+    const toWrite = force
+      ? rows
+      : rows.filter((r) => existingById.get(r.id) !== stableStringify(r.data));
     const inserted = toWrite.filter((r) => !existingById.has(r.id)).length;
     const updated = toWrite.length - inserted;
     const unchanged = rows.length - toWrite.length;

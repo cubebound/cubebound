@@ -132,12 +132,20 @@ row came from. Select with `CARD_SOURCE` env (default `riftcodex`).
   reports **every** domain of a multi-domain card, and the only one carrying
   the whole pool. `riftbound_id` (`ogn-299*-298`) maps to our canonical ids:
   `*` signature, `a`/`b` alt art, `tNN`/`rNN`/`spN` tokens and specials; the
-  trailing segment is the set size, not part of the identity. Names arrive as
-  "Champion - Title"; champion units print as "Champion, Title" but legends
-  print the title alone with the champion on the type line, so the two split
-  differently (`splitCardName`). Their feed contains stale duplicate records
-  under the same `riftbound_id` — keep the one with the newer
-  `metadata.updated_on`.
+  trailing segment is the set size, not part of the identity. Their feed
+  contains stale duplicate records under the same `riftbound_id` — keep the one
+  with the newer `metadata.updated_on`.
+
+  **Card names arrive three different ways and `splitCardName` normalizes all
+  three.** `OGN` writes `Ahri - Inquisitive`; champion units become
+  `Ahri, Inquisitive` and legends keep only the title with the champion stored
+  separately. `VEN` breaks both halves of that: its units print
+  `Akali, Silent` with no separator (champion lost), and its legends print the
+  whole trait line first — `Yordle, Kennen - Heart of the Tempest` — which made
+  `champion` the traits. So the champion is the **last** segment before the
+  separator, and when there is no separator it is the leading comma segment
+  only if the card's own `tags` confirm it (which leaves ordinary titles like
+  `Heisho, Shell of the World` alone).
 - **riftscribe (retired but selectable)** — RiftScribe open API
   (`https://riftscribe.gg`). Dropped as the default because its `faction` is a
   single string, so every multi-domain card lost a domain: all legends came
@@ -169,6 +177,7 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - Server components by default; client components only where interactivity requires.
 - All DB access through Drizzle in `src/db/`; no raw SQL in route handlers.
 - Card sync entry point lives in `scripts/sync-cards.ts`, idempotent, diffs by card id against the stored raw payload, safe to re-run. New sets ship every ~3 months — the sync must handle unknown fields gracefully (hence the `data` jsonb column).
+- **After changing an adapter's mapping, run `npm run sync-cards -- --force`.** The diff compares stored raw payloads, so a mapping fix leaves every row looking unchanged and silently never lands — a corrected `champion` field once reported "1288 unchanged". `--force` rewrites every row from the current mapping. Dry-run first by re-mapping the stored payloads and diffing: a change to *names* would reshuffle `base_id` grouping and needs review, a change to other fields does not.
 - Never hand-edit card data; fix the sync instead.
 - Keep components small; colocate route-specific components under their route folder.
 - Riftbound term casing in UI: domains and card types are proper nouns (Fury, Battlefield). Sources store them lowercase; title-case at the boundary via `titleCase` in `src/lib/riftbound.ts`.
@@ -244,7 +253,14 @@ a stale row — but it means a source switch leaves residue worth checking for.
   is ever auto-resolved. Normalization folds case, whitespace and smart quotes
   but deliberately **not** punctuation, because "Daisy!" is a real card name and
   collapsing it would be exactly the silent guess this avoids. Capped at
-  `MAX_IMPORT_LINES`. The preview writes nothing; commit takes resolved rows
+  `MAX_IMPORT_LINES`. Cards also answer to their **"Champion - Title"**
+  spelling, which is how vendor and buylist exports print them
+  (`aliasesFor`): a stored `Akali, Silent` aliases to `Akali - Silent` by
+  punctuation alone, and a legend stored as `Rogue Assassin` aliases through
+  its champion to `Akali - Rogue Assassin`. Aliases are consulted only after
+  real names, never shadow one, and two cards sharing an alias is an ambiguity.
+  Without this a real 426-line buylist missed on all 111 of its champion lines.
+  The preview writes nothing; commit takes resolved rows
   rather than re-parsing, so the user's picks survive, and re-validates every
   one server-side through `mergeImportRows`. Imports append and increment, and
   log as a single `cards_imported` batch. No name in the pool maps to two cards

@@ -31,6 +31,7 @@ import { claimUsername } from "../src/db/queries/users";
 import { MAX_CARD_QUANTITY } from "../src/db/queries/cubes";
 import {
   MAX_IMPORT_LINES,
+  aliasesFor,
   buildCatalogIndex,
   mergeImportRows,
   parseImportList,
@@ -190,6 +191,77 @@ try {
       `a curly apostrophe should still match "${apostrophe.name}"`,
     );
   }
+
+  // --- 2b. The "Champion - Title" convention ---------------------------------
+  // Vendor and buylist exports spell champion cards as "Akali - Rogue
+  // Assassin", but we store legends as the title alone and champion units in
+  // comma form. A real 426-line buylist missed on all 111 of its champion
+  // lines before this. Both spellings must resolve exactly, not by suggestion.
+  const legendWithChampion = catalog.find((c) => c.type === "Legend" && c.champion);
+  if (legendWithChampion) {
+    const dashed = `${legendWithChampion.champion} - ${legendWithChampion.name}`;
+    const p = previewImport(dashed, catalog);
+    expect(
+      p.matchedCount === 1 && p.rows[0]?.resolution.status === "matched",
+      `a legend should match its "Champion - Title" spelling (${dashed})`,
+    );
+    expect(
+      p.rows[0]?.resolution.status === "matched" &&
+        p.rows[0].resolution.card.id === legendWithChampion.id,
+      `"${dashed}" should resolve to ${legendWithChampion.id}`,
+    );
+  }
+
+  const commaUnit = catalog.find((c) => c.type === "Unit" && c.name.includes(", "));
+  if (commaUnit) {
+    const dashed = commaUnit.name.replace(", ", " - ");
+    const p = previewImport(dashed, catalog);
+    expect(
+      p.matchedCount === 1,
+      `a champion unit should match its dash spelling (${dashed})`,
+    );
+    // And the stored comma spelling must keep working.
+    expect(
+      previewImport(commaUnit.name, catalog).matchedCount === 1,
+      `the stored spelling should still match (${commaUnit.name})`,
+    );
+  }
+
+  // The alias is a rewrite of a real name, never an invention.
+  expect(
+    aliasesFor({ id: "T-1", name: "Akali, Silent", type: "Unit", champion: null })
+      .includes("Akali - Silent"),
+    "a comma name should alias to its dash spelling without needing a champion",
+  );
+  expect(
+    aliasesFor({ id: "T-2", name: "Rogue Assassin", type: "Legend", champion: "Akali" })
+      .includes("Akali - Rogue Assassin"),
+    "a legend should alias to Champion - Title",
+  );
+  expect(
+    aliasesFor({ id: "T-3", name: "Heisho, Shell of the World", type: "Battlefield", champion: null })
+      .length === 1,
+    "a comma in an ordinary title yields only the punctuation alias",
+  );
+  // A real name always wins over an alias.
+  const shadow = previewImport("Alpha - Beta", [
+    { id: "REAL-1", name: "Alpha - Beta", type: "Unit", champion: null },
+    { id: "ALIAS-1", name: "Alpha, Beta", type: "Unit", champion: null },
+  ]);
+  expect(
+    shadow.matchedCount === 1 &&
+      shadow.rows[0]?.resolution.status === "matched" &&
+      shadow.rows[0].resolution.card.id === "REAL-1",
+    "an exact name match must beat an alias",
+  );
+
+  // The adapter bug this exposed: champion held a whole trait line
+  // ("Yordle, Kennen"), which made every alias built from it useless.
+  const commaChampions = catalog.filter((c) => c.champion?.includes(","));
+  expect(
+    commaChampions.length === 0,
+    `champion should be one name, got ${commaChampions.slice(0, 3).map((c) => `${c.id}=${c.champion}`).join(", ")}`,
+  );
 
   // --- 3. Ambiguity, on a synthetic catalog ---------------------------------
   const twins: CatalogCard[] = [

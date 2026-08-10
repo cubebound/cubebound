@@ -111,13 +111,35 @@ const VARIANT_SUFFIX =
 export function splitCardName(
   rawName: string,
   type: string | null | undefined,
+  tags: readonly string[] = [],
 ): { name: string; champion: string | null } {
   const base = String(rawName).replace(VARIANT_SUFFIX, "").trim();
   const separator = base.indexOf(" - ");
-  if (separator === -1) return { name: base, champion: null };
+  const isTag = (value: string) =>
+    tags.some((tag) => String(tag).toLowerCase() === value.toLowerCase());
 
-  const champion = base.slice(0, separator).trim();
+  if (separator === -1) {
+    // VEN prints champion units as "Akali, Silent" with no separator at all,
+    // which used to drop the champion entirely. Treat the leading segment as
+    // the champion only when the card's own tags confirm it, so an ordinary
+    // comma in a title ("Heisho, Shell of the World") is left alone.
+    const comma = base.indexOf(", ");
+    if (comma > 0) {
+      const candidate = base.slice(0, comma).trim();
+      if (isTag(candidate)) return { name: base, champion: candidate };
+    }
+    return { name: base, champion: null };
+  }
+
+  // The prefix is not always just the champion: VEN legends print the whole
+  // trait line ("Yordle, Kennen - Heart of the Tempest"). The champion is its
+  // last segment; anything before that is a trait, and storing the lot made
+  // champion useless for those rows.
+  const prefix = base.slice(0, separator).trim();
   const title = base.slice(separator + 3).trim();
+  const segments = prefix.split(",").map((part) => part.trim()).filter(Boolean);
+  const champion = segments[segments.length - 1] ?? "";
+
   return {
     champion: champion || null,
     name: type === "Legend" ? title : `${champion}, ${title}`,
@@ -129,7 +151,7 @@ function toRow(card: RiftcodexCard, syncedAt: Date): NewCard | null {
   if (!id) return null;
 
   const type = card.classification?.type ?? "Unknown";
-  const { name, champion } = splitCardName(card.name, type);
+  const { name, champion } = splitCardName(card.name, type, card.tags ?? []);
   const domains = (card.classification?.domain ?? [])
     .map((domain) => titleCase(String(domain)))
     .filter(Boolean);

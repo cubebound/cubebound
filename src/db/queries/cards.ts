@@ -255,10 +255,16 @@ export async function getFilterOptions(): Promise<FilterOptions> {
  * which keeps the matching rules pure and testable in src/lib/import-list.ts.
  */
 export async function getImportCatalog(): Promise<
-  { id: string; name: string; type: string }[]
+  { id: string; name: string; type: string; champion: string | null }[]
 > {
   return db
-    .select({ id: cards.id, name: cards.name, type: cards.type })
+    .select({
+      id: cards.id,
+      name: cards.name,
+      type: cards.type,
+      // Needed to reconstruct "Champion - Title", how vendor lists spell these.
+      champion: cards.champion,
+    })
     .from(cards)
     .where(eq(cards.id, cards.baseId))
     .orderBy(cards.name);

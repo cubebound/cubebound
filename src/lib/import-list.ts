@@ -24,6 +24,41 @@ export interface CatalogCard {
   id: string;
   name: string;
   type: string;
+  /** Linked champion, when the card has one. Drives the alias forms below. */
+  champion?: string | null;
+}
+
+/**
+ * The "Champion - Title" spellings a card also answers to.
+ *
+ * Vendor and buylist exports print champion cards as `Akali - Rogue Assassin`,
+ * but we store the two kinds differently: a legend keeps only its title
+ * ("Rogue Assassin", champion Akali) while a champion unit is stored comma-form
+ * ("Ahri, Inquisitive"). Neither matches the dash spelling, so a real 426-line
+ * buylist missed on all 111 of its champion lines. These aliases reconstruct
+ * the source's spelling instead of loosening the matcher, which would start
+ * guessing.
+ */
+export function aliasesFor(card: CatalogCard): string[] {
+  const aliases: string[] = [];
+
+  // Punctuation variant, independent of any other field: "Akali, Silent" also
+  // answers to "Akali - Silent". Kept separate from the champion logic because
+  // the source does not populate `champion` consistently across sets, and this
+  // alias is a deterministic rewrite rather than an inference.
+  const comma = card.name.indexOf(", ");
+  if (comma > 0) {
+    aliases.push(`${card.name.slice(0, comma)} - ${card.name.slice(comma + 2)}`);
+  }
+
+  const champion = card.champion?.trim();
+  if (champion && !card.name.toLowerCase().startsWith(`${champion.toLowerCase()}, `)) {
+    // A legend stores only its title, so "Rogue Assassin" answers to both
+    // punctuations of "Akali - Rogue Assassin".
+    aliases.push(`${champion} - ${card.name}`, `${champion}, ${card.name}`);
+  }
+
+  return aliases;
 }
 
 export interface ParsedLine {
@@ -207,18 +242,35 @@ function distanceBudget(length: number): number {
 
 export interface CatalogIndex {
   byName: Map<string, CatalogCard[]>;
+  /** "Champion - Title" spellings, consulted only when no real name matches. */
+  byAlias: Map<string, CatalogCard[]>;
   cards: CatalogCard[];
+  /** Every searchable string per card, for suggestions. */
+  searchable: { card: CatalogCard; text: string }[];
+}
+
+function push(index: Map<string, CatalogCard[]>, key: string, card: CatalogCard): void {
+  const bucket = index.get(key);
+  if (bucket) bucket.push(card);
+  else index.set(key, [card]);
 }
 
 export function buildCatalogIndex(cards: CatalogCard[]): CatalogIndex {
   const byName = new Map<string, CatalogCard[]>();
+  const byAlias = new Map<string, CatalogCard[]>();
+  const searchable: { card: CatalogCard; text: string }[] = [];
+
   for (const card of cards) {
-    const key = normalizeName(card.name);
-    const bucket = byName.get(key);
-    if (bucket) bucket.push(card);
-    else byName.set(key, [card]);
+    push(byName, normalizeName(card.name), card);
+    searchable.push({ card, text: normalizeName(card.name) });
+    for (const alias of aliasesFor(card)) {
+      const key = normalizeName(alias);
+      // An alias never shadows a real card name.
+      if (!byName.has(key)) push(byAlias, key, card);
+      searchable.push({ card, text: key });
+    }
   }
-  return { byName, cards };
+  return { byName, byAlias, cards, searchable };
 }
 
 /** Up to `limit` plausible alternatives, prefix matches first. */
@@ -232,8 +284,7 @@ export function suggestionsFor(
   const budget = distanceBudget(target.length);
 
   const scored: { card: CatalogCard; rank: number; distance: number }[] = [];
-  for (const card of index.cards) {
-    const candidate = normalizeName(card.name);
+  for (const { card, text: candidate } of index.searchable) {
     // Rank 0: the typed text is the start of this name ("Ahri" -> "Ahri, …").
     // Rank 1: it appears somewhere inside. Rank 2: it is within a typo or two.
     let rank: number | null = null;
@@ -254,11 +305,32 @@ export function suggestionsFor(
       a.card.name.length - b.card.name.length ||
       a.card.name.localeCompare(b.card.name),
   );
-  return scored.slice(0, limit).map((s) => s.card);
+
+  // A card can score on both its name and an alias; show it once.
+  const seen = new Set<string>();
+  const unique: CatalogCard[] = [];
+  for (const { card } of scored) {
+    if (seen.has(card.id)) continue;
+    seen.add(card.id);
+    unique.push(card);
+    if (unique.length === limit) break;
+  }
+  return unique;
 }
 
+/**
+ * Real card names first, then the "Champion - Title" aliases — so an exact
+ * match on a printed name always beats a reconstructed spelling.
+ */
 function resolveName(name: string, index: CatalogIndex): CatalogCard[] {
-  return index.byName.get(normalizeName(name)) ?? [];
+  const key = normalizeName(name);
+  const exact = index.byName.get(key);
+  if (exact && exact.length > 0) return exact;
+
+  const aliased = index.byAlias.get(key) ?? [];
+  // Two cards answering to one alias is a genuine ambiguity, not a tiebreak.
+  const distinct = new Map(aliased.map((card) => [card.id, card]));
+  return [...distinct.values()];
 }
 
 /** Resolves one parsed line against the catalog. */
