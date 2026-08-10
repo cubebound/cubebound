@@ -319,6 +319,15 @@ a stale row — but it means a source switch leaves residue worth checking for.
   their own domains. A pair's tint is a diagonal blend of its two colours and
   its header dot is a hard split; a blend would be mud at 10px, and a
   "multicolour gold" would collide with Order.
+- **Hovering a row in the text view shows the card.** The list trades pictures
+  for density, which is its whole point, but "which card is that" then costs a
+  click into the modal. `CardHoverPreview` gives the picture back without
+  giving up the density, and keyboard focus shows it too, anchored to the row
+  since there is no cursor. It is positioned `fixed`, not absolute: the columns
+  and cost cells it floats over have their own overflow and stacking contexts
+  and would clip it. Near the right edge it flips to the other side of the
+  cursor and it is clamped vertically, so a row at the bottom of a long cube
+  still previews in full.
 - The visual view sorts by domain, then by cost, with the cards that have
   **neither** an energy nor a power cost kept together at the end rather than
   scattered as if they were zero-cost — legends, runes and battlefields are off

@@ -2,6 +2,10 @@
 
 import { useSyncExternalStore } from "react";
 
+import CardHoverPreview, {
+  useCardPreview,
+  type PreviewCard,
+} from "@/components/card-hover-preview";
 import type { CubeCardRow } from "@/db/queries/cubes";
 import { ambiguousBaseIds, countCopies, expandCopies } from "@/lib/cube-cards";
 import {
@@ -162,6 +166,7 @@ function CostCell({
   onSelect,
   onRemove,
   busyKey,
+  preview,
 }: {
   cost: string;
   rows: CopyRow[];
@@ -169,6 +174,11 @@ function CostCell({
   onSelect: (card: CubeCardRow) => void;
   onRemove?: (card: CubeCardRow) => void;
   busyKey?: string | null;
+  preview: {
+    show: (card: PreviewCard, event: { clientX: number; clientY: number }) => void;
+    showAt: (card: PreviewCard, element: HTMLElement) => void;
+    hide: () => void;
+  };
 }) {
   const total = rows.length;
 
@@ -189,6 +199,11 @@ function CostCell({
               <button
                 type="button"
                 onClick={() => onSelect(row.card)}
+                onMouseEnter={(event) => preview.show(row.card, event)}
+                onMouseMove={(event) => preview.show(row.card, event)}
+                onMouseLeave={preview.hide}
+                onFocus={(event) => preview.showAt(row.card, event.currentTarget)}
+                onBlur={preview.hide}
                 title={`${row.card.name} · ${row.card.type} · ${row.card.id}`}
                 className="min-w-0 flex-1 truncate rounded py-0.5 text-left text-xs text-zinc-900 hover:underline dark:text-zinc-100"
               >
@@ -236,6 +251,7 @@ export default function CubeTable({
   groupByType?: boolean;
 }) {
   const maxColumns = useMaxColumns();
+  const preview = useCardPreview();
 
   // column -> subgroup -> cost -> cards. Non-main sections use a single
   // unnamed subgroup so the render path stays the same.
@@ -322,6 +338,7 @@ export default function CubeTable({
                         onSelect={onSelect}
                         onRemove={onRemove}
                         busyKey={busyKey}
+                        preview={preview}
                       />
                     ))}
                   </div>
@@ -331,6 +348,7 @@ export default function CubeTable({
           );
         })}
       </div>
+      <CardHoverPreview target={preview.target} />
     </div>
   );
 }
