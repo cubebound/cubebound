@@ -74,7 +74,7 @@ async function requireOwnDraft(
 export async function startDraftAction(
   cubeId: string,
   returnPath: string,
-): Promise<DraftActionState> {
+): Promise<DraftActionState & { draftId?: string }> {
   const allowed = await requireDraftableCube(cubeId);
   if ("error" in allowed) return { error: allowed.error };
 
@@ -83,7 +83,7 @@ export async function startDraftAction(
   const generated = generatePacks(DEFAULT_DRAFT_CONFIG, pools, seed);
   if (!generated.ok) return { error: generated.error };
 
-  await createDraftRow({
+  const draft = await createDraftRow({
     cubeId: allowed.cube.id,
     drafterId: allowed.profile.id,
     seed,
@@ -95,7 +95,7 @@ export async function startDraftAction(
   });
 
   revalidatePath(returnPath.startsWith("/") ? returnPath : "/");
-  return {};
+  return { draftId: draft.id };
 }
 
 /** Takes one card for the human seat, then resolves every bot and passes. */

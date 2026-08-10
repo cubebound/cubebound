@@ -27,6 +27,12 @@ export default async function NavAuth() {
           >
             Your cubes
           </Link>
+          <Link
+            href="/drafts"
+            className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+          >
+            Your drafts
+          </Link>
           <span className="text-zinc-600 dark:text-zinc-400">
             {current.profile.username}
           </span>

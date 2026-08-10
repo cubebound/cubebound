@@ -199,6 +199,8 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /cube/{username}/{slug}/edit          owner editor; ?mode=browse|primer|log
 /cube/{username}/{slug}/settings      rename, visibility, delete
 /cube/{username}/{slug}/draft         solo draft against bots — any viewer, not just the owner
+                                      ?draft={id} opens a specific one, else the latest
+/drafts                               every draft the signed-in user has sat in
 ```
 
 Server Actions live in `src/app/cube/actions.ts`, `src/app/auth/actions.ts` and
@@ -513,6 +515,17 @@ smart; C adds the deck builder.
   CDN and one occasionally fails; a blank tile in a pack you are choosing from
   is the worst place for that, so both the pack tiles and the pool piles fall
   back to the name on `onError`.
+- **Drafts are kept as drafts.** `/drafts` lists every draft the user has sat
+  in, and `?draft={id}` on the draft route reopens one — a draft holds the
+  packs it was dealt, every pick in order and the main/side split, none of
+  which survives being flattened into a cube. "Save as cube" stays for when you
+  want to *edit* the result. Without the id parameter the route shows the
+  latest draft of that cube, which is why a finished draft used to become
+  unreachable the moment a new one started. A draft id belonging to someone
+  else, or to another cube, falls back to the latest rather than opening.
+- **"New draft" confirms when the current one is unfinished.** Nothing is
+  destroyed — the old draft stays in the list — but the button is one click
+  from twenty picks of work, and the screen should say so before it acts.
 - **Milestone A adds migration `0007`**, which was applied to production before
   the environment split (see "Environments"). The general rule still holds for
   the next one: a deploy does not migrate, so a feature adding tables fails at

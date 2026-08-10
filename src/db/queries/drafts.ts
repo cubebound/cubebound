@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "..";
-import { cards, cubeCards, draftPicks, drafts, type Draft } from "../schema";
+import { cards, cubeCards, cubes, draftPicks, drafts, users, type Draft } from "../schema";
 import type { DraftCard, DraftPools, PoolEntry } from "@/lib/draft/packs";
 
 /**
@@ -101,6 +101,74 @@ export async function getLatestDraft(
     .orderBy(desc(drafts.createdAt))
     .limit(1);
   return row ?? null;
+}
+
+export interface DraftSummary {
+  id: string;
+  cubeId: string;
+  cubeName: string;
+  cubeSlug: string;
+  ownerUsername: string;
+  status: "active" | "complete";
+  createdAt: Date;
+  updatedAt: Date;
+  /** Cards the drafter has taken so far. */
+  picked: number;
+}
+
+/**
+ * Every draft the user has sat in, newest first.
+ *
+ * Joined to the cube so the list reads as "which cube, when" rather than a
+ * column of ids, and counts only the drafter's own picks — the bot rows would
+ * multiply the number by the number of seats.
+ */
+export async function listDraftsForUser(userId: string): Promise<DraftSummary[]> {
+  const rows = await db
+    .select({
+      id: drafts.id,
+      cubeId: drafts.cubeId,
+      cubeName: cubes.name,
+      cubeSlug: cubes.slug,
+      ownerUsername: users.username,
+      status: drafts.status,
+      createdAt: drafts.createdAt,
+      updatedAt: drafts.updatedAt,
+      humanSeat: drafts.humanSeat,
+    })
+    .from(drafts)
+    .innerJoin(cubes, eq(cubes.id, drafts.cubeId))
+    .innerJoin(users, eq(users.id, cubes.ownerId))
+    .where(eq(drafts.drafterId, userId))
+    .orderBy(desc(drafts.createdAt));
+
+  if (rows.length === 0) return [];
+
+  const counts = await db
+    .select({ draftId: draftPicks.draftId, seat: draftPicks.seat, cardId: draftPicks.cardId })
+    .from(draftPicks)
+    .where(inArray(draftPicks.draftId, rows.map((row) => row.id)));
+
+  const picked = new Map<string, number>();
+  for (const row of rows) picked.set(row.id, 0);
+  for (const pick of counts) {
+    const draft = rows.find((row) => row.id === pick.draftId);
+    if (draft && pick.seat === draft.humanSeat) {
+      picked.set(pick.draftId, (picked.get(pick.draftId) ?? 0) + 1);
+    }
+  }
+
+  return rows.map((row) => ({
+    id: row.id,
+    cubeId: row.cubeId,
+    cubeName: row.cubeName,
+    cubeSlug: row.cubeSlug,
+    ownerUsername: row.ownerUsername,
+    status: row.status,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    picked: picked.get(row.id) ?? 0,
+  }));
 }
 
 export async function getDraftPicks(draftId: string) {
