@@ -1,25 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { claimUsername } from "@/db/queries/users";
 import { getAuthUser } from "@/lib/auth";
+import { authCallbackUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 import { checkUsername } from "@/lib/username";
 
 export interface FormState {
   error?: string;
   sent?: boolean;
-}
-
-function siteUrl(): string {
-  // Vercel sets VERCEL_URL per deployment; NEXT_PUBLIC_SITE_URL pins the
-  // production domain so magic links don't point at a preview build.
-  const explicit = process.env.NEXT_PUBLIC_SITE_URL;
-  if (explicit) return explicit.replace(/\/$/, "");
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
 }
 
 /**
@@ -48,7 +41,9 @@ export async function signInWithEmail(
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${siteUrl()}/auth/callback` },
+    // Derived from this request's own origin — see src/lib/site-url.ts for why
+    // an env var alone is not enough.
+    options: { emailRedirectTo: authCallbackUrl(await headers()) },
   });
 
   if (error) return { error: error.message };

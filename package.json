@@ -18,7 +18,9 @@
     "check:cube-ownership": "tsx --env-file-if-exists=.env.local scripts/check-cube-ownership.mts",
     "check:public-cube": "tsx --env-file-if-exists=.env.local scripts/check-public-cube.mts",
     "check:copies-and-log": "tsx --env-file-if-exists=.env.local scripts/check-copies-and-log.mts",
-    "check:browse-grid": "tsx --env-file-if-exists=.env.local scripts/check-browse-grid.mts"
+    "check:browse-grid": "tsx --env-file-if-exists=.env.local scripts/check-browse-grid.mts",
+    "check:magic-link": "tsx --env-file-if-exists=.env.local scripts/check-magic-link.mts",
+    "dev:probe": "node --import ./scripts/otp-probe.mjs ./node_modules/next/dist/bin/next dev"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

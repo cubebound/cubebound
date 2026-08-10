@@ -286,6 +286,14 @@ touching what you changed; run the manual gate in full before a deploy.
 | `check:public-cube` | visibility gating, cloning, quantity-aware counts | Supabase + dev server | manual gate |
 | `check:auth-flow` | claiming a username refreshes the nav (`revalidatePath`) | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:cube-ownership` | replays an Add under another session and with no cookie | Supabase + dev server + Chrome :9222 | manual gate |
+| `check:magic-link` | the `redirect_to` actually sent to Supabase, and `/?code=` self-heal | `dev:probe` server + Chrome :9222 | manual gate |
+
+`check:magic-link` needs the dev server started as `SIGNIN_PROBE=1 npm run
+dev:probe`, which preloads `scripts/otp-probe.mjs` to intercept the outgoing
+`/auth/v1/otp` call — so it reads the real wire value without sending mail or
+creating a user. It asserts on the URL Supabase receives rather than on the
+helper in isolation, because the production bug was invisible everywhere else:
+localhost worked and the code read fine.
 
 `check:cube-ownership` is also structural: it fails if a new action in
 `src/app/cube/actions.ts` skips `requireOwnedCube` without a documented
@@ -329,11 +337,13 @@ than running it by hand against the real pool. **Run it after every sync.**
 The gate, before deploying and after any card sync:
 
 ```bash
-npm run dev                 # terminal 1
+SIGNIN_PROBE=1 npm run dev:probe    # terminal 1 (probe armed; plain `npm run dev` also works
+                                    #  for everything except check:magic-link)
 chrome --headless=new --remote-debugging-port=9222 --user-data-dir=/tmp/cbchrome about:blank
 npm run check:printings && npm run check:browse-grid && \
 npm run check:copies-and-log && npm run check:public-cube && \
-npm run check:auth-flow && npm run check:cube-ownership
+npm run check:auth-flow && npm run check:cube-ownership && \
+npm run check:magic-link
 ```
 
 Each creates throwaway accounts and deletes them again, including on failure.
@@ -347,6 +357,20 @@ no shared state — not a hosted test project.
 - Supabase email magic links. Session cookies are refreshed in `src/middleware.ts`;
   always verify the user with `supabase.auth.getUser()`, never `getSession()`,
   which trusts the cookie without checking it.
+- **The magic-link origin comes from the request, not an env var.**
+  `resolveSiteUrl` in `src/lib/site-url.ts` reads `x-forwarded-host` /
+  `x-forwarded-proto`, so links are right on production, previews, custom
+  domains and localhost with no configuration. `NEXT_PUBLIC_SITE_URL` is an
+  optional pin; `VERCEL_URL` is deliberately **not** consulted — it is the
+  *per-deployment* hostname (`cubebound-a1b2c3.vercel.app`), never the project
+  domain, so it is never on the Supabase allowlist. Using it was the production
+  bug: **Supabase silently falls back to the dashboard Site URL when
+  `emailRedirectTo` is not allowlisted**, dropping the visitor on `/?code=…`
+  where nothing consumes the code, so sign-in just never completed. Whatever
+  origin you produce must be on the allowlist, or you get that failure back.
+- `/` forwards a stray `?code=` (or `?error_description=`) to `/auth/callback`
+  rather than dropping it, so a near-miss redirect self-heals. The PKCE
+  verifier is in a cookie, so the exchange survives the hop.
 - Signing in creates no profile row. First-time users land on `/welcome` to claim
   a username, which is what creates `public.users`. Anything that needs a
   username must handle `profile === null`.
