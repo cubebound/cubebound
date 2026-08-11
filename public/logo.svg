@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 300" role="img" aria-labelledby="cbTitle cbDesc">
+  <title id="cbTitle">Cubebound logo</title>
+  <desc id="cbDesc">A transparent cube containing floating cards with orange-lit edges and sparkles.</desc>
+
+  <!-- Hidden rear edges (dashed) - the transparency cue -->
+  <g stroke="#4a4a53" stroke-width="1.2" fill="none" stroke-dasharray="5 4">
+    <path d="M30 75 L160 140 L290 75 M160 140 L160 280"/>
+  </g>
+
+  <!-- Outer silhouette -->
+  <g stroke="#6a6a75" stroke-width="1.5" fill="none">
+    <path d="M160 10 L290 75 L290 215 L160 280 L30 215 L30 75 Z"/>
+  </g>
+
+  <!-- Floating cards (foreground bright, background dim) -->
+  <g transform="translate(107,100) rotate(-14)">
+    <rect x="-26" y="-36" width="52" height="72" rx="5" fill="#2e2e35" stroke="#ff6a2b" stroke-width="1.5"/>
+    <rect x="-18" y="-28" width="36" height="30" rx="3" fill="#ff6a2b" opacity="0.85"/>
+    <rect x="-18" y="8" width="36" height="4" rx="2" fill="#8a8a94"/>
+    <rect x="-18" y="16" width="26" height="4" rx="2" fill="#6a6a74"/>
+  </g>
+  <g transform="translate(202,142) rotate(18)">
+    <rect x="-24" y="-33" width="48" height="66" rx="5" fill="#2e2e35" stroke="#ffb36b" stroke-width="1.5"/>
+    <rect x="-16" y="-25" width="32" height="26" rx="3" fill="#ffb36b" opacity="0.85"/>
+    <rect x="-16" y="7" width="32" height="4" rx="2" fill="#8a8a94"/>
+    <rect x="-16" y="15" width="22" height="4" rx="2" fill="#6a6a74"/>
+  </g>
+  <g transform="translate(148,198) rotate(-30)">
+    <rect x="-20" y="-27" width="40" height="54" rx="4" fill="#2e2e35" stroke="#ff6a2b" stroke-width="1.2"/>
+    <rect x="-13" y="-20" width="26" height="20" rx="3" fill="#ff8b45" opacity="0.85"/>
+    <rect x="-13" y="6" width="26" height="3.5" rx="1.75" fill="#8a8a94"/>
+  </g>
+  <g transform="translate(76,172) rotate(28)" opacity="0.75">
+    <rect x="-16" y="-22" width="32" height="44" rx="4" fill="#2c2c33" stroke="#b0561f" stroke-width="1"/>
+    <rect x="-10" y="-15" width="20" height="15" rx="2" fill="#b0561f" opacity="0.8"/>
+  </g>
+  <g transform="translate(228,98) rotate(-22)" opacity="0.7">
+    <rect x="-14" y="-19" width="28" height="38" rx="3" fill="#2c2c33" stroke="#b0561f" stroke-width="1"/>
+    <rect x="-9" y="-13" width="18" height="13" rx="2" fill="#c96a2e" opacity="0.8"/>
+  </g>
+
+  <!-- Sparkles -->
+  <g fill="#ffb36b">
+    <path d="M160 50 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 Z"/>
+    <path d="M72 128 l2.4 6 6 2.4 -6 2.4 -2.4 6 -2.4 -6 -6 -2.4 6 -2.4 Z" opacity="0.85"/>
+    <path d="M238 182 l2.4 6 6 2.4 -6 2.4 -2.4 6 -2.4 -6 -6 -2.4 6 -2.4 Z" opacity="0.85"/>
+    <circle cx="120" cy="68" r="2" opacity="0.9"/>
+    <circle cx="198" cy="208" r="2" opacity="0.9"/>
+    <circle cx="53" cy="100" r="1.5" opacity="0.7"/>
+    <circle cx="267" cy="135" r="1.5" opacity="0.7"/>
+    <circle cx="172" cy="118" r="1.5" opacity="0.6"/>
+  </g>
+
+  <!-- Lit edges: bottom strong, top soft -->
+  <g stroke="#ff6a2b" stroke-width="2" fill="none" opacity="0.9">
+    <path d="M290 75 L290 215 L160 280 L30 215 L30 75"/>
+  </g>
+  <g stroke="#ff6a2b" stroke-width="1.6" fill="none" opacity="0.55">
+    <path d="M30 75 L160 10 L290 75"/>
+  </g>
+</svg>

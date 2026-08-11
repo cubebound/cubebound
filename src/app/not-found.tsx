@@ -13,7 +13,7 @@ import Logo from "@/components/logo";
 export default function NotFound() {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-20 text-center sm:px-6">
-      <Logo size="lg" />
+      <Logo size="lg" className="inline-block" />
       <h1 className="mt-6 text-2xl font-semibold tracking-tight">Page not found</h1>
       <p className="mt-3 text-zinc-600 dark:text-zinc-400">
         That link is wrong, or the cube behind it is private or gone.

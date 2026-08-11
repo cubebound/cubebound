@@ -302,9 +302,13 @@ a stale row — but it means a source switch leaves residue worth checking for.
   the cube and draft links and shrinks the logo, without which a 320px screen
   still overflowed.
 - **The brand mark lives in `src/components/logo.tsx`** and every surface that
-  shows it — nav, landing page, coming-soon pages, 404 — renders that. Swapping
-  the wordmark for artwork is a change to one file; the component's doc comment
-  says exactly where to put the SVG.
+  shows it — nav, landing page, coming-soon pages, 404 — renders that, so the
+  artwork changes in one place. The mark is `public/logo.svg` on a 320×300
+  viewBox, carrying enough fine detail (dashed rear edges, sparkles, 1px card
+  strokes) that it needs ~26px even in the nav rather than the 16px an icon-only
+  mark could take. It is served as an `<img>` rather than inlined: the file has
+  fixed `id`s, and a page showing the logo twice would duplicate them. Width and
+  height are both set so the header does not jump while it loads.
 - `/profile` and `/settings` exist and say "not built yet". They are real routes
   rather than one shared `/coming-soon` so the URL is already right when the
   feature lands and a bookmark keeps working. Cube-specific settings are
