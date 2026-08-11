@@ -61,9 +61,22 @@ export const CUBE_SECTIONS = [
   "runes",
   "battlefields",
   "sideboard",
+  "maybeboard",
 ] as const;
 
 export type CubeSection = (typeof CUBE_SECTIONS)[number];
+
+/**
+ * The sections that make up the cube itself.
+ *
+ * The maybeboard is deliberately absent: it holds cards you are *considering*,
+ * so listing it with the cube — or counting it in the cube's size — would make
+ * a 300-card cube read as 340. It is a move target like any other section
+ * (so `CUBE_SECTIONS` keeps it) but it gets its own tab and its own count.
+ */
+export const CUBE_LIST_SECTIONS = CUBE_SECTIONS.filter(
+  (section) => section !== "maybeboard",
+) as readonly CubeSection[];
 
 export const CUBE_SECTION_LABELS: Record<CubeSection, string> = {
   main: "Main",
@@ -71,6 +84,7 @@ export const CUBE_SECTION_LABELS: Record<CubeSection, string> = {
   runes: "Runes",
   battlefields: "Battlefields",
   sideboard: "Sideboard",
+  maybeboard: "Maybeboard",
 };
 
 /**

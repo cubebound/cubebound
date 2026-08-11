@@ -138,6 +138,8 @@ const SECTION_ALIASES: Record<string, CubeSection> = {
   battlefields: "battlefields",
   sideboard: "sideboard",
   side: "sideboard",
+  maybeboard: "maybeboard",
+  maybe: "maybeboard",
 };
 
 /** "Legends:" / "Main:" — a header line, not a card. */

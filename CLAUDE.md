@@ -166,7 +166,7 @@ cubes         id, owner_id → users, name, slug, description, primer,
               visibility ('public'|'unlisted'|'private'), created_at, updated_at
               unique (owner_id, slug)
 cube_cards    pk (cube_id, card_id, section), quantity, added_at
-              section ('main'|'legends'|'runes'|'battlefields'|'sideboard')
+              section ('main'|'legends'|'runes'|'battlefields'|'sideboard'|'maybeboard')
 cube_changes  id, cube_id, actor_id (set null on delete), actor_username, kind,
               card_id, card_name, quantity, from_section, to_section,
               from_value, to_value, created_at    -- indexed (cube_id, created_at)
@@ -179,7 +179,7 @@ Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0002` enable RLS · `0003` recompute `base_id` as data-derived print groups ·
 `0004` `cubes.primer` · `0005` `cube_changes` (+ RLS) ·
 `0006` the `cards_imported` change kind · `0007` `drafts` + `draft_picks` (+ RLS) ·
-`0008` `draft_picks.board`.
+`0008` `draft_picks.board` · `0009` the `maybeboard` section.
 
 Migrations are applied **per environment and by hand** — see "Environments".
 A migration in a merged branch is not live until production is migrated.
@@ -426,6 +426,17 @@ a stale row — but it means a source switch leaves residue worth checking for.
   one server-side through `mergeImportRows`. Imports append and increment, and
   log as a single `cards_imported` batch. No name in the pool maps to two cards
   today, so `check:import` covers ambiguity with a synthetic catalog.
+- **The maybeboard is not part of the cube.** It holds cards you are
+  *considering*; the sideboard holds cards deliberately taken out. Neither is
+  drafted, and the maybeboard is excluded from the cube's card count and from
+  the stacked cube list — counting it would make a 300-card cube read as 340.
+  That is what `CUBE_LIST_SECTIONS` is for: `CUBE_SECTIONS` stays complete so
+  every section dropdown offers the maybeboard as a move target, while the list
+  and the counts use the shorter one. It gets its own tab, `?tab=maybeboard`
+  publicly and `?mode=maybeboard` in the editor, and the public tab appears only
+  when it holds something — an empty shortlist on someone else's cube is noise.
+  Moving in and out is the ordinary section move, so nothing new had to be
+  written for it, and `Maybeboard:` works as an import header.
 - **Runes are optional content.** A cube with no runes is a legitimate cube, so
   never warn about their absence or treat any section as required.
 - Public cube view is `/cube/{username}/{slug}`. Public and unlisted render for

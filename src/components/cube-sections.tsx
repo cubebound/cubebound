@@ -9,7 +9,11 @@ import type { CubeCardRow } from "@/db/queries/cubes";
 import { countCopies, expandCopies, type CopyOf } from "@/lib/cube-cards";
 import { compareForDisplay } from "@/lib/domain-columns";
 import type { CubeView } from "@/lib/cube-view";
-import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
+import {
+  CUBE_LIST_SECTIONS,
+  CUBE_SECTION_LABELS,
+  type CubeSection,
+} from "@/lib/riftbound";
 
 /**
  * A cube's cards, grouped by section and rendered in the chosen view.
@@ -30,6 +34,7 @@ export default function CubeSections({
   busyKey,
   emptyMessage = "No cards yet.",
   detailFooter,
+  sections = CUBE_LIST_SECTIONS,
 }: {
   cards: CubeCardRow[];
   view: CubeView;
@@ -49,6 +54,9 @@ export default function CubeSections({
     card: CubeCardRow,
     retarget: (next: { id?: string; section?: CubeSection }) => void,
   ) => ReactNode;
+  /** Which sections to render. Defaults to the cube itself, excluding the
+   *  maybeboard, which has its own tab. */
+  sections?: readonly CubeSection[];
 }) {
   // Track the selection by key, not by row: after an edit the page revalidates
   // and hands us new row objects, and a held reference would show stale data.
@@ -85,13 +93,13 @@ export default function CubeSections({
   }
 
   const bySection = new Map<CubeSection, CubeCardRow[]>();
-  for (const section of CUBE_SECTIONS) bySection.set(section, []);
+  for (const section of sections) bySection.set(section, []);
   for (const card of cards) bySection.get(card.section)?.push(card);
 
   return (
     <>
       <div className="space-y-8">
-        {CUBE_SECTIONS.map((section) => {
+        {sections.map((section) => {
           const inSection = bySection.get(section) ?? [];
           if (inSection.length === 0) return null;
           return (

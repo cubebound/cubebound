@@ -57,6 +57,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         public page you can share — and anyone can clone one into their own
         account to make it theirs.
       </p>
+      <p className="mt-4 text-sm text-zinc-500">
+        Credit for many feature and design decisions goes to{" "}
+        <a
+          href="https://cubecobra.com"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-zinc-300"
+        >
+          Cube Cobra
+        </a>{" "}
+        who do an incredible job serving the MTG community.
+      </p>
 
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <Link

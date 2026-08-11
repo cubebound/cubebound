@@ -23,6 +23,9 @@ export const cubeSectionEnum = pgEnum("cube_section", [
   "runes",
   "battlefields",
   "sideboard",
+  // Cards being considered but not in the cube. Distinct from the sideboard,
+  // which holds cards deliberately taken out; neither counts toward the size.
+  "maybeboard",
 ]);
 
 // Card types are stored as text rather than a pg enum: new sets ship every

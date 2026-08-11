@@ -13,7 +13,7 @@ import { canEditCube, canViewCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
 import { countCopies } from "@/lib/cube-cards";
 import {
-  CUBE_SECTIONS,
+  CUBE_LIST_SECTIONS,
   CUBE_SECTION_LABELS,
   type CubeSection,
 } from "@/lib/riftbound";
@@ -72,16 +72,21 @@ export default async function CubePage({
   const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab;
   const hasPrimer = Boolean(cube.primer?.trim());
   const showingPrimer = tab === "primer" && hasPrimer;
+  const showingMaybeboard = tab === "maybeboard";
   const view = resolveCubeView(query.view, (await cookies()).get(CUBE_VIEW_COOKIE)?.value);
 
-  const cards = await getCubeCards(cube.id);
+  const allCards = await getCubeCards(cube.id);
+  // The maybeboard is a shortlist, not part of the cube: counting it would make
+  // a 300-card cube read as 340.
+  const cards = allCards.filter((card) => card.section !== "maybeboard");
+  const maybeboard = allCards.filter((card) => card.section === "maybeboard");
   const total = countCopies(cards);
 
   const bySection = new Map<CubeSection, number>();
   for (const card of cards) {
     bySection.set(card.section, (bySection.get(card.section) ?? 0) + card.quantity);
   }
-  const sectionCounts = CUBE_SECTIONS.filter((section) => bySection.has(section));
+  const sectionCounts = CUBE_LIST_SECTIONS.filter((section) => bySection.has(section));
 
   const basePath = `/cube/${cube.ownerUsername}/${cube.slug}`;
   // Built server-side from the request origin (same helper the magic links
@@ -174,9 +179,17 @@ export default async function CubePage({
         )}
 
         <nav className="mt-4 flex flex-wrap items-center gap-2">
-          {tabLink("Cube", basePath, !showingPrimer)}
+          {tabLink("Cube", basePath, !showingPrimer && !showingMaybeboard)}
           {hasPrimer && tabLink("Primer", `${basePath}?tab=primer`, showingPrimer)}
-          {!showingPrimer && cards.length > 0 && (
+          {/* Only advertised when it holds something: an empty shortlist is
+              noise on someone else's cube. */}
+          {maybeboard.length > 0 &&
+            tabLink(
+              `Maybeboard (${countCopies(maybeboard)})`,
+              `${basePath}?tab=maybeboard`,
+              showingMaybeboard,
+            )}
+          {!showingPrimer && !showingMaybeboard && cards.length > 0 && (
             <span className="ml-auto">
               <CubeViewToggle active={view} />
             </span>
@@ -186,6 +199,13 @@ export default async function CubePage({
 
       {showingPrimer ? (
         <Primer markdown={cube.primer!} />
+      ) : showingMaybeboard ? (
+        <CubeSections
+          cards={maybeboard}
+          view={view}
+          sections={["maybeboard"]}
+          emptyMessage="Nothing on the maybeboard."
+        />
       ) : (
         <CubeSections
           cards={cards}

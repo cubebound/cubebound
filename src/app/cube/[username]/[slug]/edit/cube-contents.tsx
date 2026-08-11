@@ -25,10 +25,16 @@ export default function CubeContents({
   cards,
   view,
   printingsByBase,
+  sections,
+  emptyMessage,
 }: {
   cubeId: string;
   cards: CubeCardRow[];
   view: CubeView;
+  /** Which sections to render; defaults to the cube's own. The maybeboard tab
+   *  passes just itself so the same controls work there. */
+  sections?: readonly CubeSection[];
+  emptyMessage?: string;
   /** Every printing of each card in the cube, for the per-copy switcher. */
   printingsByBase: Record<string, BrowseCard[]>;
 }) {
@@ -130,6 +136,8 @@ export default function CubeContents({
       <CubeSections
         cards={cards}
         view={view}
+        {...(sections ? { sections } : {})}
+        {...(emptyMessage ? { emptyMessage } : {})}
         busyKey={busy}
         emptyMessage="No cards yet. Use quick add to build the list."
         onRemoveOne={removeCopy}

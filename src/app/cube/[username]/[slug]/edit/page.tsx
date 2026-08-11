@@ -63,18 +63,23 @@ export default async function EditCubePage({
   const writingPrimer = mode === "primer";
   const viewingLog = mode === "log";
   const importing = mode === "import";
+  const onMaybeboard = mode === "maybeboard";
   const view = resolveCubeView(query.view, (await cookies()).get(CUBE_VIEW_COOKIE)?.value);
 
-  const [contents, inCube] = await Promise.all([
+  const [allContents, inCube] = await Promise.all([
     getCubeCards(cube.id),
     getCubeCardQuantities(cube.id),
   ]);
+  // The maybeboard is a shortlist, not part of the cube, so it neither shows
+  // in the cube list nor counts toward the size.
+  const contents = allContents.filter((card) => card.section !== "maybeboard");
+  const maybeboard = allContents.filter((card) => card.section === "maybeboard");
   const totalCopies = countCopies(contents);
 
   // Every printing of every card in the cube, so each copy can be switched
   // without a round trip when the control is opened.
   const printingRows = await getPrintingsForBases([
-    ...new Set(contents.map((card) => card.baseId)),
+    ...new Set(allContents.map((card) => card.baseId)),
   ]);
   const printingsByBase: Record<string, typeof printingRows> = {};
   for (const printing of printingRows) {
@@ -150,12 +155,21 @@ export default async function EditCubePage({
           </div>
         </div>
         <nav className="mt-4 flex flex-wrap items-center gap-2">
-          {modeLink("Cube", basePath, !browsing && !writingPrimer && !viewingLog)}
+          {modeLink(
+            "Cube",
+            basePath,
+            !browsing && !writingPrimer && !viewingLog && !importing && !onMaybeboard,
+          )}
           {modeLink("Browse cards", `${basePath}?mode=browse`, browsing)}
           {modeLink("Primer", `${basePath}?mode=primer`, writingPrimer)}
+          {modeLink(
+            `Maybeboard${maybeboard.length ? ` (${countCopies(maybeboard)})` : ""}`,
+            `${basePath}?mode=maybeboard`,
+            onMaybeboard,
+          )}
           {modeLink("Import", `${basePath}?mode=import`, importing)}
           {modeLink("Change log", `${basePath}?mode=log`, viewingLog)}
-          {!browsing && !writingPrimer && !viewingLog && !importing && contents.length > 0 && (
+          {!browsing && !writingPrimer && !viewingLog && !importing && !onMaybeboard && contents.length > 0 && (
             <span className="ml-auto">
               <CubeViewToggle active={view} />
             </span>
@@ -163,7 +177,23 @@ export default async function EditCubePage({
         </nav>
       </header>
 
-      {importing ? (
+      {onMaybeboard ? (
+        <section>
+          <p className="mb-4 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
+            Cards you&rsquo;re considering. They don&rsquo;t count toward the cube
+            or get drafted — move one to a section when you decide to run it, the
+            same way you move cards between sections.
+          </p>
+          <CubeContents
+            cubeId={cube.id}
+            cards={maybeboard}
+            printingsByBase={printingsByBase}
+            view={view}
+            emptyMessage="Nothing here yet. Move a card to the Maybeboard from any section to shortlist it."
+            sections={["maybeboard"]}
+          />
+        </section>
+      ) : importing ? (
         <section className="max-w-4xl">
           <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
             Paste a card list to add many cards at once. You&rsquo;ll see exactly
