@@ -44,30 +44,10 @@ export async function getCubeByOwnerAndSlug(
   return row ? { ...row.cube, ownerUsername: row.ownerUsername } : null;
 }
 
-/** Summary row for the cube list — deliberately without `primer`, which can be
- *  tens of kilobytes and is never shown in a list. */
-export type CubeSummary = Omit<Cube, "primer"> & { cardCount: number };
-
-export async function listCubesForOwner(ownerId: string): Promise<CubeSummary[]> {
-  return db
-    .select({
-      id: cubes.id,
-      ownerId: cubes.ownerId,
-      name: cubes.name,
-      slug: cubes.slug,
-      description: cubes.description,
-      visibility: cubes.visibility,
-      createdAt: cubes.createdAt,
-      updatedAt: cubes.updatedAt,
-      cardCount: sql<number>`(
-        select coalesce(sum(${cubeCards.quantity}), 0)::int
-        from ${cubeCards} where ${cubeCards.cubeId} = ${cubes.id}
-      )`,
-    })
-    .from(cubes)
-    .where(eq(cubes.ownerId, ownerId))
-    .orderBy(desc(cubes.updatedAt));
-}
+// Listing a user's own cubes is `searchCubes({ ownerId, includeNonPublic })` in
+// `queries/discovery.ts` — one query behind every cube list on the site, so
+// "how many cards is that" cannot mean two different things. The listing this
+// file used to own counted the maybeboard, which the rest of the app does not.
 
 export async function createCube(input: {
   ownerId: string;

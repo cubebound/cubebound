@@ -233,3 +233,31 @@ export const draftPicks = pgTable(
 
 export type Draft = typeof drafts.$inferSelect;
 export type DraftPick = typeof draftPicks.$inferSelect;
+
+/**
+ * Who follows which cube.
+ *
+ * A plain join table: the pair is the identity, so following twice is a no-op
+ * rather than a second row. Both sides cascade — a deleted cube or account
+ * should not leave follows pointing at nothing, and a follow carries no
+ * information worth keeping once either end is gone.
+ */
+export const cubeFollows = pgTable(
+  "cube_follows",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    cubeId: uuid("cube_id")
+      .notNull()
+      .references(() => cubes.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.cubeId] }),
+    index("cube_follows_cube_id_idx").on(table.cubeId),
+    index("cube_follows_user_id_created_at_idx").on(table.userId, table.createdAt),
+  ],
+);
+
+export type CubeFollow = typeof cubeFollows.$inferSelect;

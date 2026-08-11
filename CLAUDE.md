@@ -29,12 +29,16 @@ Open items:
   deployments and localhost each build their own correct magic-link and share
   URLs. The live domain must stay on the Supabase redirect allowlist; see
   "Auth and data access" for what breaks when it isn't.
-- **CI covers typecheck, lint, build and `check:primer-safety`** on push and PR.
-  The other eight checks need a live Supabase and are a documented pre-deploy
-  manual gate — see "Checks". Run that gate before deploying.
+- **CI covers typecheck, lint, build, `check:primer-safety` and `check:draft`**
+  on push and PR. The other nine checks need a live Supabase and are a
+  documented pre-deploy manual gate — see "Checks". Run that gate before
+  deploying.
 - Feature work lands on a branch and pushes to
   `github.com/cubebound/cubebound`; `master` is production — see
   "Environments". The merged `cube-editor-redesign` branch can be deleted.
+- **`cube-discovery` is unmerged and adds migration `0010`** (`cube_follows`).
+  It is applied to dev; production must be migrated by hand at merge time or
+  Explore and the Followed tab fail at request time on a green deploy.
 - The Riot adapter stays dormant until our API application is approved.
 - Six UNL token rows still come from the retired riftscribe source.
 
@@ -123,7 +127,7 @@ across by deploying.
 
 `master` is production: pushing to it deploys the live site. Feature work
 happens on branches; pushing a branch produces a Vercel preview deployment and
-does not touch production *code*. Current feature branch: `draft-engine`.
+does not touch production *code*. Current feature branch: `cube-discovery`.
 
 **A preview deployment is not automatically a dev environment.** Vercel injects
 whichever environment variables are configured for Preview, and unless those
@@ -173,13 +177,15 @@ cube_changes  id, cube_id, actor_id (set null on delete), actor_username, kind,
 drafts        id, cube_id, drafter_id, seed, config jsonb, packs jsonb, seats,
               human_seat, status ('active'|'complete'), created_at, updated_at
 draft_picks   pk (draft_id, round, pick_number, seat), card_id, board, created_at
+cube_follows  pk (user_id, cube_id), created_at    -- both FKs cascade
 ```
 
 Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0002` enable RLS · `0003` recompute `base_id` as data-derived print groups ·
 `0004` `cubes.primer` · `0005` `cube_changes` (+ RLS) ·
 `0006` the `cards_imported` change kind · `0007` `drafts` + `draft_picks` (+ RLS) ·
-`0008` `draft_picks.board` · `0009` the `maybeboard` section.
+`0008` `draft_picks.board` · `0009` the `maybeboard` section ·
+`0010` `cube_follows` (+ RLS).
 
 Migrations are applied **per environment and by hand** — see "Environments".
 A migration in a merged branch is not live until production is migrated.
@@ -193,8 +199,9 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 ```
 /                                     landing
 /cards                                card browser (milestone 3)
+/explore                              public cube search — ?q= &card= &sort= &page=
 /login  /welcome  /auth/callback      magic link, username claim, PKCE exchange
-/cubes  /cubes/new                    the signed-in user's cubes
+/cubes  /cubes/new                    the signed-in user's cubes; ?tab=followed &q= &page=
 /cube/{username}/{slug}               public view — visibility-gated
 /cube/{username}/{slug}/edit          owner editor; ?mode=browse|primer|log
 /cube/{username}/{slug}/settings      rename, visibility, delete
@@ -203,8 +210,8 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /drafts                               every draft the signed-in user has sat in
 ```
 
-Server Actions live in `src/app/cube/actions.ts`, `src/app/auth/actions.ts` and
-`src/app/cube/[username]/[slug]/draft/actions.ts`.
+Server Actions live in `src/app/cube/actions.ts`, `src/app/auth/actions.ts`,
+`src/app/cube/[username]/[slug]/draft/actions.ts` and `src/app/explore/actions.ts`.
 
 ## Card data sources
 
@@ -299,8 +306,10 @@ a stale row — but it means a source switch leaves residue worth checking for.
   phone, which is the bug that prompted this. The avatar is a fixed 32px, the
   full name is in its `aria-label` and at the top of the menu it opens
   (Profile / Settings / Log out). Below `sm` the nav also drops "Your " from
-  the cube and draft links and shrinks the logo, without which a 320px screen
-  still overflowed.
+  the cube and draft links, shrinks the logo and **hides the wordmark**,
+  without which a 320px screen still overflowed. The nav is at its width
+  budget: adding a sixth item means taking one away or collapsing them behind
+  a menu, and the check is a 320px screenshot, not an opinion.
 - **The brand mark lives in `src/components/logo.tsx`** and every surface that
   shows it — nav, landing page, coming-soon pages, 404 — renders that, so the
   artwork changes in one place. The mark is `public/logo.svg` on a 320×300
@@ -496,6 +505,49 @@ a stale row — but it means a source switch leaves residue worth checking for.
   pages call it). This fails at request time, not at build time, so it is easy
   to ship — if a helper is shared, put it in `src/lib/` first.
 
+## Discovery and following
+
+One query backs every cube list on the site — `searchCubes` in
+`src/db/queries/discovery.ts`, rendered by `src/components/cube-results.tsx`.
+Explore, Your cubes and Followed cubes are the same call with a different
+restriction, so a row cannot come to mean two different things depending on
+where you meet it. The listing `queries/cubes.ts` used to own is gone; it
+counted the maybeboard, which nothing else does.
+
+- **Explore lists public cubes only, and that rule lives in the query.**
+  Unlisted means "reachable by link but not advertised", so a search result
+  would defeat the setting — including a search for its exact name by its own
+  owner. Private is never visible to anyone but its owner. Putting the rule in
+  the page instead would leave the next caller free to forget it.
+- **Keyword terms AND across name, description and primer.** Typing a second
+  word to narrow a list and getting *more* results is the wrong surprise. Each
+  term is a substring match with `%` and `_` escaped, which is enough at this
+  scale and avoids committing to a full-text configuration before we know what
+  people actually search for.
+- The card filter is an `EXISTS`, so a cube running three copies or two
+  printings appears once, and it **skips the maybeboard**: "which cubes run
+  this card" must not answer with cubes that are only thinking about it. Card
+  counts skip it for the same reason.
+- Sorting by follows falls back to recency as the tie-break — among cubes
+  nobody follows yet, the freshest is the more useful answer.
+- **The search lives in the URL**, as a plain GET form rather than client
+  state, so a result set can be linked, paged and reloaded. `/cubes` defaults
+  to **your own** cubes; `?tab=followed` is the other tab, ordered by last
+  update, because knowing when a cube changes is the reason to follow it.
+- **Following is gated on viewing, like drafting** — `requireFollowableCube` in
+  `src/app/explore/actions.ts`, scanned by `check:cube-ownership` alongside the
+  draft actions. Sign-in is required because a follow belongs to an account;
+  signed-out visitors see the control and get routed to `/login` rather than
+  having the feature hidden from exactly the people who need an account for it.
+  A followed cube that later turns private drops out of the followed list.
+- **Neither follow state is a filled button.** Following is a state, not a call
+  to action, and on a cube page a filled one out-shouts Clone, which is the
+  visitor's actual primary action. The owner gets no follow control at all —
+  just a follower count in the byline.
+- The toggle is optimistic: it flips on click and reverts if the server
+  disagrees. It is a low-stakes control people click while scanning a list, and
+  waiting on the network makes the list feel broken.
+
 ## Draft
 
 Solo drafting against bots lives at `/cube/{username}/{slug}/draft`. **Milestone
@@ -633,6 +685,7 @@ which is why they can create and delete accounts freely.
 | `check:magic-link` | the `redirect_to` actually sent to Supabase, and `/?code=` self-heal | `dev:probe` server + Chrome :9222 | manual gate |
 | `check:import` | import parsing, matching, the line cap and the committed result | DB | manual gate |
 | `check:draft` | a full seeded 8-seat draft: quantities, pack template, passing, bots, determinism | nothing | **CI** |
+| `check:discovery` | explore is public-only, keywords AND, the card filter, sorting, follow state, both `/cubes` tabs | Supabase + dev server | manual gate |
 
 `check:magic-link` needs the dev server started as `SIGNIN_PROBE=1 npm run
 dev:probe`, which preloads `scripts/otp-probe.mjs` to intercept the outgoing
@@ -643,9 +696,10 @@ localhost worked and the code read fine.
 
 `check:cube-ownership` is also structural: it fails if a new action in
 `src/app/cube/actions.ts` skips `requireOwnedCube` without a documented
-exemption naming the gate it uses instead. It scans the **draft** actions the
-same way, against their own gates — a mutation living in a file the check does
-not read would escape the guarantee entirely, which is worse than an exemption.
+exemption naming the gate it uses instead. It scans the **draft** and **follow**
+actions the same way, against their own gates — a mutation living in a file the
+check does not read would escape the guarantee entirely, which is worse than an
+exemption.
 
 ### What CI runs
 
@@ -691,7 +745,7 @@ chrome --headless=new --remote-debugging-port=9222 --user-data-dir=/tmp/cbchrome
 npm run check:printings && npm run check:browse-grid && \
 npm run check:copies-and-log && npm run check:public-cube && \
 npm run check:auth-flow && npm run check:cube-ownership && \
-npm run check:magic-link && npm run check:import
+npm run check:magic-link && npm run check:import && npm run check:discovery
 ```
 
 Each creates throwaway accounts and deletes them again, including on failure.

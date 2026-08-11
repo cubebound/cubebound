@@ -40,13 +40,23 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <header className="border-b border-zinc-200 dark:border-zinc-800">
           <nav className="mx-auto flex w-full max-w-[1600px] items-center gap-3 px-4 py-3 sm:gap-6 sm:px-6">
-            <Logo size="sm" className="sm:hidden" />
+            {/* Below `sm` the wordmark goes and the mark stands alone: five nav
+                items plus "cubebound.gg" ran a 320px phone past its own right
+                edge. The mark is still the link home, and the accessible name
+                moves onto it. */}
+            <Logo size="sm" withWordmark={false} className="sm:hidden" />
             <Logo size="md" className="hidden sm:block" />
             <Link
               href="/cards"
               className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
             >
               Cards
+            </Link>
+            <Link
+              href="/explore"
+              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              Explore
             </Link>
             <NavAuth />
           </nav>

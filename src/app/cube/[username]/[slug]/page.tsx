@@ -5,8 +5,10 @@ import { notFound } from "next/navigation";
 
 import CubeSections from "@/components/cube-sections";
 import CubeViewToggle from "@/components/cube-view-toggle";
+import FollowButton from "@/components/follow-button";
 import Primer from "@/components/primer";
 import { getCubeByOwnerAndSlug, getCubeCards } from "@/db/queries/cubes";
+import { countFollowers, isFollowing } from "@/db/queries/discovery";
 import { getCurrentUser } from "@/lib/auth";
 import type { SearchParams } from "@/lib/card-search-params";
 import { canEditCube, canViewCube } from "@/lib/cube-access";
@@ -88,6 +90,15 @@ export default async function CubePage({
   }
   const sectionCounts = CUBE_LIST_SECTIONS.filter((section) => bySection.has(section));
 
+  // The owner sees the count in the byline rather than a Follow button —
+  // following your own cube is noise, but knowing who's watching it isn't.
+  // `cubeId` is hoisted because `isOwner` is an aliased type predicate: reading
+  // `cube.id` under `!isOwner` narrows the cube to `never`.
+  const cubeId = cube.id;
+  const followers = await countFollowers(cubeId);
+  const following =
+    current?.profile && !isOwner ? await isFollowing(cubeId, current.profile.id) : false;
+
   const basePath = `/cube/${cube.ownerUsername}/${cube.slug}`;
   // Built server-side from the request origin (same helper the magic links
   // use), so the copied link is absolute and stable rather than depending on
@@ -119,6 +130,15 @@ export default async function CubePage({
             </span>
           )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            {!isOwner && (
+              <FollowButton
+                cubeId={cubeId}
+                following={following}
+                followers={followers}
+                returnPath={basePath}
+                signedIn={Boolean(current?.profile)}
+              />
+            )}
             <ShareButton
               url={shareUrl}
               visibility={cube.visibility}
@@ -157,6 +177,13 @@ export default async function CubePage({
           <time dateTime={cube.updatedAt.toISOString()}>
             {dateFormat.format(cube.updatedAt)}
           </time>
+          {isOwner && followers > 0 && (
+            <>
+              {" · "}
+              <span className="tabular-nums">{followers}</span>{" "}
+              {followers === 1 ? "follower" : "followers"}
+            </>
+          )}
         </p>
 
         {cube.description && (

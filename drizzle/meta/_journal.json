@@ -71,6 +71,13 @@
       "when": 1786422423500,
       "tag": "0009_maybeboard",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786424378106,
+      "tag": "0010_cube_follows",
+      "breakpoints": true
     }
   ]
 }

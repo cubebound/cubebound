@@ -184,6 +184,16 @@ try {
     }
   }
 
+  // Following is gated on viewing, like drafting, and lives in its own file —
+  // scanned here for the same reason the draft actions are.
+  const followSource = readFileSync("src/app/explore/actions.ts", "utf8");
+  for (const body of followSource.split(/export async function /).slice(1)) {
+    const name = body.slice(0, body.indexOf("("));
+    if (!body.includes("requireFollowableCube")) {
+      failures.push(`follow action ${name} does not call requireFollowableCube`);
+    }
+  }
+
   const source = readFileSync("src/app/cube/actions.ts", "utf8");
   const exported = [...source.matchAll(/export async function (\w+)/g)].map((m) => m[1]);
   const bodies = source.split(/export async function /).slice(1);

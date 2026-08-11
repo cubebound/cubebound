@@ -22,7 +22,8 @@
     "check:magic-link": "tsx --env-file-if-exists=.env.local scripts/check-magic-link.mts",
     "dev:probe": "node --import ./scripts/otp-probe.mjs ./node_modules/next/dist/bin/next dev",
     "check:import": "tsx --env-file-if-exists=.env.local scripts/check-import.mts",
-    "check:draft": "tsx scripts/check-draft.mts"
+    "check:draft": "tsx scripts/check-draft.mts",
+    "check:discovery": "tsx --env-file-if-exists=.env.local scripts/check-discovery.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
