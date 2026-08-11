@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import { LogoMark } from "@/components/logo";
 import { getCurrentUser } from "@/lib/auth";
 
 /** First value of a param that may arrive repeated. */
@@ -43,6 +44,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-24 sm:px-6">
+      {/* Not a link: this is already home. */}
+      <p className="mb-4">
+        <LogoMark size="lg" />
+      </p>
       <h1 className="text-3xl font-semibold tracking-tight">
         Cube construction and drafting for Riftbound
       </h1>

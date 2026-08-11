@@ -7,6 +7,9 @@
  * in the auth actions, claiming a username left the nav showing "Choose a
  * username" until a hard reload, and Back could re-expose the claim form.
  *
+ * The nav shows an avatar rather than the name, so the per-user signal is the
+ * account button's aria-label, which only exists once a profile does.
+ *
  * Prerequisites:
  *   1. dev server:      npm run dev
  *   2. headless Chrome with remote debugging on port 9222:
@@ -107,6 +110,7 @@ async function sessionCookie(): Promise<{ name: string; value: string }> {
 interface Snapshot {
   url: string;
   nav: string;
+  accountLabel: string;
   hasUsernameForm: boolean;
   formError: string | null;
 }
@@ -152,6 +156,7 @@ async function run(): Promise<string[]> {
       (await evaluate(`JSON.stringify({
         url: location.pathname,
         nav: document.querySelector('header nav')?.innerText.replace(/\\s+/g,' ').trim() ?? '',
+        accountLabel: document.querySelector('header nav button[aria-haspopup="menu"]')?.getAttribute('aria-label') ?? '',
         hasUsernameForm: !!document.querySelector('input[name="username"]'),
         formError: document.querySelector('[role=alert]')?.innerText ?? null,
       })`))!,
@@ -203,8 +208,13 @@ async function run(): Promise<string[]> {
   await waitReady();
   const welcomeDirect = await snapshot();
 
+  // Signing out lives inside the account menu now, so open it first.
+  await evaluate(`document.querySelector('button[aria-haspopup="menu"]')?.click()`);
+  await new Promise((r) => setTimeout(r, 400));
   await evaluate(`(() => {
-    const button = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === 'Sign out');
+    const button = [...document.querySelectorAll('button')]
+      .find(b => ['Log out', 'Sign out'].includes(b.innerText.trim()));
+    if (!button) return 'no sign-out button';
     button.form.requestSubmit();
     return true;
   })()`);
@@ -215,8 +225,14 @@ async function run(): Promise<string[]> {
   const failures: string[] = [];
   if (!before.hasUsernameForm) failures.push("/welcome did not offer the claim form to a user without a profile");
   if (afterClaim.formError) failures.push(`claim reported an error: ${afterClaim.formError}`);
-  if (!afterClaim.nav.includes(username))
-    failures.push(`nav did not show "${username}" immediately after claiming (got: ${afterClaim.nav})`);
+  // The nav shows an avatar rather than the name, but it is still rendered
+  // per-user: the account button carries the username in its label, and only
+  // exists once a profile does. A stale layout shows neither.
+  if (!afterClaim.accountLabel.includes(username))
+    failures.push(
+      `nav did not show an account menu for "${username}" immediately after claiming ` +
+        `(label was "${afterClaim.accountLabel}")`,
+    );
   if (afterClaim.nav.includes("Choose a username"))
     failures.push("nav still offered 'Choose a username' after claiming (stale root layout)");
   if (afterBack.hasUsernameForm)

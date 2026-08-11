@@ -281,6 +281,40 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - Do **not** use rules text as card identity: showcase reprints drop the parenthetical reminder text and sometimes reword the ability outright.
 - Filter navigation must not throw away the reader's scroll position. `scroll: false` alone is not enough — the router still pulls the viewport to the top of the refreshed segment — so `CardFilterBar` captures `window.scrollY` before navigating and reapplies it when the transition settles.
 
+## Chrome and theme
+
+- **Dark is the default, and the theme is a cookie, not a media query.** The
+  card art is dark-bordered on a dark frame, so a light page puts a bright
+  margin around every image. `resolveTheme` in `src/lib/theme.ts` falls back to
+  dark when `cubebound.theme` is absent, the root layout reads that cookie and
+  puts `dark` on `<html>`, and `globals.css` redefines `dark:` with
+  `@custom-variant` so utilities follow the class rather than the OS. Deciding
+  it on the server is what avoids the flash of the wrong theme; a client-side
+  choice has to paint and then correct itself. The footer toggle flips the
+  class directly and writes the cookie — presentation should change on the same
+  frame as the click, and the cookie only has to be right for the *next*
+  request.
+- **The nav shows an avatar, not the username.** A spelled-out name has no
+  upper bound: a 30-character one pushed Sign out past the right edge of a
+  phone, which is the bug that prompted this. The avatar is a fixed 32px, the
+  full name is in its `aria-label` and at the top of the menu it opens
+  (Profile / Settings / Log out). Below `sm` the nav also drops "Your " from
+  the cube and draft links and shrinks the logo, without which a 320px screen
+  still overflowed.
+- **The brand mark lives in `src/components/logo.tsx`** and every surface that
+  shows it — nav, landing page, coming-soon pages, 404 — renders that. Swapping
+  the wordmark for artwork is a change to one file; the component's doc comment
+  says exactly where to put the SVG.
+- `/profile` and `/settings` exist and say "not built yet". They are real routes
+  rather than one shared `/coming-soon` so the URL is already right when the
+  feature lands and a bookmark keeps working. Cube-specific settings are
+  unrelated and stay at `/cube/{username}/{slug}/settings`.
+- `not-found.tsx` covers unknown URLs *and* every `notFound()` call, so a
+  private cube and a cube that never existed look identical — the 404 must not
+  become a way to test whether a cube id is real. `error.tsx` leads with "Try
+  again", since most failures are a dropped request, and shows the digest
+  because it is the only handle tying what someone saw to a line in the logs.
+
 ## Cubes
 
 - The editor has four tabs, all on `/edit` behind `?mode=`. Default (no param):

@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* `dark:` follows the class on <html>, not the OS setting, because the theme
+   is an explicit choice here and the server decides it from a cookie. Without
+   this Tailwind v4 keeps its default `prefers-color-scheme` behaviour and the
+   toggle would move the CSS variables while leaving every `dark:` utility
+   answering to the operating system. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -16,12 +23,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --tint-base: #18181b;
-  }
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --tint-base: #18181b;
 }
 
 body {

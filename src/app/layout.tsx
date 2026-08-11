@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import "./globals.css";
+
+import Logo from "@/components/logo";
+import ThemeToggle from "@/components/theme-toggle";
+import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 
 import NavAuth from "./nav-auth";
 
@@ -20,18 +25,23 @@ export const metadata: Metadata = {
   description: "Build and draft Riftbound cubes.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Read on the server so the first paint is already the right theme; a
+  // client-side decision would flash the wrong one on every navigation.
+  const theme = resolveTheme((await cookies()).get(THEME_COOKIE)?.value);
+
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased ${
+        theme === "dark" ? "dark" : ""
+      }`}
     >
       <body className="flex min-h-full flex-col bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <header className="border-b border-zinc-200 dark:border-zinc-800">
-          <nav className="mx-auto flex w-full max-w-[1600px] items-center gap-6 px-4 py-3 sm:px-6">
-            <Link href="/" className="font-semibold tracking-tight">
-              cubebound<span className="text-zinc-400">.gg</span>
-            </Link>
+          <nav className="mx-auto flex w-full max-w-[1600px] items-center gap-3 px-4 py-3 sm:gap-6 sm:px-6">
+            <Logo size="sm" className="sm:hidden" />
+            <Logo size="md" className="hidden sm:block" />
             <Link
               href="/cards"
               className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
@@ -45,10 +55,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <main className="flex-1">{children}</main>
 
         <footer className="border-t border-zinc-200 dark:border-zinc-800">
-          <div className="mx-auto w-full max-w-[1600px] px-4 py-6 text-xs leading-relaxed text-zinc-500 sm:px-6">
-            cubebound.gg is not endorsed by Riot Games and does not reflect the
-            views or opinions of Riot Games or anyone officially involved in
-            producing or managing Riot Games properties.
+          <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 sm:flex-row sm:items-start sm:px-6">
+            <p className="text-xs leading-relaxed text-zinc-500">
+              cubebound.gg is not endorsed by Riot Games and does not reflect the
+              views or opinions of Riot Games or anyone officially involved in
+              producing or managing Riot Games properties.
+            </p>
+            <div className="sm:ml-auto">
+              <ThemeToggle initial={theme} />
+            </div>
           </div>
         </footer>
       </body>
