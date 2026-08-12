@@ -161,8 +161,16 @@ try {
   await addCubeCard(control.id, unitRow.id, "maybeboard");
   await addCubeCard(control.id, otherRow.id, "main");
 
-  const search = (options: Parameters<typeof searchCubes>[0]) =>
-    searchCubes({ ...options, keywords: options?.keywords ?? TAG, limit: 50 });
+  // Always ANDs the run's tag in, so callers pass only the terms they care
+  // about and no assertion can see a row this run did not create. Seeding the
+  // dev database (`npm run seed:discovery`) broke an earlier version that let
+  // one caller replace the tag instead of extending it.
+  const search = (options: Parameters<typeof searchCubes>[0] & { keywords?: string } = {}) =>
+    searchCubes({
+      ...options,
+      keywords: [TAG, options.keywords].filter(Boolean).join(" "),
+      limit: 50,
+    });
 
   // --- 1. Explore is public-only ---------------------------------------------
   const explore = await search({});
@@ -189,7 +197,7 @@ try {
   expect((await countCubes({ keywords: TAG })) === 2, "the count should agree with the list");
 
   // --- 2. keywords ------------------------------------------------------------
-  const byPrimer = await search({ keywords: `${TAG}primerword` });
+  const byPrimer = await search({ keywords: `${TAG}primerword` }); // only in the primer
   expect(
     byPrimer.length === 1 && byPrimer[0].id === control.id,
     `the primer should be searched, got: ${names(byPrimer)}`,
@@ -199,14 +207,15 @@ try {
     byDescription.length === 1 && byDescription[0].id === open.id,
     `the description should be searched, got: ${names(byDescription)}`,
   );
-  const anded = await search({ keywords: `${TAG} Aggro` });
+  const anded = await search({ keywords: "Aggro" });
   expect(
     anded.length === 1 && anded[0].id === open.id,
     `terms should AND, not OR — got: ${names(anded)}`,
   );
-  const impossible = await search({ keywords: `${TAG} Aggro Control` });
+  const impossible = await search({ keywords: "Aggro Control" });
   expect(impossible.length === 0, `all terms must match one cube, got: ${names(impossible)}`);
-  // A `%` typed into the box is a literal, not a wildcard over the whole table.
+  // A `%` typed into the box is a literal, not a wildcard. Unescaped it would
+  // match every row, so intersected with the tag it would return both cubes.
   expect((await search({ keywords: "%" })).length === 0, "wildcards must be escaped");
 
   // --- 3. the card filter -----------------------------------------------------

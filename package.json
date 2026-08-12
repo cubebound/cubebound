@@ -23,7 +23,8 @@
     "dev:probe": "node --import ./scripts/otp-probe.mjs ./node_modules/next/dist/bin/next dev",
     "check:import": "tsx --env-file-if-exists=.env.local scripts/check-import.mts",
     "check:draft": "tsx scripts/check-draft.mts",
-    "check:discovery": "tsx --env-file-if-exists=.env.local scripts/check-discovery.mts"
+    "check:discovery": "tsx --env-file-if-exists=.env.local scripts/check-discovery.mts",
+    "seed:discovery": "tsx --env-file-if-exists=.env.local scripts/seed-discovery.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

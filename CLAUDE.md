@@ -123,6 +123,27 @@ correction that lands through the sync (a fixed adapter mapping, a
 `--force` re-map) has to be run again against production, and is not carried
 across by deploying.
 
+### Seed data
+
+`npm run seed:discovery` fills dev with users, randomly generated cubes (real
+cards, plausible names, descriptions and primers, spread updated-dates) and a
+skewed follow graph, so Explore, search, sorting and the Followed tab have
+something to work on by hand. `-- --users N --cubes N` sizes it; `-- --clean`
+removes it.
+
+Everything it makes is tagged with a `@seed.cubebound.test` email and `--clean`
+deletes exactly those accounts, taking their cubes and follows by cascade — so
+it never has to guess what it owns. It refuses to run unless `DATABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_URL` name the same project, which stops a stray shell
+variable turning a seed run into a production write. The first three cubes are
+forced public / unlisted / private: left to chance a run can produce no private
+cube, and private is the case with a rule to get wrong.
+
+**Seeded accounts cannot sign in** — the app is magic-link only and they have no
+mailbox. They exist to be found, not used. Follow and search from your own
+account; `-- --follow-as <yourname>` has them follow your cubes so follower
+counts appear where you will actually look.
+
 ### Branching
 
 `master` is production: pushing to it deploys the live site. Feature work
