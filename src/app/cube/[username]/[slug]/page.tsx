@@ -36,15 +36,27 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { username, slug } = await params;
   const cube = await getCubeByOwnerAndSlug(username, slug);
+  // A private cube's metadata is served to anyone who guesses the URL — there
+  // is no session behind a link preview — so it must say nothing the page
+  // itself 404s rather than reveal. The matching opengraph-image does the same.
   if (!cube || cube.visibility === "private") {
-    return { title: "Cube · cubebound.gg" };
+    return { title: "Cube" };
   }
+
+  const title = `${cube.name} by ${cube.ownerUsername}`;
+  const description = cube.description ?? `A Riftbound cube by ${cube.ownerUsername}.`;
   return {
-    title: `${cube.name} by ${cube.ownerUsername} · cubebound.gg`,
-    description: cube.description ?? `A Riftbound cube by ${cube.ownerUsername}.`,
+    title,
+    description,
     // Unlisted means "not advertised": reachable by link, but kept out of
-    // search results.
+    // search results. The link preview still works, which is the point of it.
     robots: cube.visibility === "unlisted" ? { index: false, follow: false } : undefined,
+    openGraph: {
+      title,
+      description,
+      type: "article",
+      url: `/cube/${cube.ownerUsername}/${cube.slug}`,
+    },
   };
 }
 
@@ -168,8 +180,13 @@ export default async function CubePage({
         </div>
 
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          {/* The owner's profile page doesn't exist yet, so this stays text. */}
-          by <span className="font-medium">{cube.ownerUsername}</span>
+          by{" "}
+          <Link
+            href={`/u/${cube.ownerUsername}`}
+            className="font-medium hover:underline"
+          >
+            {cube.ownerUsername}
+          </Link>
           {" · "}
           <span className="tabular-nums">{total}</span>{" "}
           {total === 1 ? "card" : "cards"}

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import CubeResults from "@/components/cube-results";
 import Pagination from "@/components/pagination";
+import { countCubesForOwner, MAX_CUBES_PER_USER } from "@/db/queries/cubes";
 import {
   countCubes,
   CUBES_PAGE_SIZE,
@@ -13,7 +14,7 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Your cubes · cubebound.gg",
+  title: "Your cubes",
 };
 
 function one(value: string | string[] | undefined): string {
@@ -59,6 +60,11 @@ export default async function CubesPage({
     offset: (page - 1) * CUBES_PAGE_SIZE,
   });
 
+  // Unfiltered, unlike `total` — the cap counts every cube you own, not the
+  // ones matching a search. Only worth showing as you approach it.
+  const owned = followed ? 0 : await countCubesForOwner(profile.id);
+  const atLimit = owned >= MAX_CUBES_PER_USER;
+
   const href = (next: { tab?: "own" | "followed"; q?: string; page?: number }) => {
     const query = new URLSearchParams();
     const tab = next.tab ?? (followed ? "followed" : "own");
@@ -90,12 +96,30 @@ export default async function CubesPage({
         <h1 className="text-2xl font-semibold tracking-tight">
           {followed ? "Followed cubes" : "Your cubes"}
         </h1>
-        <Link
-          href="/cubes/new"
-          className="h-9 shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-        >
-          New cube
-        </Link>
+        <div className="flex shrink-0 items-center gap-3">
+          {!followed && owned >= MAX_CUBES_PER_USER - 5 && (
+            <span
+              className={`text-sm tabular-nums ${atLimit ? "text-amber-600 dark:text-amber-400" : "text-zinc-500"}`}
+            >
+              {owned} / {MAX_CUBES_PER_USER}
+            </span>
+          )}
+          {atLimit ? (
+            <span
+              title={`You can hold ${MAX_CUBES_PER_USER} cubes. Delete one to make room.`}
+              className="h-9 cursor-not-allowed rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+            >
+              New cube
+            </span>
+          ) : (
+            <Link
+              href="/cubes/new"
+              className="h-9 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            >
+              New cube
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-5 border-b border-zinc-200 dark:border-zinc-800">

@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { useEffect } from "react";
 
@@ -21,8 +22,10 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Nothing is watching for errors yet, so at least put it in the console
-    // the person who hit it can open.
+    // The digest shown below is the same one Sentry indexes the event under, so
+    // a tester reading it out is enough to find the stack trace. Inert when no
+    // DSN is configured — see src/lib/sentry-options.ts.
+    Sentry.captureException(error);
     console.error("Page error:", error);
   }, [error]);
 

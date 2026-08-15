@@ -12,7 +12,7 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Explore cubes · cubebound.gg",
+  title: "Explore cubes",
   description: "Find Riftbound cubes by name, description, primer or the cards they hold.",
 };
 

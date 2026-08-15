@@ -8,7 +8,7 @@ import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-para
 import CardGrid from "./card-grid";
 
 export const metadata: Metadata = {
-  title: "Cards · cubebound.gg",
+  title: "Cards",
   description: "Browse every Riftbound card by set, domain, type and rarity.",
 };
 

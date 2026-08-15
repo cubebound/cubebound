@@ -19,7 +19,7 @@ export function cardFilterParams(
   extraParams: Record<string, string> = {},
 ): URLSearchParams {
   const params = new URLSearchParams();
-  for (const key of ["q", "set", "domain", "type", "rarity"] as const) {
+  for (const key of ["q", "set", "domain", "type", "rarity", "trait"] as const) {
     const value = filters[key];
     if (value) params.set(key, String(value).trim());
   }
@@ -38,6 +38,7 @@ export function cardFiltersFromParams(params: SearchParams): CardFilters {
     domain: one(params.domain),
     type: one(params.type),
     rarity: one(params.rarity),
+    trait: one(params.trait),
     page: Number(one(params.page)) || 1,
     allPrintings: one(params.printings) === "all",
   };

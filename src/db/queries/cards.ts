@@ -13,7 +13,14 @@ import {
 
 import { db } from "..";
 import { cards } from "../schema";
-import { CARD_TYPES, DOMAINS, COLORLESS, RARITIES, sortByCanonical } from "@/lib/riftbound";
+import {
+  CARD_TYPES,
+  COLORLESS,
+  DOMAINS,
+  RARITIES,
+  REGIONS,
+  sortByCanonical,
+} from "@/lib/riftbound";
 
 export const PAGE_SIZE = 60;
 
@@ -23,6 +30,8 @@ export interface CardFilters {
   domain?: string;
   type?: string;
   rarity?: string;
+  /** A single value from `cards.tags` — a region, creature type or champion. */
+  trait?: string;
   page?: number;
   /** Show every printing instead of one row per base printing. */
   allPrintings?: boolean;
@@ -43,6 +52,7 @@ export const browseColumns = {
   might: cards.might,
   rulesText: cards.rulesText,
   keywords: cards.keywords,
+  tags: cards.tags,
   artist: cards.artist,
   imageFull: cards.imageFull,
   imageThumb: cards.imageThumb,
@@ -60,6 +70,9 @@ export interface FilterOptions {
   domains: string[];
   types: string[];
   rarities: string[];
+  /** Grouped for the dropdown: 127 flat entries, 95 of them champion names,
+   *  is a list nobody can find anything in. */
+  traits: { regions: string[]; traits: string[]; champions: string[] };
 }
 
 /** Escapes LIKE wildcards so a name search for "50%" isn't a wildcard. */
@@ -93,6 +106,11 @@ function buildWhere(filters: CardFilters): SQL | undefined {
     const nameOrRules = or(
       ilike(cards.name, pattern),
       sql`${rulesSearchText} ilike ${pattern}`,
+      // Traits are the type line's second half, and people search them the way
+      // they read them — "PILTOVER", "Pirate". Matching the array as joined
+      // text keeps that one `ilike`, and case-insensitively, since the stored
+      // values are title-cased and nobody types them that way.
+      sql`array_to_string(${cards.tags}, ' ') ilike ${pattern}`,
     );
     if (nameOrRules) clauses.push(nameOrRules);
   }
@@ -100,6 +118,9 @@ function buildWhere(filters: CardFilters): SQL | undefined {
   if (filters.type) clauses.push(eq(cards.type, filters.type));
   if (filters.rarity) clauses.push(eq(cards.rarity, filters.rarity));
   if (filters.domain) clauses.push(arrayContains(cards.domains, [filters.domain]));
+  // Exact containment, not a substring: the dropdown offers real values, and
+  // "Zaun" must not also match a future "Zaunite".
+  if (filters.trait) clauses.push(arrayContains(cards.tags, [filters.trait]));
   return clauses.length > 0 ? and(...clauses) : undefined;
 }
 
@@ -226,23 +247,41 @@ export async function getCardById(id: string): Promise<BrowseCard | null> {
  * rather than alphabetically.
  */
 export async function getFilterOptions(): Promise<FilterOptions> {
-  const [sets, domains, types, rarities] = await Promise.all([
+  const [sets, domains, types, rarities, tags, championTags] = await Promise.all([
     db.selectDistinct({ value: cards.setCode }).from(cards),
     db.execute<{ value: string }>(
       sql`select distinct unnest(${cards.domains}) as value from ${cards}`,
     ),
     db.selectDistinct({ value: cards.type }).from(cards),
     db.selectDistinct({ value: cards.rarity }).from(cards),
+    db.execute<{ value: string }>(
+      sql`select distinct unnest(${cards.tags}) as value from ${cards}`,
+    ),
+    // A tag that names a champion is a champion tag. Derived rather than
+    // listed, so a new set's champions group themselves.
+    db.execute<{ value: string }>(
+      sql`select distinct tag as value from ${cards}, unnest(${cards.tags}) as tag
+          where tag in (select ${cards.champion} from ${cards} where ${cards.champion} is not null)`,
+    ),
   ]);
 
   const values = (rows: Iterable<{ value: string }>) =>
     [...rows].map((r) => r.value).filter(Boolean);
+
+  const allTags = values(tags);
+  const champions = new Set(values(championTags));
+  const regions = new Set<string>(REGIONS);
 
   return {
     sets: values(sets).sort(),
     domains: sortByCanonical(values(domains), [...DOMAINS, COLORLESS]),
     types: sortByCanonical(values(types), CARD_TYPES),
     rarities: sortByCanonical(values(rarities), RARITIES),
+    traits: {
+      regions: allTags.filter((t) => regions.has(t)).sort(),
+      traits: allTags.filter((t) => !regions.has(t) && !champions.has(t)).sort(),
+      champions: allTags.filter((t) => champions.has(t)).sort(),
+    },
   };
 }
 

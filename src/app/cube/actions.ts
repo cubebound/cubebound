@@ -25,6 +25,10 @@ import {
   moveCopyToSection,
   recordCubeChange,
   removeCubeCard,
+  countCubesForOwner,
+  cubeHasCard,
+  MAX_CUBES_PER_USER,
+  setCubeCover,
   switchCopyPrinting,
   updateCube,
   updateCubePrimer,
@@ -49,6 +53,22 @@ const NAME_MAX = 100;
 const DESCRIPTION_MAX = 2000;
 /** Generous for 500 lines of card names, small enough to reject a pasted file. */
 const MAX_IMPORT_CHARS = 100_000;
+
+/**
+ * Both ways to make a cube go through here — creating and cloning.
+ *
+ * A cap enforced on only one of them is not a cap: cloning is the easier one to
+ * automate, since it needs no form. Checked at write time rather than by
+ * hiding the button, like every other rule on this file.
+ */
+async function underCubeLimit(ownerId: string): Promise<ActionState | null> {
+  if ((await countCubesForOwner(ownerId)) < MAX_CUBES_PER_USER) return null;
+  return {
+    error:
+      `You've reached the limit of ${MAX_CUBES_PER_USER} cubes. ` +
+      `Delete one you're finished with to make room.`,
+  };
+}
 
 /**
  * The single gate every cube mutation goes through.
@@ -133,6 +153,9 @@ export async function createCubeAction(
   const current = await getCurrentUser();
   if (!current) return { error: "You need to be signed in." };
   if (!current.profile) return { error: "Claim a username before creating a cube." };
+
+  const atLimit = await underCubeLimit(current.profile.id);
+  if (atLimit) return atLimit;
 
   const parsed = readMetadata(formData);
   if (!parsed.ok) return { error: parsed.error };
@@ -387,6 +410,33 @@ export async function listPrintingsAction(cubeId: string, baseId: string) {
  * Read access is re-checked here, not assumed from the page that rendered the
  * button: a private cube can only be cloned by its owner.
  */
+/**
+ * Chooses the card whose art represents the cube.
+ *
+ * Restricted to cards already in the cube — a cover is meant to say what this
+ * cube is, and letting it be any card in the pool would make it an arbitrary
+ * image slot instead. Passing no card clears it, which falls back to a card
+ * from the cube at render time rather than to nothing.
+ */
+export async function setCubeCoverAction(
+  cubeId: string,
+  cardId: string | null,
+): Promise<ActionState> {
+  const owned = await requireOwnedCube(cubeId);
+  if ("error" in owned) return { error: owned.error };
+
+  if (cardId !== null) {
+    if (typeof cardId !== "string" || !(await cubeHasCard(owned.cube.id, cardId))) {
+      return { error: "Pick a card that's in this cube." };
+    }
+  }
+
+  await setCubeCover(owned.cube.id, cardId);
+  revalidateCube(owned.profile.username, owned.cube.slug);
+  revalidatePath(`/cube/${owned.profile.username}/${owned.cube.slug}`);
+  return {};
+}
+
 export async function cloneCubeAction(
   _prev: ActionState,
   formData: FormData,
@@ -394,6 +444,9 @@ export async function cloneCubeAction(
   const current = await getCurrentUser();
   if (!current) return { error: "Sign in to clone this cube." };
   if (!current.profile) return { error: "Claim a username before cloning a cube." };
+
+  const atLimit = await underCubeLimit(current.profile.id);
+  if (atLimit) return atLimit;
 
   const username = String(formData.get("username") ?? "");
   const slug = String(formData.get("slug") ?? "");

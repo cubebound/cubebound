@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!--
+    The favicon is a *simplification* of public/logo.svg, not the same file.
+    The logo carries dashed rear edges, five floating cards and sparkles, all of
+    which turn to mush below about 24px. What survives at 16px is the cube's
+    silhouette and its isometric spokes, so that is all this draws.
+    Kept in step with the logo by colour (#ff6a2b) and shape, not by sharing a file.
+  -->
+  <rect width="64" height="64" rx="13" fill="#18181b"/>
+  <g fill="none" stroke="#ff6a2b" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M32 9 L54 21.5 L54 42.5 L32 55 L10 42.5 L10 21.5 Z" stroke-width="4.5"/>
+    <path d="M32 32 L10 21.5 M32 32 L54 21.5 M32 32 L32 55" stroke-width="3.5" opacity="0.75"/>
+  </g>
+</svg>

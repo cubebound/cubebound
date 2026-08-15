@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, type ReactNode } from "react";
 
 import type { BrowseCard } from "@/db/queries/cards";
@@ -252,6 +253,24 @@ export function CardDetail({
                     >
                       {titleCase(keyword)}
                     </span>
+                  ))}
+                </span>
+              </Stat>
+            )}
+            {/* The type line's trait half. Shown as links so a card is a way
+                into "everything else from Ionia" — the filter exists, and this
+                is where someone is actually wondering about it. */}
+            {card.tags.length > 0 && (
+              <Stat label="Traits">
+                <span className="flex flex-wrap gap-1">
+                  {card.tags.map((tag) => (
+                    <Link
+                      key={tag}
+                      href={`/cards?trait=${encodeURIComponent(tag)}`}
+                      className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+                    >
+                      {tag}
+                    </Link>
                   ))}
                 </span>
               </Stat>

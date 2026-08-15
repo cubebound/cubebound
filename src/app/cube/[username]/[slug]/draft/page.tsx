@@ -24,7 +24,7 @@ import { EndScreen, PickScreen, StartDraft, type DraftTile } from "./draft-clien
 import type { PoolCard } from "./pool-piles";
 import { restoreDraftState, type DetailedCard } from "./state";
 
-export const metadata: Metadata = { title: "Draft · cubebound.gg" };
+export const metadata: Metadata = { title: "Draft" };
 
 function toTile(card: DetailedCard): DraftTile {
   return {

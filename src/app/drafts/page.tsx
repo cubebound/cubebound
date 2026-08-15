@@ -13,7 +13,7 @@ import { DEFAULT_DRAFT_CONFIG, finalPoolSize } from "@/lib/draft/config";
 
 import DeleteDraft from "./delete-draft";
 
-export const metadata: Metadata = { title: "Your drafts · cubebound.gg" };
+export const metadata: Metadata = { title: "Your drafts" };
 
 const dateFormat = new Intl.DateTimeFormat("en", {
   year: "numeric",

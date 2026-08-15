@@ -4,14 +4,15 @@ import { notFound } from "next/navigation";
 
 import { updateCubeAction } from "@/app/cube/actions";
 import CubeForm from "@/app/cubes/cube-form";
-import { countCubeCards, getCubeByOwnerAndSlug } from "@/db/queries/cubes";
+import { countCubeCards, getCubeByOwnerAndSlug, getCubeCards } from "@/db/queries/cubes";
 import { getCurrentUser } from "@/lib/auth";
 import { canEditCube } from "@/lib/cube-access";
 
+import CoverPicker from "./cover-picker";
 import DeleteCube from "./delete-cube";
 
 export const metadata: Metadata = {
-  title: "Cube settings · cubebound.gg",
+  title: "Cube settings",
   robots: { index: false, follow: false },
 };
 
@@ -27,6 +28,21 @@ export default async function CubeSettingsPage({
   if (!canEditCube(cube, current?.profile?.id)) notFound();
 
   const cardCount = await countCubeCards(cube.id);
+
+  // One row per printing, deduplicated: the picker chooses *art*, so two copies
+  // of the same printing are the same choice. The maybeboard is excluded, being
+  // no part of the cube.
+  const allCards = await getCubeCards(cube.id);
+  const seen = new Set<string>();
+  const coverChoices = allCards
+    .filter((card) => card.section !== "maybeboard")
+    .filter((card) => (seen.has(card.id) ? false : (seen.add(card.id), true)))
+    .map((card) => ({
+      id: card.id,
+      name: card.name,
+      type: card.type,
+      imageThumb: card.imageThumb,
+    }));
 
   return (
     <div className="mx-auto w-full max-w-lg px-4 py-10 sm:px-6">
@@ -48,6 +64,18 @@ export default async function CubeSettingsPage({
       </div>
 
       <div className="mt-4 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+        <h2 className="mb-1 text-lg font-semibold">Cover art</h2>
+        <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+          The card shown when someone shares this cube in a chat or on social.
+        </p>
+        <CoverPicker
+          cubeId={cube.id}
+          cards={coverChoices}
+          selected={cube.coverCardId}
+        />
+      </div>
+
+      <div className="mt-8 border-t border-zinc-200 pt-6 dark:border-zinc-800">
         <h2 className="mb-3 text-lg font-semibold">Danger zone</h2>
         <DeleteCube cube={cube} cardCount={cardCount} />
       </div>

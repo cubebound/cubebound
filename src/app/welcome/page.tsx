@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import UsernameForm from "./username-form";
 
 export const metadata: Metadata = {
-  title: "Choose a username · cubebound.gg",
+  title: "Choose a username",
 };
 
 export default async function WelcomePage() {

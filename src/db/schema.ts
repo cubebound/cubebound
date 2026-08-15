@@ -83,6 +83,11 @@ export const cubes = pgTable(
     // Rendered through src/components/primer.tsx, never as raw HTML.
     primer: text("primer"),
     visibility: cubeVisibilityEnum("visibility").notNull().default("public"),
+    // Art for the cube's share preview. Null falls back to a card from the cube
+    // at render time, so an unset cover still previews with a picture.
+    coverCardId: text("cover_card_id").references(() => cards.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

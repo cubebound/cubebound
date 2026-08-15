@@ -41,6 +41,36 @@ export const CARD_TYPES = [
 export const RARITIES = ["Common", "Uncommon", "Rare", "Epic", "Showcase"] as const;
 
 /**
+ * Runeterra's regions, which appear in `cards.tags` alongside everything else.
+ *
+ * A card's tags are its type line's trait half, and they mix three unrelated
+ * things: where a card is from (Ionia), what it is (Pirate, Dragon), and which
+ * champion it belongs to (Ahri). Only the first is enumerable from the game's
+ * fiction, so it is listed here; the other two are derived from the data — a
+ * tag that also appears in `cards.champion` is a champion tag, and whatever is
+ * left is an ordinary trait. That keeps a new set's new creature type working
+ * without a code change, which is the same rule the other filter dropdowns
+ * follow.
+ */
+export const REGIONS = [
+  "Bandle City",
+  "Bilgewater",
+  "Demacia",
+  "Freljord",
+  "Icathia",
+  "Ionia",
+  "Ixtal",
+  "Kathkan",
+  "Mount Targon",
+  "Noxus",
+  "Piltover",
+  "Shadow Isles",
+  "Shurima",
+  "The Void",
+  "Zaun",
+] as const;
+
+/**
  * Sorts values by a canonical list, keeping anything unrecognized (a new set's
  * new domain, type or rarity) at the end rather than dropping it.
  */

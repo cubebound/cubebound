@@ -8,6 +8,17 @@ export async function getProfileById(id: string): Promise<User | null> {
   return profile ?? null;
 }
 
+/** Lower-cased on the way in: usernames are stored lower-case and appear in
+ *  URLs, where nothing stops someone typing `/u/Riftsmith`. */
+export async function getUserByUsername(username: string): Promise<User | null> {
+  const [profile] = await db
+    .select()
+    .from(users)
+    .where(eq(users.username, username.toLowerCase()))
+    .limit(1);
+  return profile ?? null;
+}
+
 /** Postgres unique_violation, raised when two people race for a username. */
 const UNIQUE_VIOLATION = "23505";
 

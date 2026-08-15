@@ -44,6 +44,24 @@ export async function getCubeByOwnerAndSlug(
   return row ? { ...row.cube, ownerUsername: row.ownerUsername } : null;
 }
 
+/**
+ * How many cubes one account may hold.
+ *
+ * Not a product decision so much as an abuse ceiling: field lengths are capped
+ * but nothing bounded the row count, so one account could have made cubes until
+ * the bill did the complaining. 25 is well past what anyone maintains by hand —
+ * delete or clone-and-replace before you get near it.
+ */
+export const MAX_CUBES_PER_USER = 25;
+
+export async function countCubesForOwner(ownerId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(cubes)
+    .where(eq(cubes.ownerId, ownerId));
+  return row?.n ?? 0;
+}
+
 // Listing a user's own cubes is `searchCubes({ ownerId, includeNonPublic })` in
 // `queries/discovery.ts` — one query behind every cube list on the site, so
 // "how many cards is that" cannot mean two different things. The listing this
@@ -79,6 +97,61 @@ export async function updateCube(
     .where(eq(cubes.id, cubeId))
     .returning();
   return cube;
+}
+
+/**
+ * The card art that represents a cube, resolved for display.
+ *
+ * Falls back rather than returning nothing: a cube with no cover still needs a
+ * picture for its share preview, and the owner shouldn't have to set one for a
+ * link to look right. A legend is preferred because it's the card a cube is
+ * usually *about*; failing that, the first main-section card. The maybeboard is
+ * excluded — it isn't part of the cube.
+ */
+export async function getCubeCoverImage(cubeId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ url: cards.imageFull })
+    .from(cubes)
+    .innerJoin(cards, eq(cards.id, cubes.coverCardId))
+    .where(eq(cubes.id, cubeId))
+    .limit(1);
+  if (row?.url) return row.url;
+
+  const [fallback] = await db
+    .select({ url: cards.imageFull })
+    .from(cubeCards)
+    .innerJoin(cards, eq(cards.id, cubeCards.cardId))
+    .where(
+      and(
+        eq(cubeCards.cubeId, cubeId),
+        inArray(cubeCards.section, ["legends", "main", "battlefields"]),
+      ),
+    )
+    .orderBy(
+      sql`case ${cubeCards.section} when 'legends' then 0 when 'main' then 1 else 2 end`,
+      asc(cards.setCode),
+      asc(cards.collectorNo),
+    )
+    .limit(1);
+  return fallback?.url ?? null;
+}
+
+/** Sets or clears a cube's cover. The card is validated by the caller. */
+export async function setCubeCover(cubeId: string, cardId: string | null): Promise<void> {
+  await db
+    .update(cubes)
+    .set({ coverCardId: cardId, updatedAt: new Date() })
+    .where(eq(cubes.id, cubeId));
+}
+
+/** Whether a card sits in a cube at all — the rule for what may be its cover. */
+export async function cubeHasCard(cubeId: string, cardId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ one: sql`1` })
+    .from(cubeCards)
+    .where(and(eq(cubeCards.cubeId, cubeId), eq(cubeCards.cardId, cardId)))
+    .limit(1);
+  return Boolean(row);
 }
 
 export async function updateCubePrimer(cubeId: string, primer: string | null): Promise<void> {

@@ -91,6 +91,7 @@ export default function CardFilterBar({
       active.domain ||
       active.type ||
       active.rarity ||
+      active.trait ||
       active.allPrintings,
   );
 
@@ -113,7 +114,7 @@ export default function CardFilterBar({
         name="q"
         value={q}
         onChange={(event) => setQ(event.target.value)}
-        placeholder="Search names and rules text…"
+        placeholder="Search names, rules text and traits…"
         aria-label="Search cards"
         className="h-9 min-w-56 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
       />
@@ -179,6 +180,46 @@ export default function CardFilterBar({
             {value}
           </option>
         ))}
+      </select>
+
+      {/* Grouped: a flat list of 127 traits, 95 of them champion names, is one
+          nobody can find "Pirate" in. Regions lead because they are how people
+          describe a cube's theme. */}
+      <select
+        name="trait"
+        aria-label="Trait"
+        value={active.trait ?? ""}
+        onChange={(event) => navigate({ trait: event.target.value })}
+        className={selectClass}
+      >
+        <option value="">All traits</option>
+        {options.traits.regions.length > 0 && (
+          <optgroup label="Regions">
+            {options.traits.regions.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {options.traits.traits.length > 0 && (
+          <optgroup label="Traits">
+            {options.traits.traits.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {options.traits.champions.length > 0 && (
+          <optgroup label="Champions">
+            {options.traits.champions.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </optgroup>
+        )}
       </select>
 
       <label

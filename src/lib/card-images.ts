@@ -36,7 +36,20 @@ const RESIZABLE_HOSTS = new Set(["cmsassets.rgpub.io"]);
 export const THUMB_WIDTH = 512;
 export const FULL_WIDTH = 744;
 
-function sized(url: string | null | undefined, width: number): string | null {
+/**
+ * For grids where the card is a *choice*, not something to read.
+ *
+ * The cover picker shows every card in the cube at once — 300 tiles at
+ * `THUMB_WIDTH` would be ~14MB. At 200 the art is still recognisable, which is
+ * all picking needs, at roughly 8KB a card.
+ */
+export const PICKER_WIDTH = 200;
+
+function sized(
+  url: string | null | undefined,
+  width: number,
+  format: "webp" | "jpg" = "webp",
+): string | null {
   if (!url) return null;
   let parsed: URL;
   try {
@@ -49,7 +62,7 @@ function sized(url: string | null | undefined, width: number): string | null {
   // Keep whatever query the source set (accountingTag matters to Riot) and add
   // ours on top.
   parsed.searchParams.set("w", String(width));
-  parsed.searchParams.set("fm", "webp");
+  parsed.searchParams.set("fm", format);
   return parsed.toString();
 }
 
@@ -61,4 +74,21 @@ export function cardThumb(url: string | null | undefined): string | null {
 /** Full-card rendition, for the detail view. */
 export function cardFull(url: string | null | undefined): string | null {
   return sized(url, FULL_WIDTH);
+}
+
+/** Small rendition for dense pick-one grids. */
+export function cardPicker(url: string | null | undefined): string | null {
+  return sized(url, PICKER_WIDTH);
+}
+
+/**
+ * Rendition for the share-preview images — **JPEG, not WebP**.
+ *
+ * The OG images are drawn by Satori, whose image decoder handles PNG, JPEG and
+ * SVG only. Handing it a WebP kills the render worker outright rather than
+ * failing softly, so the preview 500s and the scraper caches the absence. This
+ * is the one place the site must not ask for WebP.
+ */
+export function cardShareImage(url: string | null | undefined): string | null {
+  return sized(url, THUMB_WIDTH, "jpg");
 }

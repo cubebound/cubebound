@@ -7,7 +7,7 @@ import CubeForm from "@/app/cubes/cube-form";
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "New cube · cubebound.gg",
+  title: "New cube",
 };
 
 export default async function NewCubePage() {

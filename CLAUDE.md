@@ -36,9 +36,17 @@ Open items:
 - Feature work lands on a branch and pushes to
   `github.com/cubebound/cubebound`; `master` is production — see
   "Environments". The merged `cube-editor-redesign` branch can be deleted.
-- **`cube-discovery` is unmerged and adds migration `0010`** (`cube_follows`).
-  It is applied to dev; production must be migrated by hand at merge time or
-  Explore and the Followed tab fail at request time on a green deploy.
+- **Two unmerged branches, stacked, with two migrations between them.**
+  `cube-discovery` adds `0010` (`cube_follows`); `launch-polish` branches from
+  it and adds `0011` (`cubes.cover_card_id`). Both are applied to dev only —
+  production must be migrated by hand at merge time, or Explore, the Followed
+  tab and every cube page fail at request time on a green deploy.
+- **Sentry ships wired but switched off.** Set `NEXT_PUBLIC_SENTRY_DSN` in
+  Vercel to turn it on; `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN`
+  additionally get readable stack traces. See "Share previews, crawling and
+  monitoring".
+- Still open before a wide launch: no report/moderation path for user-written
+  cube text now that Explore indexes it, and no account deletion.
 - The Riot adapter stays dormant until our API application is approved.
 - Six UNL token rows still come from the retired riftscribe source.
 
@@ -148,7 +156,9 @@ counts appear where you will actually look.
 
 `master` is production: pushing to it deploys the live site. Feature work
 happens on branches; pushing a branch produces a Vercel preview deployment and
-does not touch production *code*. Current feature branch: `cube-discovery`.
+does not touch production *code*. Current feature branch: `launch-polish`,
+which is stacked on the unmerged `cube-discovery` — it reuses `searchCubes` for
+the profile page, so merging it alone would not build.
 
 **A preview deployment is not automatically a dev environment.** Vercel injects
 whichever environment variables are configured for Preview, and unless those
@@ -201,12 +211,16 @@ draft_picks   pk (draft_id, round, pick_number, seat), card_id, board, created_a
 cube_follows  pk (user_id, cube_id), created_at    -- both FKs cascade
 ```
 
+`cubes.cover_card_id → cards.id` (nullable, `ON DELETE SET NULL`) is the card
+whose art represents the cube. A card leaving the pool clears the cover; it must
+never delete the cube.
+
 Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0002` enable RLS · `0003` recompute `base_id` as data-derived print groups ·
 `0004` `cubes.primer` · `0005` `cube_changes` (+ RLS) ·
 `0006` the `cards_imported` change kind · `0007` `drafts` + `draft_picks` (+ RLS) ·
 `0008` `draft_picks.board` · `0009` the `maybeboard` section ·
-`0010` `cube_follows` (+ RLS).
+`0010` `cube_follows` (+ RLS) · `0011` `cubes.cover_card_id`.
 
 Migrations are applied **per environment and by hand** — see "Environments".
 A migration in a merged branch is not live until production is migrated.
@@ -221,6 +235,8 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /                                     landing
 /cards                                card browser (milestone 3)
 /explore                              public cube search — ?q= &card= &sort= &page=
+/u/{username}                         public profile — their public cubes; ?q= &page=
+/profile                              redirect to your own /u/{username}
 /login  /welcome  /auth/callback      magic link, username claim, PKCE exchange
 /cubes  /cubes/new                    the signed-in user's cubes; ?tab=followed &q= &page=
 /cube/{username}/{slug}               public view — visibility-gated
@@ -229,6 +245,8 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /cube/{username}/{slug}/draft         solo draft against bots — any viewer, not just the owner
                                       ?draft={id} opens a specific one, else the latest
 /drafts                               every draft the signed-in user has sat in
+/robots.txt  /sitemap.xml             crawl rules; static pages + public cubes and profiles
+/opengraph-image                      share previews — also under /cube/… and /u/…
 ```
 
 Server Actions live in `src/app/cube/actions.ts`, `src/app/auth/actions.ts`,
@@ -299,8 +317,27 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - Keep components small; colocate route-specific components under their route folder.
 - Riftbound term casing in UI: domains and card types are proper nouns (Fury, Battlefield). Sources store them lowercase; title-case at the boundary via `titleCase` in `src/lib/riftbound.ts`.
 - Filter dropdowns are built from the **distinct values actually in the DB**, then sorted by the canonical lists in `src/lib/riftbound.ts` with unrecognized values kept at the end (`sortByCanonical`). A new set's new rarity therefore appears without a code change — `Promo` already does, and is not in `RARITIES`.
+- **`cards.tags` is the type line's trait half**, and it mixes three unrelated
+  things: where a card is from (Ionia), what it is (Pirate, Dragon) and which
+  champion it belongs to (Ahri). 127 distinct values, 95 of them champion names.
+  The trait dropdown groups them — a flat list is one nobody finds "Pirate" in —
+  and the grouping is *derived*: `REGIONS` is the only enumerable set, a tag
+  that also appears in `cards.champion` is a champion tag, and the rest are
+  ordinary traits. A new set's new creature type therefore needs no code change.
+  Free-text search matches tags too (`array_to_string(tags, ' ') ilike`), since
+  people type them the way they read them — "PILTOVER", not "Piltover" — while
+  the dropdown filter uses exact array containment so "Zaun" can't also match a
+  future "Zaunite". `keywords` is empty on every row and is not searched.
 - Card rendering rules live in `src/lib/riftbound.ts` (domain colors, canonical orderings, orientation). Battlefields are printed landscape (7:5), every other type portrait (5:7) — the printed image already reads upside-down on its top half, that is correct.
-- Card images render with a plain `<img>`, never `next/image`: optimizing through Vercel would proxy and cache them, which we are deliberately not doing yet.
+- **We store image *URLs*, never image bytes.** `cards.image_full` and
+  `image_thumb` are `text`; the whole `cards` table is ~3MB for 1,288 rows, of
+  which ~170KB is URL text. Every card image is served browser-to-Riot from
+  `cmsassets.rgpub.io` — measured, not assumed: loading `/cards` pulls ~2.5MB
+  of art across 60 requests, **all of it** from Riot's CDN and none from our
+  origin. Card art therefore costs us no bandwidth and no storage. The one
+  exception is the share-preview images, which fetch the cover art server-side
+  to embed it in the PNG; they're CDN-cached for a day for exactly that reason.
+- Card images render with a plain `<img>`, never `next/image`: optimizing through Vercel would proxy and cache them, which we are deliberately not doing yet — and would turn the line above from true into false.
 - **`image_thumb` and `image_full` are the same URL on every row** — the source has no thumbnail rendition, so a grid of tiles was pulling a ~875KB PNG per card and a twelve-card draft pack came to roughly 10MB. Riot's CDN is Sanity and resizes on request, so `cardThumb`/`cardFull` in `src/lib/card-images.ts` append `?w=…&fm=webp`. This is still the source CDN serving its own asset, so it stays inside the no-proxy rule. It happens at render time rather than in the sync so it applies to rows already stored, and an unrecognised host passes through untouched.
 - **`THUMB_WIDTH` is a source width, and must stay near 2× the rendered one.** Tiles render at 246 CSS px everywhere they appear, so it is 512: ~48KB, still roughly 18× lighter than the PNG. 320 was tried first and looked blurry — an undersized image on a 2× display reads as *unreadable card text*, not merely as a small picture, so trading further down the size is a false economy.
 - **A card tile shows its name until the art covers it.** Art arrives over the network and a blank tile is indistinguishable from a bug — that exact confusion was reported once. Tiles render the name underneath and let the image paint over it, falling back permanently on `onError`.
@@ -339,10 +376,13 @@ a stale row — but it means a source switch leaves residue worth checking for.
   mark could take. It is served as an `<img>` rather than inlined: the file has
   fixed `id`s, and a page showing the logo twice would duplicate them. Width and
   height are both set so the header does not jump while it loads.
-- `/profile` and `/settings` exist and say "not built yet". They are real routes
-  rather than one shared `/coming-soon` so the URL is already right when the
-  feature lands and a bookmark keeps working. Cube-specific settings are
-  unrelated and stay at `/cube/{username}/{slug}/settings`.
+- **A username is a link.** `/u/{username}` lists that account's public cubes
+  with a search box, and `/profile` redirects to your own — one page, one
+  address, and the account-menu item works without knowing your name. It shows
+  public cubes only even to their owner, because a profile is what other people
+  see; your private and unlisted ones live on `/cubes`, which says so. It exists
+  because Explore puts a username on every row and the cube URL carries one, so
+  both were link-shaped dead ends. `/settings` is still "not built yet".
 - `not-found.tsx` covers unknown URLs *and* every `notFound()` call, so a
   private cube and a cube that never existed look identical — the 404 must not
   become a way to test whether a cube id is real. `error.tsx` leads with "Try
@@ -469,6 +509,11 @@ a stale row — but it means a source switch leaves residue worth checking for.
   written for it, and `Maybeboard:` works as an import header.
 - **Runes are optional content.** A cube with no runes is a legitimate cube, so
   never warn about their absence or treat any section as required.
+- **An account holds at most `MAX_CUBES_PER_USER` (25) cubes.** Not a product
+  decision so much as an abuse ceiling: field lengths were capped but nothing
+  bounded the row count. Enforced at write time on **both** creation paths —
+  creating and cloning — because a cap on one of them is not a cap, and cloning
+  is the easier one to automate.
 - Public cube view is `/cube/{username}/{slug}`. Public and unlisted render for
   anyone including signed-out visitors; private 404s for non-owners, the same
   convention the mutations use. `canViewCube` in `src/lib/cube-access.ts` is the
@@ -525,6 +570,60 @@ a stale row — but it means a source switch leaves residue worth checking for.
   server component calls it) and `countCopies` in `cube-cards.ts` (the cube
   pages call it). This fails at request time, not at build time, so it is easy
   to ship — if a helper is shared, put it in `src/lib/` first.
+
+## Share previews, crawling and monitoring
+
+- **Every shared link renders a preview image**, drawn by Next's `ImageResponse`
+  at `opengraph-image.tsx` — site-wide, per cube and per profile, with the
+  shared pieces in `src/lib/og.tsx`. The whole product is "share this URL", so
+  the share itself was the one surface with no design on it.
+- **`ImageResponse` is Satori, not a browser.** Flexbox only; a `div` with more
+  than one child *must* declare `display: flex` or it throws at request time.
+  No CSS variables (a token renders as an empty string), no
+  `text-overflow: ellipsis` — hence `clamp()` — and **no WebP**. Handing Satori
+  a WebP kills the render worker rather than failing softly, which is why
+  `cardShareImage` asks the CDN for `fm=jpg` while everything else asks for
+  `fm=webp`. That one took a 500 with an empty response body to find.
+- **A private cube's preview is the generic card.** The route is public and
+  unauthenticated — a scraper has no session — so rendering its name would leak
+  it to anyone who guessed the URL, which is exactly what the page's 404
+  prevents. Unlisted cubes *do* get their real preview: they are meant to be
+  shared by link, and a link that previews as nothing defeats the point.
+- Previews carry `s-maxage=86400, stale-while-revalidate=604800`. Rendering one
+  costs a DB read plus a fetch of the cover art, and chat clients re-scrape.
+- **`metadataBase` is resolved per request** from `resolveSiteUrl`, the same
+  helper the magic links use. Scrapers only fetch absolute `og:image` URLs, so a
+  wrong base means no preview at all — and production, previews and localhost
+  each need their own.
+- The root layout sets a title template (`%s · cubebound.gg`), so page titles
+  must **not** repeat the suffix.
+- `robots.ts` disallows the per-account routes, which would otherwise be
+  indexed as a dozen copies of the login page. Individual cubes are not listed
+  there: unlisted ones carry their own `noindex` from `generateMetadata`, which
+  is where a per-cube decision belongs. `sitemap.ts` lists public cubes and
+  their owners via `searchCubes`, so the public-only rule is the same single one
+  Explore uses, and it degrades to the static pages rather than 500ing.
+- **A cube's cover art is a card in that cube** (`cubes.cover_card_id`), picked
+  on the settings page. Restricted to cards the cube holds, because a cover is
+  meant to say what the cube *is* rather than be an arbitrary image slot.
+  Unset falls back at render time — a legend first, since that's what a cube is
+  usually about, then the first main card — so a link previews with art whether
+  or not anyone chose one.
+- **The favicon is a simplification of the logo, not the logo.**
+  `src/app/icon.svg` draws only the cube silhouette and its spokes; the mark's
+  dashed edges, floating cards and sparkles turn to mush below ~24px.
+  `src/app/favicon.ico` packs 16/32/48px renders of it. If you regenerate it,
+  **the PNGs inside must be RGBA** — Next's icon processing fails the build on
+  RGB with "The PNG is not in RGBA format!", and a headless-Chrome screenshot is
+  RGB unless you override the default background to transparent.
+- **Error monitoring is Sentry, and it is off unless `NEXT_PUBLIC_SENTRY_DSN`
+  is set** (`src/lib/sentry-options.ts`), so dev, CI and forks never report.
+  Turning it on in production is one Vercel variable. A DSN is public by design
+  and grants nothing — the one legitimate exception to the `NEXT_PUBLIC_` rule
+  under "Auth and data access". Session replay is off deliberately: replays
+  record the DOM, which here includes other people's unlisted cube names.
+  `error.tsx` shows the digest Sentry indexes the event under, so a tester
+  reading it out is enough to find the trace.
 
 ## Discovery and following
 

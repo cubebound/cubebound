@@ -31,7 +31,7 @@ import PrimerEditor from "./primer-editor";
 import QuickAdd from "./quick-add";
 
 export const metadata: Metadata = {
-  title: "Edit cube · cubebound.gg",
+  title: "Edit cube",
   // The editor is owner-only; keep it out of search results.
   robots: { index: false, follow: false },
 };

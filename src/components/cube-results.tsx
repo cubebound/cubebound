@@ -68,7 +68,13 @@ export default function CubeResults({
               <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
                 {!owned && (
                   <>
-                    by {cube.ownerUsername}
+                    by{" "}
+                    <Link
+                      href={`/u/${cube.ownerUsername}`}
+                      className="hover:underline"
+                    >
+                      {cube.ownerUsername}
+                    </Link>
                     {" · "}
                   </>
                 )}
