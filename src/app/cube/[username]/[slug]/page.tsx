@@ -7,9 +7,9 @@ import CubeSections from "@/components/cube-sections";
 import CubeViewToggle from "@/components/cube-view-toggle";
 import FollowButton from "@/components/follow-button";
 import Primer from "@/components/primer";
-import { getCubeByOwnerAndSlug, getCubeCards } from "@/db/queries/cubes";
-import { countFollowers, isFollowing } from "@/db/queries/discovery";
-import { getCurrentUser } from "@/lib/auth";
+import { getCubeCards } from "@/db/queries/cubes";
+import { getFollowState } from "@/db/queries/discovery";
+import { loadCube, loadViewer } from "@/lib/cube-request";
 import type { SearchParams } from "@/lib/card-search-params";
 import { canEditCube, canViewCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
@@ -35,7 +35,7 @@ export async function generateMetadata({
   params: Promise<RouteParams>;
 }): Promise<Metadata> {
   const { username, slug } = await params;
-  const cube = await getCubeByOwnerAndSlug(username, slug);
+  const cube = await loadCube(username, slug);
   // A private cube's metadata is served to anyone who guesses the URL — there
   // is no session behind a link preview — so it must say nothing the page
   // itself 404s rather than reveal. The matching opengraph-image does the same.
@@ -73,23 +73,42 @@ export default async function CubePage({
   params: Promise<RouteParams>;
   searchParams: Promise<SearchParams>;
 }) {
+  // Supabase is remote: every query is a ~60ms round trip whatever it asks
+  // for, so what costs time here is *how many trips happen in a row*, not how
+  // much data any of them returns. Anything independent is awaited together.
+  //
+  // The cube and viewer come from the request-scoped loaders the layout already
+  // used, so these two resolve without touching the database again. Visibility
+  // was decided there — see the note in layout.tsx about why it cannot be
+  // decided here — and is re-asserted only to narrow the type.
   const { username, slug } = await params;
-  const cube = await getCubeByOwnerAndSlug(username, slug);
-
-  // Private cubes 404 for everyone but their owner — the same convention the
-  // mutations use, so a stranger can't confirm a private cube exists.
-  const current = await getCurrentUser();
+  const [cube, current, query, cookieStore] = await Promise.all([
+    loadCube(username, slug),
+    loadViewer(),
+    searchParams,
+    cookies(),
+  ]);
   if (!canViewCube(cube, current?.profile?.id)) notFound();
 
   const isOwner = canEditCube(cube, current?.profile?.id);
-  const query = await searchParams;
   const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab;
   const hasPrimer = Boolean(cube.primer?.trim());
   const showingPrimer = tab === "primer" && hasPrimer;
   const showingMaybeboard = tab === "maybeboard";
-  const view = resolveCubeView(query.view, (await cookies()).get(CUBE_VIEW_COOKIE)?.value);
+  const view = resolveCubeView(query.view, cookieStore.get(CUBE_VIEW_COOKIE)?.value);
 
-  const allCards = await getCubeCards(cube.id);
+  // `cubeId` is hoisted because `isOwner` is an aliased type predicate: reading
+  // `cube.id` under `!isOwner` narrows the cube to `never`.
+  const cubeId = cube.id;
+  const viewerId = current?.profile?.id ?? null;
+
+  // Second round: the cards and the follow state need the cube's id, but not
+  // each other.
+  const [allCards, follows] = await Promise.all([
+    getCubeCards(cubeId),
+    getFollowState(cubeId, isOwner ? null : viewerId),
+  ]);
+
   // The maybeboard is a shortlist, not part of the cube: counting it would make
   // a 300-card cube read as 340.
   const cards = allCards.filter((card) => card.section !== "maybeboard");
@@ -104,12 +123,7 @@ export default async function CubePage({
 
   // The owner sees the count in the byline rather than a Follow button —
   // following your own cube is noise, but knowing who's watching it isn't.
-  // `cubeId` is hoisted because `isOwner` is an aliased type predicate: reading
-  // `cube.id` under `!isOwner` narrows the cube to `never`.
-  const cubeId = cube.id;
-  const followers = await countFollowers(cubeId);
-  const following =
-    current?.profile && !isOwner ? await isFollowing(cubeId, current.profile.id) : false;
+  const { followers, following } = follows;
 
   const basePath = `/cube/${cube.ownerUsername}/${cube.slug}`;
   // Built server-side from the request origin (same helper the magic links

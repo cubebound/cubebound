@@ -188,6 +188,38 @@ export async function searchCubes(
   return rows.map((row) => ({ ...row, following: followed.has(row.id) }));
 }
 
+/**
+ * A page of cubes and the total, together.
+ *
+ * The two queries are independent, and running them in sequence cost a whole
+ * extra Supabase round trip on every cube list on the site. The page clamp has
+ * to happen *after* the count, so the caller passes the requested page and gets
+ * the resolved one back rather than awaiting the count first.
+ */
+export async function searchCubesPage(
+  options: CubeSearchOptions & { page?: number } = {},
+): Promise<{ cubes: CubeSearchResult[]; total: number; page: number; pageCount: number }> {
+  const limit = options.limit ?? CUBES_PAGE_SIZE;
+  const requested = Math.max(1, options.page ?? 1);
+
+  const [firstGuess, total] = await Promise.all([
+    searchCubes({ ...options, limit, offset: (requested - 1) * limit }),
+    countCubes(options),
+  ]);
+
+  const pageCount = Math.max(1, Math.ceil(total / limit));
+  const page = Math.min(requested, pageCount);
+
+  // An out-of-range ?page= clamps rather than 404s — deleting the last cube on
+  // a page still lands somewhere real. Only that case pays for a second query.
+  const cubes =
+    page === requested
+      ? firstGuess
+      : await searchCubes({ ...options, limit, offset: (page - 1) * limit });
+
+  return { cubes, total, page, pageCount };
+}
+
 export async function countCubes(options: CubeSearchOptions = {}): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
@@ -195,6 +227,33 @@ export async function countCubes(options: CubeSearchOptions = {}): Promise<numbe
     .innerJoin(users, eq(users.id, cubes.ownerId))
     .where(conditions(options));
   return row?.n ?? 0;
+}
+
+/**
+ * The follower count and whether the viewer is one of them, in one round trip.
+ *
+ * Supabase is remote, so a query costs about 60ms whatever it asks for and the
+ * page's cost is the number of trips it makes in a row. These two always want
+ * the same row set, so asking twice was 60ms of pure latency for nothing.
+ *
+ * `viewerId` null — signed out, or the owner, who gets no follow control —
+ * still returns the count, because the byline shows it.
+ */
+export async function getFollowState(
+  cubeId: string,
+  viewerId: string | null,
+): Promise<{ followers: number; following: boolean }> {
+  const [row] = await db
+    .select({
+      followers: sql<number>`count(*)::int`,
+      following: viewerId
+        ? sql<boolean>`bool_or(${cubeFollows.userId} = ${viewerId})`
+        : sql<boolean>`false`,
+    })
+    .from(cubeFollows)
+    .where(eq(cubeFollows.cubeId, cubeId));
+  // `bool_or` over no rows is null, not false.
+  return { followers: row?.followers ?? 0, following: row?.following ?? false };
 }
 
 export async function isFollowing(cubeId: string, userId: string): Promise<boolean> {

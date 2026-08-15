@@ -6,9 +6,8 @@ import CubeResults from "@/components/cube-results";
 import Pagination from "@/components/pagination";
 import { countCubesForOwner, MAX_CUBES_PER_USER } from "@/db/queries/cubes";
 import {
-  countCubes,
   CUBES_PAGE_SIZE,
-  searchCubes,
+  searchCubesPage,
   type CubeSearchOptions,
 } from "@/db/queries/discovery";
 import { getCurrentUser } from "@/lib/auth";
@@ -50,19 +49,14 @@ export default async function CubesPage({
     ? { followedBy: profile.id, viewerId: profile.id, keywords }
     : { ownerId: profile.id, includeNonPublic: true, viewerId: profile.id, keywords };
 
-  const total = await countCubes(filters);
-  const pageCount = Math.max(1, Math.ceil(total / CUBES_PAGE_SIZE));
-  const page = Math.min(Math.max(1, Number(one(params.page)) || 1), pageCount);
-
-  const cubes = await searchCubes({
-    ...filters,
-    limit: CUBES_PAGE_SIZE,
-    offset: (page - 1) * CUBES_PAGE_SIZE,
-  });
-
-  // Unfiltered, unlike `total` — the cap counts every cube you own, not the
-  // ones matching a search. Only worth showing as you approach it.
-  const owned = followed ? 0 : await countCubesForOwner(profile.id);
+  // The listing and the cube-count cap are independent queries, so they go
+  // together rather than one after the other — see `searchCubesPage`.
+  // `owned` is unfiltered, unlike `total`: the cap counts every cube you have,
+  // not the ones matching a search. Only worth showing as you approach it.
+  const [{ cubes, total, page, pageCount }, owned] = await Promise.all([
+    searchCubesPage({ ...filters, page: Number(one(params.page)) || 1 }),
+    followed ? Promise.resolve(0) : countCubesForOwner(profile.id),
+  ]);
   const atLimit = owned >= MAX_CUBES_PER_USER;
 
   const href = (next: { tab?: "own" | "followed"; q?: string; page?: number }) => {

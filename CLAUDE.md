@@ -448,12 +448,17 @@ a stale row — but it means a source switch leaves residue worth checking for.
   above the editor's Quick add button; both are bottom-right, and stacking
   keeps either from shifting depending on whether the other is rendered.
 - View resolution is `?view=` first, then the
-  `cubebound.cube-view` cookie, then **text**; the toggle writes both, so a shared
+  `cubebound.cube-view2` cookie, then **text**; the toggle writes both, so a shared
   link shows what the sender saw while a personal preference follows you between
   cubes. See `src/lib/cube-view.ts`. Text is the default because the first
   question about a cube is what's *in* it, and the list answers that on one
   screen — 360 image tiles is several screens of scrolling and a few megabytes
   before you can tell.
+- **The cookie name is versioned, and changing the default means bumping it.**
+  The cookie is pinned for a year and beats the default by design, so switching
+  the default from visual to text changed nothing for anyone who had ever
+  touched the toggle — which is everyone who uses the site. `…-view2` retires
+  those pins once; the next explicit choice re-pins under the new name.
 - `cubes.primer` is a long-form markdown write-up, separate from the one-line
   `description`, edited on the editor's Primer tab and rendered by
   `src/components/primer.tsx`. **Never render it as HTML.** `rehype-raw` is
@@ -884,6 +889,41 @@ Each creates throwaway accounts and deletes them again, including on failure.
 If these ever need to be automated, the path is the Supabase CLI (`supabase
 start`) in CI, which brings up Postgres and GoTrue per run with no secrets and
 no shared state — not a hosted test project.
+
+## Page speed
+
+Two things dominate, and neither is the amount of data.
+
+- **Supabase is remote: a query costs ~60ms whatever it asks for.** Returning
+  427 cube_cards rows measured 72ms against 59ms for a one-row lookup, so a
+  page's cost is *how many round trips it makes in a row*, not how much any of
+  them returns. Anything independent goes in a `Promise.all` — including
+  `params`, `searchParams`, `cookies()` and `headers()`, which are all
+  awaitable in Next 16 and were each adding a hop. `getCurrentUser()` is
+  another network call (GoTrue), and it does not depend on looking up the cube.
+  `searchCubesPage` and `getFollowState` exist to collapse pairs of queries
+  that always travel together.
+- **Every route is dynamic, so `<Link>` prefetch can only fetch a loading
+  boundary.** With no `loading.tsx`, clicking a cube left the previous page on
+  screen, unchanged, for the whole server render — which reads as a hang, and
+  was reported as one. Each navigable route now has one, built from
+  `src/components/skeleton.tsx`. **A new navigable route needs a `loading.tsx`
+  or it inherits that behaviour.**
+- **`loading.tsx` breaks `notFound()` in the page it wraps.** Next flushes the
+  loading shell as soon as it can, and flushing commits **HTTP 200** — after
+  that a `notFound()` swaps the body for the 404 UI but cannot change the
+  status. Adding the boundaries made private cubes, unknown slugs and unknown
+  usernames all answer 200, which `check:public-cube` caught. So **the
+  visibility decision lives in `layout.tsx`**, which resolves above the
+  boundary: `cube/[username]/[slug]/layout.tsx` and `u/[username]/layout.tsx`.
+  The pages beneath re-read the same values through the `cache()`d loaders in
+  `src/lib/cube-request.ts`, so the guard costs no extra query. Any future route
+  that both 404s and has a loading boundary needs the same shape.
+
+Measured on the 206-card cube, warm, after both changes: cube page 297ms in
+production (486ms under `npm run dev`), editor 351ms (589ms), `/cubes` 299ms.
+**Roughly half of what you feel locally is Turbopack**, so measure against
+`npm run build && npx next start` before concluding something is slow.
 
 ## Auth and data access
 

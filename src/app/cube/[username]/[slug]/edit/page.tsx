@@ -9,14 +9,13 @@ import ChangeLog from "@/components/change-log";
 import CubeViewToggle from "@/components/cube-view-toggle";
 import { getFilterOptions, PAGE_SIZE, searchCards } from "@/db/queries/cards";
 import {
-  getCubeByOwnerAndSlug,
   getCubeCardQuantities,
   getCubeCards,
   getCubeHoldingsForBases,
   listCubeChanges,
 } from "@/db/queries/cubes";
 import { getPrintingsForBases } from "@/db/queries/cards";
-import { getCurrentUser } from "@/lib/auth";
+import { loadCube, loadViewer } from "@/lib/cube-request";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
 import { canEditCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
@@ -43,32 +42,45 @@ export default async function EditCubePage({
   params: Promise<{ username: string; slug: string }>;
   searchParams: Promise<SearchParams>;
 }) {
+  // Supabase is remote, so this page's cost is the number of round trips it
+  // makes in a row rather than the size of any one of them. Nothing here needs
+  // anything else's answer, so it all goes out at once.
   const { username, slug } = await params;
-  const cube = await getCubeByOwnerAndSlug(username, slug);
+  const [cube, current, query, cookieStore, requestHeaders] = await Promise.all([
+    loadCube(username, slug),
+    loadViewer(),
+    searchParams,
+    cookies(),
+    headers(),
+  ]);
 
   // Non-owners get a 404 rather than a 403, so the existence of someone else's
   // private cube isn't leaked. The mutations re-check ownership independently.
-  const current = await getCurrentUser();
   if (!canEditCube(cube, current?.profile?.id)) notFound();
 
-  const query = await searchParams;
   const filters = cardFiltersFromParams(query);
   const publicPath = `/cube/${cube.ownerUsername}/${cube.slug}`;
   const basePath = `${publicPath}/edit`;
   // Absolute, built from this request's origin — the same helper the magic
   // links use, so a copied link is never relative or pinned to the wrong host.
-  const shareUrl = `${resolveSiteUrl(await headers())}${publicPath}`;
+  const shareUrl = `${resolveSiteUrl(requestHeaders)}${publicPath}`;
   const mode = Array.isArray(query.mode) ? query.mode[0] : query.mode;
   const browsing = mode === "browse";
   const writingPrimer = mode === "primer";
   const viewingLog = mode === "log";
   const importing = mode === "import";
   const onMaybeboard = mode === "maybeboard";
-  const view = resolveCubeView(query.view, (await cookies()).get(CUBE_VIEW_COOKIE)?.value);
+  const view = resolveCubeView(query.view, cookieStore.get(CUBE_VIEW_COOKIE)?.value);
 
-  const [allContents, inCube] = await Promise.all([
+  // Mode-specific data joins this round rather than waiting for the cube's
+  // cards, which it does not depend on — the browse grid and the change log
+  // were each costing their own extra trip on top of everything above.
+  const [allContents, inCube, browse, changes] = await Promise.all([
     getCubeCards(cube.id),
     getCubeCardQuantities(cube.id),
+    // Only rendered in browse mode, so don't pay for it in the default view.
+    browsing ? Promise.all([getFilterOptions(), searchCards(filters)]) : null,
+    viewingLog ? listCubeChanges(cube.id) : [],
   ]);
   // The maybeboard is a shortlist, not part of the cube, so it neither shows
   // in the cube list nor counts toward the size.
@@ -86,12 +98,6 @@ export default async function EditCubePage({
     (printingsByBase[printing.baseId] ??= []).push(printing);
   }
 
-  // The browse grid is only rendered in browse mode, so don't pay for it in
-  // the default view.
-  const browse = browsing
-    ? await Promise.all([getFilterOptions(), searchCards(filters)])
-    : null;
-  const changes = viewingLog ? await listCubeChanges(cube.id) : [];
   // Which of the results the cube already holds, and in which printing.
   const holdings = browse
     ? await getCubeHoldingsForBases(cube.id, browse[1].cards.map((c) => c.baseId))

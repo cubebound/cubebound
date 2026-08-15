@@ -4,9 +4,8 @@ import { notFound } from "next/navigation";
 
 import CubeResults from "@/components/cube-results";
 import Pagination from "@/components/pagination";
-import { countCubes, CUBES_PAGE_SIZE, searchCubes } from "@/db/queries/discovery";
-import { getUserByUsername } from "@/db/queries/users";
-import { getCurrentUser } from "@/lib/auth";
+import { CUBES_PAGE_SIZE, searchCubesPage } from "@/db/queries/discovery";
+import { loadUserByUsername, loadViewer } from "@/lib/cube-request";
 
 interface RouteParams {
   username: string;
@@ -18,7 +17,7 @@ export async function generateMetadata({
   params: Promise<RouteParams>;
 }): Promise<Metadata> {
   const { username } = await params;
-  const user = await getUserByUsername(username);
+  const user = await loadUserByUsername(username);
   if (!user) return { title: "Profile" };
   const description = `Riftbound cubes built by ${user.username}.`;
   return {
@@ -55,28 +54,24 @@ export default async function ProfilePage({
   params: Promise<RouteParams>;
   searchParams: Promise<{ q?: string | string[]; page?: string | string[] }>;
 }) {
+  // Looking up the profile and the viewer are independent; both are remote
+  // round trips, so they go together.
   const { username } = await params;
-  const user = await getUserByUsername(username);
+  const [user, current, query] = await Promise.all([
+    loadUserByUsername(username),
+    loadViewer(),
+    searchParams,
+  ]);
   if (!user) notFound();
 
-  const query = await searchParams;
   const keywords = one(query.q).slice(0, 100);
-
-  const current = await getCurrentUser();
   const isYou = current?.profile?.id === user.id;
 
-  const filters = {
+  const { cubes, total, page, pageCount } = await searchCubesPage({
     ownerId: user.id,
     keywords,
     viewerId: current?.profile?.id ?? null,
-  };
-  const total = await countCubes(filters);
-  const pageCount = Math.max(1, Math.ceil(total / CUBES_PAGE_SIZE));
-  const page = Math.min(Math.max(1, Number(one(query.page)) || 1), pageCount);
-  const cubes = await searchCubes({
-    ...filters,
-    limit: CUBES_PAGE_SIZE,
-    offset: (page - 1) * CUBES_PAGE_SIZE,
+    page: Number(one(query.page)) || 1,
   });
 
   const basePath = `/u/${user.username}`;

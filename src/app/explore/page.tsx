@@ -3,12 +3,7 @@ import Link from "next/link";
 
 import CubeResults from "@/components/cube-results";
 import Pagination from "@/components/pagination";
-import {
-  countCubes,
-  CUBES_PAGE_SIZE,
-  searchCubes,
-  type CubeSort,
-} from "@/db/queries/discovery";
+import { CUBES_PAGE_SIZE, searchCubesPage, type CubeSort } from "@/db/queries/discovery";
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -38,16 +33,12 @@ export default async function ExplorePage({
   const sort: CubeSort = one(params.sort) === "follows" ? "follows" : "updated";
 
   const current = await getCurrentUser();
-  const filters = { keywords, cardName, sort, viewerId: current?.profile?.id ?? null };
-
-  const total = await countCubes(filters);
-  const pageCount = Math.max(1, Math.ceil(total / CUBES_PAGE_SIZE));
-  const page = Math.min(Math.max(1, Number(one(params.page)) || 1), pageCount);
-
-  const cubes = await searchCubes({
-    ...filters,
-    limit: CUBES_PAGE_SIZE,
-    offset: (page - 1) * CUBES_PAGE_SIZE,
+  const { cubes, total, page, pageCount } = await searchCubesPage({
+    keywords,
+    cardName,
+    sort,
+    viewerId: current?.profile?.id ?? null,
+    page: Number(one(params.page)) || 1,
   });
 
   const href = (next: Partial<{ q: string; card: string; sort: string; page: number }>) => {
