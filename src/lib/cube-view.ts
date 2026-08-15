@@ -2,9 +2,14 @@
  * How a cube's card list is displayed.
  *
  * Resolution order: an explicit `?view=` param wins, then the cookie holding
- * the viewer's last choice, then visual. The param winning means a shared link
+ * the viewer's last choice, then **text**. The param winning means a shared link
  * shows what the sender saw; the cookie means your own preference survives
  * navigating to a cube without the param.
+ *
+ * Text is the default because the first question about a cube is what's *in*
+ * it, and the list answers that on one screen — 360 image tiles is several
+ * screens of scrolling and a few megabytes before you can tell. The visual view
+ * is one click away and the choice sticks.
  */
 
 export const CUBE_VIEWS = ["visual", "text"] as const;
@@ -24,5 +29,5 @@ export function resolveCubeView(
   const fromParam = Array.isArray(param) ? param[0] : param;
   if (isCubeView(fromParam)) return fromParam;
   if (isCubeView(cookie)) return cookie;
-  return "visual";
+  return "text";
 }

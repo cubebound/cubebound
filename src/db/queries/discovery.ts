@@ -2,7 +2,7 @@ import { and, desc, eq, exists, ilike, inArray, ne, or, sql } from "drizzle-orm"
 
 import { db } from "..";
 import { cards, cubeCards, cubeFollows, cubes, users } from "../schema";
-import type { CubeVisibility } from "./cubes";
+import { cubeCoverImageSql, type CubeVisibility } from "./cubes";
 
 /**
  * Finding cubes, and following them.
@@ -27,6 +27,8 @@ export interface CubeSearchResult {
   updatedAt: Date;
   cardCount: number;
   followers: number;
+  /** The cube's cover art, falling back to a card from it. Null when empty. */
+  coverImage: string | null;
   /** Whether the *viewer* follows it; false when signed out. */
   following: boolean;
 }
@@ -150,6 +152,7 @@ export async function searchCubes(
       updatedAt: cubes.updatedAt,
       cardCount,
       followers: followerCount,
+      coverImage: cubeCoverImageSql,
     })
     .from(cubes)
     .innerJoin(users, eq(users.id, cubes.ownerId))

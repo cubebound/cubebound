@@ -448,9 +448,12 @@ a stale row — but it means a source switch leaves residue worth checking for.
   above the editor's Quick add button; both are bottom-right, and stacking
   keeps either from shifting depending on whether the other is rendered.
 - View resolution is `?view=` first, then the
-  `cubebound.cube-view` cookie, then visual; the toggle writes both, so a shared
+  `cubebound.cube-view` cookie, then **text**; the toggle writes both, so a shared
   link shows what the sender saw while a personal preference follows you between
-  cubes. See `src/lib/cube-view.ts`.
+  cubes. See `src/lib/cube-view.ts`. Text is the default because the first
+  question about a cube is what's *in* it, and the list answers that on one
+  screen — 360 image tiles is several screens of scrolling and a few megabytes
+  before you can tell.
 - `cubes.primer` is a long-form markdown write-up, separate from the one-line
   `description`, edited on the editor's Primer tab and rendered by
   `src/components/primer.tsx`. **Never render it as HTML.** `rehype-raw` is
@@ -606,9 +609,17 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - **A cube's cover art is a card in that cube** (`cubes.cover_card_id`), picked
   on the settings page. Restricted to cards the cube holds, because a cover is
   meant to say what the cube *is* rather than be an arbitrary image slot.
-  Unset falls back at render time — a legend first, since that's what a cube is
-  usually about, then the first main card — so a link previews with art whether
-  or not anyone chose one.
+  Unset falls back — a legend first, since that's what a cube is usually about,
+  then the first main card — so a cube shows art whether or not anyone chose
+  one. That resolution is **one SQL fragment**, `cubeCoverImageSql`, shared by
+  the share previews and by every cube list: as a correlated subquery a list of
+  twenty selects its covers in the same round trip, and one definition means a
+  cube's thumbnail and its link preview can't come out as different cards.
+- Cube lists show the cover cropped to a **4:3 window**, not the card's own
+  shape — a list mixing portrait units with landscape battlefields has a ragged
+  left edge, and on a 5:7 card a 4:3 window is about 54% of the height, which
+  is almost exactly the illustration. A square was tried first and caught the
+  name bar and rules box, which reads as a cropped card rather than a cover.
 - **The favicon is a simplification of the logo, not the logo.**
   `src/app/icon.svg` draws only the cube silhouette and its spokes; the mark's
   dashed edges, floating cards and sparkles turn to mush below ~24px.

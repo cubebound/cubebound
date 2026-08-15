@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import FollowButton from "@/components/follow-button";
 import type { CubeSearchResult } from "@/db/queries/discovery";
+import { cardPicker } from "@/lib/card-images";
 
 const dateFormat = new Intl.DateTimeFormat("en", {
   year: "numeric",
@@ -14,6 +15,49 @@ const VISIBILITY_STYLE: Record<string, string> = {
   unlisted: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200",
   private: "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200",
 };
+
+/**
+ * The cube's cover art, cropped to a fixed 4:3 window.
+ *
+ * A fixed shape rather than the card's own, because a list mixing portrait
+ * units with landscape battlefields makes a ragged left edge. 4:3 specifically:
+ * on a 5:7 card that window is about 54% of the height, which is almost exactly
+ * the illustration — a square is tall enough to catch the name bar and the top
+ * of the rules box, which was the first attempt and looked like a cropped card
+ * rather than a cover. `object-position` biases high for the same reason.
+ *
+ * Sized at `PICKER_WIDTH` and loaded lazily — twenty rows of art should not
+ * cost what twenty card tiles do. `alt` is empty on purpose: the cube's name is
+ * already the next thing in the row, so announcing it twice is noise.
+ */
+const THUMB_CLASS = "h-[3.25rem] w-[4.333rem] shrink-0 rounded";
+
+function CoverThumb({ url }: { url: string | null }) {
+  if (!url) {
+    return (
+      <span
+        aria-hidden
+        title="No cards yet"
+        className={`${THUMB_CLASS} flex items-center justify-center border border-dashed border-zinc-300 text-zinc-400 dark:border-zinc-700`}
+      >
+        {/* The brand mark's silhouette, as a placeholder for an empty cube. */}
+        <svg viewBox="0 0 64 64" className="size-6 fill-none stroke-current" strokeWidth={4}>
+          <path d="M32 9 L54 21.5 L54 42.5 L32 55 L10 42.5 L10 21.5 Z" strokeLinejoin="round" />
+        </svg>
+      </span>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={cardPicker(url) ?? ""}
+      alt=""
+      loading="lazy"
+      className={`${THUMB_CLASS} border border-zinc-200 object-cover dark:border-zinc-800`}
+      style={{ objectPosition: "50% 20%" }}
+    />
+  );
+}
 
 /**
  * A list of cubes, used by Explore and by both tabs on Your cubes.
@@ -58,6 +102,11 @@ export default function CubeResults({
         const path = `/cube/${cube.ownerUsername}/${cube.slug}`;
         return (
           <li key={cube.id} className="flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3">
+            {/* Linked, not decorative: the thumbnail is the biggest target in
+                the row and clicking a picture of a cube should open it. */}
+            <Link href={owned ? `${path}/edit` : path} tabIndex={-1} aria-hidden>
+              <CoverThumb url={cube.coverImage} />
+            </Link>
             <div className="min-w-0 flex-1">
               <Link
                 href={owned ? `${path}/edit` : path}

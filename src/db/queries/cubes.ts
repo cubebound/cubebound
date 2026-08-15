@@ -100,40 +100,39 @@ export async function updateCube(
 }
 
 /**
- * The card art that represents a cube, resolved for display.
+ * The card art that represents a cube — **one definition**, as a correlated
+ * subquery so a list of cubes can select it per row without N round trips.
  *
  * Falls back rather than returning nothing: a cube with no cover still needs a
- * picture for its share preview, and the owner shouldn't have to set one for a
- * link to look right. A legend is preferred because it's the card a cube is
- * usually *about*; failing that, the first main-section card. The maybeboard is
- * excluded — it isn't part of the cube.
+ * picture, and the owner shouldn't have to set one for a link or a search
+ * result to look right. A legend is preferred because it's the card a cube is
+ * usually *about*; failing that the first main card, then a battlefield. The
+ * maybeboard is excluded — it isn't part of the cube.
+ *
+ * Used by the share previews and by every cube list. Kept as one fragment
+ * because two copies would drift, and then a cube's thumbnail and its link
+ * preview would show different cards.
  */
+export const cubeCoverImageSql = sql<string | null>`coalesce(
+  (select cover.image_full from ${cards} cover where cover.id = ${cubes.coverCardId}),
+  (select art.image_full
+     from ${cubeCards} pick
+     join ${cards} art on art.id = pick.card_id
+    where pick.cube_id = ${cubes.id}
+      and pick.section in ('legends', 'main', 'battlefields')
+    order by case pick.section
+               when 'legends' then 0 when 'main' then 1 else 2 end,
+             art.set_code, art.collector_no
+    limit 1)
+)`;
+
 export async function getCubeCoverImage(cubeId: string): Promise<string | null> {
   const [row] = await db
-    .select({ url: cards.imageFull })
+    .select({ url: cubeCoverImageSql })
     .from(cubes)
-    .innerJoin(cards, eq(cards.id, cubes.coverCardId))
     .where(eq(cubes.id, cubeId))
     .limit(1);
-  if (row?.url) return row.url;
-
-  const [fallback] = await db
-    .select({ url: cards.imageFull })
-    .from(cubeCards)
-    .innerJoin(cards, eq(cards.id, cubeCards.cardId))
-    .where(
-      and(
-        eq(cubeCards.cubeId, cubeId),
-        inArray(cubeCards.section, ["legends", "main", "battlefields"]),
-      ),
-    )
-    .orderBy(
-      sql`case ${cubeCards.section} when 'legends' then 0 when 'main' then 1 else 2 end`,
-      asc(cards.setCode),
-      asc(cards.collectorNo),
-    )
-    .limit(1);
-  return fallback?.url ?? null;
+  return row?.url ?? null;
 }
 
 /** Sets or clears a cube's cover. The card is validated by the caller. */
