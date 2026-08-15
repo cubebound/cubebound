@@ -192,7 +192,14 @@ function CostCell({
                 onMouseLeave={preview.hide}
                 onFocus={(event) => preview.showAt(row.card, event.currentTarget)}
                 onBlur={preview.hide}
-                title={`${row.card.name} · ${row.card.type} · ${row.card.id}`}
+                // No `title` here. It used to carry "name · type · id" for
+                // names the column truncates, but the browser draws that
+                // tooltip near the cursor after a second — landing on top of
+                // the hover preview the same gesture just opened, over roughly
+                // where the card prints its own name. The preview shows the
+                // whole card, so the tooltip was covering better information
+                // than it carried. Truncation is visual only: the button's
+                // accessible name is still the full text.
                 className="min-w-0 flex-1 truncate rounded py-0.5 text-left text-xs text-zinc-900 hover:underline dark:text-zinc-100"
               >
                 {row.card.name}
