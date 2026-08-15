@@ -37,12 +37,11 @@ Open items:
   deploying.
 - Feature work lands on a branch and pushes to
   `github.com/cubebound/cubebound`; `master` is production — see
-  "Environments". The merged `cube-editor-redesign` branch can be deleted.
-- **Two unmerged branches, stacked, with two migrations between them.**
-  `cube-discovery` adds `0010` (`cube_follows`); `launch-polish` branches from
-  it and adds `0011` (`cubes.cover_card_id`). Both are applied to dev only —
-  production must be migrated by hand at merge time, or Explore, the Followed
-  tab and every cube page fail at request time on a green deploy.
+  "Environments".
+- **Everything through `0011` is merged and live**, and production has been
+  migrated. There is no feature branch in flight. The rule still stands for the
+  next one: a deploy does not run migrations, so a feature adding tables fails
+  at request time however green the build looks.
 - **Sentry ships wired but switched off.** Set `NEXT_PUBLIC_SENTRY_DSN` in
   Vercel to turn it on; `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN`
   additionally get readable stack traces. See "Share previews, crawling and
@@ -160,9 +159,8 @@ counts appear where you will actually look.
 
 `master` is production: pushing to it deploys the live site. Feature work
 happens on branches; pushing a branch produces a Vercel preview deployment and
-does not touch production *code*. Current feature branch: `launch-polish`,
-which is stacked on the unmerged `cube-discovery` — it reuses `searchCubes` for
-the profile page, so merging it alone would not build.
+does not touch production *code*. No feature branch is currently in flight;
+`master` holds everything that is live.
 
 **A preview deployment is not automatically a dev environment.** Vercel injects
 whichever environment variables are configured for Preview, and unless those
@@ -315,6 +313,14 @@ a stale row — but it means a source switch leaves residue worth checking for.
   that lags by even one commit starts costing more than it saves.
 - Server components by default; client components only where interactivity requires.
 - All DB access through Drizzle in `src/db/`; no raw SQL in route handlers.
+- **In a raw `sql` fragment, qualify outer column references yourself.** Drizzle
+  renders `${table.column}` *unqualified* when the surrounding query has no
+  join, so a correlated subquery that mentions another table with the same
+  column name silently binds to the wrong one. `cubeCoverImageSql` referencing
+  `${cubes.id}` bound to `cards.id` and every share preview 500'd with
+  `operator does not exist: uuid = text` — while the cube lists, which use the
+  same fragment through a query that joins `users`, worked fine. Write
+  `"cubes"."id"`.
 - Card sync entry point lives in `scripts/sync-cards.ts`, idempotent, diffs by card id against the stored raw payload, safe to re-run. New sets ship every ~3 months — the sync must handle unknown fields gracefully (hence the `data` jsonb column).
 - **After changing an adapter's mapping, run `npm run sync-cards -- --force`.** The diff compares stored raw payloads, so a mapping fix leaves every row looking unchanged and silently never lands — a corrected `champion` field once reported "1288 unchanged". `--force` rewrites every row from the current mapping. Dry-run first by re-mapping the stored payloads and diffing: a change to *names* would reshuffle `base_id` grouping and needs review, a change to other fields does not. **Run it against each environment separately** — card data is synced per project, not copied, so a fix applied to dev is not carried to production by deploying.
 - Never hand-edit card data; fix the sync instead.
@@ -826,6 +832,7 @@ which is why they can create and delete accounts freely.
 | `check:import` | import parsing, matching, the line cap and the committed result | DB | manual gate |
 | `check:draft` | a full seeded 8-seat draft: quantities, pack template, passing, bots, determinism | nothing | **CI** |
 | `check:discovery` | explore is public-only, keywords AND, the card filter, sorting, follow state, both `/cubes` tabs | Supabase + dev server | manual gate |
+| `check:share-previews` | all three OG routes return real PNGs; cover set and cover falling back; a private cube stays generic; `og:image` is absolute | Supabase + dev server | manual gate |
 
 `check:magic-link` needs the dev server started as `SIGNIN_PROBE=1 npm run
 dev:probe`, which preloads `scripts/otp-probe.mjs` to intercept the outgoing
@@ -897,8 +904,16 @@ chrome --headless=new --remote-debugging-port=9222 --user-data-dir=/tmp/cbchrome
 npm run check:printings && npm run check:browse-grid && \
 npm run check:copies-and-log && npm run check:public-cube && \
 npm run check:auth-flow && npm run check:cube-ownership && \
-npm run check:magic-link && npm run check:import && npm run check:discovery
+npm run check:magic-link && npm run check:import && npm run check:discovery && \
+npm run check:share-previews
 ```
+
+**The checks run against `npm run dev`, which is not what ships.** A cube's
+share preview 500'd in production while every page and every check passed
+locally, because the failure was a SQL error only that one route triggered and
+nothing looked at it. When a change touches a route no check covers, hit it
+against `npm run build && npx next start` before deploying — dev and production
+resolve and bundle differently enough to hide things.
 
 Each creates throwaway accounts and deletes them again, including on failure.
 

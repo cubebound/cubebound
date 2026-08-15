@@ -112,13 +112,22 @@ export async function updateCube(
  * Used by the share previews and by every cube list. Kept as one fragment
  * because two copies would drift, and then a cube's thumbnail and its link
  * preview would show different cards.
+ *
+ * **The outer references are written out as `"cubes"."…"` on purpose.** Passing
+ * `${cubes.id}` looks tidier but Drizzle renders a column *unqualified* when the
+ * outer query has no join — and inside these subqueries `cards` is in scope with
+ * its own `id`, so Postgres silently binds to that instead. `cards.id` is text
+ * and `cubes.id` is uuid, so it failed as `operator does not exist: uuid = text`
+ * — but only from `getCubeCoverImage`, which selects from `cubes` alone.
+ * `searchCubes` joins `users`, which made Drizzle qualify it there, so every
+ * cube list worked and only the share previews 500'd. Explicit beats tidy here.
  */
 export const cubeCoverImageSql = sql<string | null>`coalesce(
-  (select cover.image_full from ${cards} cover where cover.id = ${cubes.coverCardId}),
+  (select cover.image_full from ${cards} cover where cover.id = "cubes"."cover_card_id"),
   (select art.image_full
      from ${cubeCards} pick
      join ${cards} art on art.id = pick.card_id
-    where pick.cube_id = ${cubes.id}
+    where pick.cube_id = "cubes"."id"
       and pick.section in ('legends', 'main', 'battlefields')
     order by case pick.section
                when 'legends' then 0 when 'main' then 1 else 2 end,
