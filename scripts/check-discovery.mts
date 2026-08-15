@@ -26,9 +26,8 @@ import postgres from "postgres";
 import { addCubeCard, createCube, updateCube } from "../src/db/queries/cubes";
 import {
   countCubes,
-  countFollowers,
   followCube,
-  isFollowing,
+  getFollowState,
   searchCubes,
   unfollowCube,
 } from "../src/db/queries/discovery";
@@ -246,18 +245,27 @@ try {
   // --- 4 & 5. following -------------------------------------------------------
   await followCube(control.id, reader.id);
   await followCube(control.id, reader.id); // idempotent
-  expect((await countFollowers(control.id)) === 1, "following twice should leave one follower");
-  expect(await isFollowing(control.id, reader.id), "the follow should be readable back");
-  expect(!(await isFollowing(open.id, reader.id)), "an unfollowed cube should read as unfollowed");
+  const twice = await getFollowState(control.id, reader.id);
+  expect(twice.followers === 1, `following twice should leave one follower, got ${twice.followers}`);
+  expect(twice.following, "the follow should be readable back");
+  expect(
+    !(await getFollowState(open.id, reader.id)).following,
+    "an unfollowed cube should read as unfollowed",
+  );
 
   // `open` is followed by someone who is not the reader, so a leak of one
   // account's follow state into another's would show up below.
   await followCube(open.id, owner.id);
   await followCube(control.id, alt.id);
   await unfollowCube(control.id, owner.id); // never followed; must not touch the others
+  const after = await getFollowState(control.id, null);
   expect(
-    (await countFollowers(control.id)) === 2,
+    after.followers === 2,
     "unfollowing as a different user must not remove someone else's follow",
+  );
+  expect(
+    !after.following,
+    "a null viewer must never read as following",
   );
 
   const viewerRows = await searchCubes({ keywords: TAG, viewerId: reader.id, limit: 50 });

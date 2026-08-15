@@ -9,7 +9,9 @@ deploy included — and **the MVP loop is closed**: sign in → create a cube �
 search and add cards → view it by domain/cost/type → share a public URL that
 anyone can browse and clone.
 
-Working: card ingestion (1,294 printings / 966 distinct cards across 8 sets),
+Working: card ingestion (**production** 1,294 printings / 966 distinct cards
+across 8 sets; **dev** 1,288 / 960 — the difference is production's six
+riftscribe token rows, see "How the split happened"),
 `/cards` browser, magic-link auth with username claim, cube CRUD, the quick-add
 editor, visual and text views, primer, change log, the public cube view with
 Share and Clone, and CI.
@@ -45,8 +47,10 @@ Open items:
   Vercel to turn it on; `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN`
   additionally get readable stack traces. See "Share previews, crawling and
   monitoring".
-- Still open before a wide launch: no report/moderation path for user-written
-  cube text now that Explore indexes it, and no account deletion.
+- Still open before a wide launch, in order: **set a Vercel spend cap** and a
+  **Supabase auth rate limit** (neither is code — see "Security posture"), then
+  a report/takedown path for user-written cube text now that Explore indexes
+  it, then account deletion.
 - The Riot adapter stays dormant until our API application is approved.
 - Six UNL token rows still come from the retired riftscribe source.
 
@@ -830,6 +834,18 @@ creating a user. It asserts on the URL Supabase receives rather than on the
 helper in isolation, because the production bug was invisible everywhere else:
 localhost worked and the code read fine.
 
+**`document.readyState === 'complete'` does not mean "the page is usable"** on
+a route with a `loading.tsx`. Next flushes the loading shell early, so
+readyState goes complete while the skeleton is still up and React has not
+hydrated — a click then lands on a button with no handler and silently does
+nothing. That is how `check:cube-ownership` started failing two runs in three
+the moment the loading boundaries landed. It now waits for the skeleton to
+clear *and* for the button to carry React's internal props key, then polls for
+the write instead of sleeping a fixed budget. `check:auth-flow` and
+`check:magic-link` still use readyState, which is fine only because `/welcome`
+and `/login` have no loading boundary — **adding one to either route means
+fixing those checks the same way.**
+
 `check:cube-ownership` is also structural: it fails if a new action in
 `src/app/cube/actions.ts` skips `requireOwnedCube` without a documented
 exemption naming the gate it uses instead. It scans the **draft** and **follow**
@@ -889,6 +905,53 @@ Each creates throwaway accounts and deletes them again, including on failure.
 If these ever need to be automated, the path is the Supabase CLI (`supabase
 start`) in CI, which brings up Postgres and GoTrue per run with no secrets and
 no shared state — not a hosted test project.
+
+## Security posture
+
+Audited before the first wide share. What was checked, and what it turned up.
+
+**Verified sound, don't undo it:**
+- **RLS deny-all holds.** The publishable key was fired directly at PostgREST:
+  `cubes`, `users`, `cube_cards`, `drafts`, `cube_follows` and `cards` all
+  return zero rows, and `INSERT` returns 401. That is the backstop working —
+  see "Auth and data access" for why it exists rather than SELECT policies.
+- **No secret has ever been committed.** `.env*` is gitignored bar the example,
+  and a scan of full history turns up only placeholders.
+- **Every mutation is gated.** All 21 server actions call one of
+  `requireOwnedCube` / `requireDraftableCube` / `requireOwnDraft` /
+  `requireFollowableCube` / `getCurrentUser`; `check:cube-ownership` fails the
+  build if a new one doesn't. CSRF is covered by Next's Server Action origin
+  check — a spoofed `x-forwarded-host` without a matching `Origin` is rejected.
+- **The auth callback's `next=` cannot leave the origin.** `${origin}${next}`
+  was tested against `//evil`, `/\evil`, `///evil` and an absolute URL: the
+  authority is already fixed by the time the path is appended.
+- **No `dangerouslySetInnerHTML` anywhere**, and the only rendered email
+  address is your own on `/welcome`.
+
+**Fixed in this pass:**
+- **Response headers were entirely absent.** `next.config.ts` now sets
+  `X-Frame-Options`, `frame-ancestors 'none'`, `nosniff`, `Referrer-Policy` and
+  a `Permissions-Policy`. The referrer one is load-bearing: every page fetches
+  card art from Riot's CDN, and an unlisted cube's *URL is the secret*. Chrome
+  already truncates to the origin; this stops that being a browser default.
+- **`tunnelRoute` was removed** — see the note in `next.config.ts`.
+- **The card browser's filters were uncapped**, so a kilobyte-long `?q=` became
+  a kilobyte-long `ILIKE` across 1,288 rows. Now 100 chars, matching the cube
+  searches.
+
+**Known and accepted, not fixed in code:**
+- **Sign-in has no application-level throttle.** Anyone can ask for a magic
+  link to any address, which spends your Supabase quota and sends from your
+  domain — a deliverability risk to `cubebound.gg` more than a security one.
+  Supabase's own auth rate limit is the only brake; **set it deliberately in
+  the dashboard** rather than inheriting a default.
+- **The OG image routes are the most expensive unauthenticated endpoint** — a
+  database read, a CDN fetch and a PNG render each. They are CDN-cached for a
+  day, but the cache key is the full URL, so `?v=1…100000` bypasses it. The
+  real control for this and for every other traffic-shaped cost is a **Vercel
+  spend cap**, not application code.
+- **No report or takedown path** for user-written cube text now that Explore
+  indexes it, and no account deletion. Both matter more the wider this goes.
 
 ## Page speed
 

@@ -220,6 +220,30 @@ export async function searchCubesPage(
   return { cubes, total, page, pageCount };
 }
 
+/**
+ * Just enough to build a sitemap entry, for as many cubes as it asks for.
+ *
+ * Deliberately not `searchCubes`: that selects a cover image and a follower
+ * count as correlated subqueries per row, which is right for a page of twenty
+ * and wasteful for two thousand. A crawler needs a URL and a date. Public only,
+ * by the same `visibility` rule as everything else here.
+ */
+export async function listPublicCubesForSitemap(
+  limit: number,
+): Promise<{ slug: string; ownerUsername: string; updatedAt: Date }[]> {
+  return db
+    .select({
+      slug: cubes.slug,
+      ownerUsername: users.username,
+      updatedAt: cubes.updatedAt,
+    })
+    .from(cubes)
+    .innerJoin(users, eq(users.id, cubes.ownerId))
+    .where(eq(cubes.visibility, "public"))
+    .orderBy(desc(cubes.updatedAt))
+    .limit(limit);
+}
+
 export async function countCubes(options: CubeSearchOptions = {}): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
@@ -254,23 +278,6 @@ export async function getFollowState(
     .where(eq(cubeFollows.cubeId, cubeId));
   // `bool_or` over no rows is null, not false.
   return { followers: row?.followers ?? 0, following: row?.following ?? false };
-}
-
-export async function isFollowing(cubeId: string, userId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ one: sql`1` })
-    .from(cubeFollows)
-    .where(and(eq(cubeFollows.cubeId, cubeId), eq(cubeFollows.userId, userId)))
-    .limit(1);
-  return Boolean(row);
-}
-
-export async function countFollowers(cubeId: string): Promise<number> {
-  const [row] = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(cubeFollows)
-    .where(eq(cubeFollows.cubeId, cubeId));
-  return row?.n ?? 0;
 }
 
 /** Idempotent: following twice leaves one row. */

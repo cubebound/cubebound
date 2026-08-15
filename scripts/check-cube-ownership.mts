@@ -311,10 +311,32 @@ try {
   // Browse mode is where the grid's Add buttons live; search a unit so the add
   // lands in "main".
   await send("Page.navigate", { url: `${APP}${editorPath}?mode=browse&q=blazing+scorcher` });
+
+  // `document.readyState === 'complete'` is NOT "the page is usable" on a route
+  // with a `loading.tsx`: Next flushes the loading shell early, so readyState
+  // goes complete while the skeleton is still on screen and React has not
+  // hydrated. Clicking then hits a button with no handler attached and silently
+  // does nothing — which is exactly how this check started failing when the
+  // loading boundaries landed. Wait for the real conditions instead.
+  let ready = "timed out waiting for the editor to hydrate";
   for (let i = 0; i < 80; i++) {
-    if (await evaluate("document.readyState === 'complete'")) break;
+    const state = await evaluate(`(() => {
+      if (document.querySelectorAll('.animate-pulse').length > 0) return 'skeleton';
+      const buttons = [...document.querySelectorAll('button')].filter(b => b.innerText.trim() === 'Add');
+      if (buttons.length === 0) return 'no Add button yet';
+      // A hydrated React button carries an internal props key; a server-rendered
+      // one that has not hydrated does not, and clicking it does nothing.
+      const hydrated = Object.keys(buttons[0]).some((k) => k.startsWith('__react'));
+      return hydrated ? 'ready' : 'not hydrated';
+    })()`);
+    if (state === "ready") {
+      ready = "ready";
+      break;
+    }
+    ready = String(state);
     await new Promise((r) => setTimeout(r, 250));
   }
+  expect(ready === "ready", `editor never became clickable: ${ready}`);
 
   const clicked = await evaluate(`(() => {
     const buttons = [...document.querySelectorAll('button')].filter(b => b.innerText.trim() === 'Add');
@@ -323,10 +345,15 @@ try {
     return 'clicked';
   })()`);
   expect(clicked === "clicked", `could not click Add in the editor: ${clicked}`);
-  await new Promise((r) => setTimeout(r, 2500));
 
-  const afterOwnerAdd = await getCubeCards(cube.id);
-  const added = afterOwnerAdd.find((c) => c.name === "Blazing Scorcher");
+  // Poll for the write rather than sleeping a fixed amount: the action is a
+  // round trip and a fixed budget is what made this flaky in the first place.
+  let added: Awaited<ReturnType<typeof getCubeCards>>[number] | undefined;
+  for (let i = 0; i < 40; i++) {
+    added = (await getCubeCards(cube.id)).find((c) => c.name === "Blazing Scorcher");
+    if (added) break;
+    await new Promise((r) => setTimeout(r, 250));
+  }
   expect(Boolean(added), "owner's Add should have added the card");
   expect(added?.section === "main", `unit should land in main, got ${added?.section}`);
 

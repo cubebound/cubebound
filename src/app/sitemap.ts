@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { headers } from "next/headers";
 
-import { searchCubes } from "@/db/queries/discovery";
+import { listPublicCubesForSitemap } from "@/db/queries/discovery";
 import { resolveSiteUrl } from "@/lib/site-url";
 
 /** Cap the crawl. Well past the current cube count, and a ceiling means this
@@ -11,10 +11,10 @@ const MAX_CUBES = 2000;
 /**
  * The static pages plus every **public** cube and its owner.
  *
- * `searchCubes` is public-only by construction, so unlisted and private cubes
- * cannot reach this list even by mistake — the same single rule that keeps them
- * off Explore. Profiles come from the cubes rather than from the user table, so
- * an account with nothing public isn't advertised either.
+ * Public only by construction, so unlisted and private cubes cannot reach this
+ * list even by mistake. Profiles come from the cubes rather than from the user
+ * table, so an account with nothing public isn't advertised either — and a
+ * sitemap is the one place a soft leak would be indexed and cached forever.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const site = resolveSiteUrl(await headers());
@@ -25,9 +25,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${site}/cards`, changeFrequency: "weekly", priority: 0.7 },
   ];
 
-  let cubes: Awaited<ReturnType<typeof searchCubes>> = [];
+  let cubes: Awaited<ReturnType<typeof listPublicCubesForSitemap>> = [];
   try {
-    cubes = await searchCubes({ sort: "updated", limit: MAX_CUBES });
+    cubes = await listPublicCubesForSitemap(MAX_CUBES);
   } catch {
     // A sitemap that 500s is worse than a short one: crawlers back off from the
     // whole site. Serve the static pages and try again next crawl.

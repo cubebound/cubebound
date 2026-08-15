@@ -2,9 +2,20 @@ import type { CardFilters } from "@/db/queries/cards";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
+/**
+ * Longest filter value we'll act on.
+ *
+ * Every value here reaches Postgres — the search term as an `ILIKE` pattern
+ * against rules text and tags on 1,288 rows. A URL can carry kilobytes, and
+ * matching a kilobyte-long pattern row by row is work an anonymous visitor
+ * shouldn't be able to ask for. The cube searches already cap at 100; this is
+ * the same rule for the card browser, which didn't have one.
+ */
+const MAX_FILTER_LENGTH = 100;
+
 function one(value: string | string[] | undefined): string | undefined {
   const first = Array.isArray(value) ? value[0] : value;
-  return first?.trim() || undefined;
+  return first?.trim().slice(0, MAX_FILTER_LENGTH) || undefined;
 }
 
 /**

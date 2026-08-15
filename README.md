@@ -1,36 +1,49 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# cubebound.gg
 
-## Getting Started
+Cube construction and drafting for [Riftbound](https://riftbound.leagueoflegends.com/),
+Riot's League of Legends TCG. Think Cube Cobra, but Riftbound-native.
 
-First, run the development server:
+Live at **[cubebound.gg](https://cubebound.gg)**.
+
+Build a cube from the full card pool, organise it by domain, cost and type,
+write a primer explaining how it drafts, and share a public page anyone can
+browse, clone or draft against bots.
+
+> Unofficial fan project. cubebound.gg is not endorsed by Riot Games and does
+> not reflect the views or opinions of Riot Games or anyone officially involved
+> in producing or managing Riot Games properties.
+
+## Running it
 
 ```bash
+npm install
+cp .env.example .env.local   # then fill in your own Supabase project
+npm run db:migrate           # apply migrations
+npm run sync-cards           # pull the card pool (~1,300 printings, no API key)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`.env.example` documents every variable and which ones are optional.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Next.js (App Router) · TypeScript · Tailwind · Drizzle ORM · Postgres and auth
+via Supabase · deployed on Vercel. Card images are served from the source CDN
+and never proxied or stored.
 
-## Learn More
+## Working on it
 
-To learn more about Next.js, take a look at the following resources:
+**Read [CLAUDE.md](CLAUDE.md) first.** It is the orientation document: the game's
+domain model, the schema, the conventions, and — more usefully — the reasoning
+behind decisions that look arbitrary until you know what broke. It is kept true
+in the same commit as the code it describes.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run typecheck
+npm run lint
+npm run check:draft           # and the other checks; see CLAUDE.md
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Each `check:*` script guards a regression that has already happened once. The
+pure ones run in CI; the rest need a live Supabase and are a documented
+pre-deploy gate.
