@@ -46,6 +46,10 @@ export const browseColumns = {
   collectorNo: cards.collectorNo,
   rarity: cards.rarity,
   type: cards.type,
+  // Needed wherever a card is described as a reader thinks of it: "Champion
+  // Unit" is `type` Unit plus `supertype` Champion, and analytics that grouped
+  // by `type` alone would fold 323 champions in with ordinary units.
+  supertype: cards.supertype,
   domains: cards.domains,
   energyCost: cards.energyCost,
   powerCost: cards.powerCost,

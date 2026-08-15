@@ -77,5 +77,8 @@ jobs:
       - name: Check draft engine
         run: npm run check:draft
 
+      - name: Check analytics
+        run: npm run check:analytics
+
       - name: Build
         run: npm run build

@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import CubeAnalyticsView from "@/components/cube-analytics-view";
 import CubeSections from "@/components/cube-sections";
 import CubeViewToggle from "@/components/cube-view-toggle";
 import FollowButton from "@/components/follow-button";
@@ -95,6 +96,7 @@ export default async function CubePage({
   const hasPrimer = Boolean(cube.primer?.trim());
   const showingPrimer = tab === "primer" && hasPrimer;
   const showingMaybeboard = tab === "maybeboard";
+  const showingAnalytics = tab === "analytics";
   const view = resolveCubeView(query.view, cookieStore.get(CUBE_VIEW_COOKIE)?.value);
 
   // `cubeId` is hoisted because `isOwner` is an aliased type predicate: reading
@@ -237,7 +239,7 @@ export default async function CubePage({
         )}
 
         <nav className="mt-4 flex flex-wrap items-center gap-2">
-          {tabLink("Cube", basePath, !showingPrimer && !showingMaybeboard)}
+          {tabLink("Cube", basePath, !showingPrimer && !showingMaybeboard && !showingAnalytics)}
           {hasPrimer && tabLink("Primer", `${basePath}?tab=primer`, showingPrimer)}
           {/* Only advertised when it holds something: an empty shortlist is
               noise on someone else's cube. */}
@@ -247,7 +249,9 @@ export default async function CubePage({
               `${basePath}?tab=maybeboard`,
               showingMaybeboard,
             )}
-          {!showingPrimer && !showingMaybeboard && cards.length > 0 && (
+          {cards.length > 0 &&
+            tabLink("Analytics", `${basePath}?tab=analytics`, showingAnalytics)}
+          {!showingPrimer && !showingMaybeboard && !showingAnalytics && cards.length > 0 && (
             <span className="ml-auto">
               <CubeViewToggle active={view} />
             </span>
@@ -257,6 +261,8 @@ export default async function CubePage({
 
       {showingPrimer ? (
         <Primer markdown={cube.primer!} />
+      ) : showingAnalytics ? (
+        <CubeAnalyticsView cards={cards} />
       ) : showingMaybeboard ? (
         <CubeSections
           cards={maybeboard}

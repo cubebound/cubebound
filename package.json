@@ -25,7 +25,8 @@
     "check:draft": "tsx scripts/check-draft.mts",
     "check:discovery": "tsx --env-file-if-exists=.env.local scripts/check-discovery.mts",
     "seed:discovery": "tsx --env-file-if-exists=.env.local scripts/seed-discovery.mts",
-    "check:share-previews": "tsx --env-file-if-exists=.env.local scripts/check-share-previews.mts"
+    "check:share-previews": "tsx --env-file-if-exists=.env.local scripts/check-share-previews.mts",
+    "check:analytics": "tsx scripts/check-analytics.mts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.70.0",

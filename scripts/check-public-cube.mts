@@ -221,6 +221,20 @@ try {
   const ownerHtml = await body(publicPath, owner.cookie);
   expect(ownerHtml.includes(">Share<"), "the owner should also get a Share button");
 
+  // The analytics tab is computed, not stored, so a broken panel renders as a
+  // 500 rather than as wrong numbers. Assert it comes back at all, and that it
+  // reports the cube's real size — the share previews taught us that a route
+  // nothing looks at is a route that ships broken.
+  const analyticsHtml = await body(`${publicPath}?tab=analytics`, stranger.cookie);
+  expect(
+    analyticsHtml.includes("Energy curve") && analyticsHtml.includes("Keywords"),
+    "the analytics tab should render its panels",
+  );
+  expect(
+    analyticsHtml.includes("Rules text length"),
+    "including the rules-text panel",
+  );
+
   // The owner works in the editor, so the link has to be reachable from there
   // too — that is where they are when they want to hand the cube to someone.
   const editorHtml = await body(`${publicPath}/edit`, owner.cookie);
