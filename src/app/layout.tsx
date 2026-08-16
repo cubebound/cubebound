@@ -4,6 +4,8 @@ import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import "./globals.css";
 
+import { Analytics } from "@vercel/analytics/next";
+
 import Logo from "@/components/logo";
 import ThemeToggle from "@/components/theme-toggle";
 import { resolveSiteUrl } from "@/lib/site-url";
@@ -122,6 +124,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </div>
         </footer>
+
+        {/* Page views, cookieless. It reports the pathname, which for a cube is
+            its URL — and an unlisted cube's URL is the secret the
+            Referrer-Policy exists to protect. That is acceptable only because
+            Vercel already logs every request path as the host, so this adds no
+            new party; it would not be if analytics moved elsewhere. Off outside
+            production so local navigation doesn't fill the dashboard. */}
+        {process.env.NODE_ENV === "production" && <Analytics />}
       </body>
     </html>
   );

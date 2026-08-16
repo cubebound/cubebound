@@ -676,6 +676,17 @@ a stale row — but it means a source switch leaves residue worth checking for.
   record the DOM, which here includes other people's unlisted cube names.
   `error.tsx` shows the digest Sentry indexes the event under, so a tester
   reading it out is enough to find the trace.
+- **Traffic measurement is Vercel Analytics**, mounted in the root layout and
+  rendered only when `NODE_ENV === "production"` so local navigation doesn't
+  fill the dashboard. It is cookieless, needs no consent banner under its
+  current design, and is enabled per-project in the Vercel dashboard — the
+  component alone collects nothing until it is. It reports the **pathname**,
+  which for a cube is its URL, and an unlisted cube's URL is the secret the
+  Referrer-Policy exists to protect. That is acceptable here only because
+  Vercel already logs every request path as the host, so this adds no party
+  that could not already see it. **The same reasoning would not cover a
+  third-party analytics script** — moving to one means redacting cube paths
+  through `beforeSend` first, the way session replay is off in Sentry.
 
 ## Discovery and following
 
