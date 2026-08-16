@@ -163,10 +163,6 @@ try {
       gate: "requireOwnDraft",
       why: "sorts the caller's own pool between mainboard and sideboard",
     },
-    saveDraftAsCubeAction: {
-      gate: "requireOwnDraft",
-      why: "reads the caller's own draft and writes a new cube they own",
-    },
   };
   const draftSource = readFileSync(
     "src/app/cube/[username]/[slug]/draft/actions.ts",

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import SharedCardArt from "@/components/card-art";
 import { cardThumb } from "@/lib/card-images";
 import { aspectRatio, isLandscape } from "@/lib/riftbound";
 
@@ -43,38 +44,20 @@ function comparePiles(a: string, b: string): number {
 /**
  * A card image that degrades to its name.
  *
- * Card art is served straight from the source CDN, so an occasional image
- * simply does not load — a blank tile then gives no clue what the card is,
- * which matters most in a pile you are trying to read at a glance.
+ * The retry-then-degrade behaviour lives in `components/card-art.tsx`; this is
+ * just the frame it sits in, sized to the card's own orientation.
  */
 function CardArt({ card }: { card: PoolCard }) {
-  const [state, setState] = useState<"loading" | "ready" | "failed">(
-    card.imageThumb ? "loading" : "failed",
-  );
-
   return (
     <div
       className="relative overflow-hidden rounded bg-zinc-100 ring-1 ring-black/10 dark:bg-zinc-900 dark:ring-white/15"
       style={{ aspectRatio: aspectRatio(card.type) }}
     >
-      {/* The name sits underneath until the art covers it, so a slow or failed
-          image reads as the card rather than as an empty box. */}
-      {state !== "ready" && (
-        <div className="absolute inset-0 flex items-center justify-center p-1 text-center text-[10px] leading-tight text-zinc-600 dark:text-zinc-300">
-          {card.name}
-        </div>
-      )}
-      {card.imageThumb && state !== "failed" && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={cardThumb(card.imageThumb)!}
-          alt={card.name}
-          loading="lazy"
-          onLoad={() => setState("ready")}
-          onError={() => setState("failed")}
-          className="relative size-full object-contain"
-        />
-      )}
+      <SharedCardArt
+        src={cardThumb(card.imageThumb)}
+        name={card.name}
+        className="object-contain"
+      />
     </div>
   );
 }

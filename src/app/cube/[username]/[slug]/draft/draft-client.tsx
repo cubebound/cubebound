@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import CardArt from "@/components/card-art";
 import { cardThumb } from "@/lib/card-images";
 import { domainDot } from "@/lib/domain-columns";
 import {
@@ -14,7 +15,6 @@ import { aspectRatio } from "@/lib/riftbound";
 
 import {
   makePickAction,
-  saveDraftAsCubeAction,
   setCardBoardAction,
   startDraftAction,
   type DraftActionState,
@@ -155,11 +155,8 @@ function CardButton({
   disabled: boolean;
 }) {
   // Art comes straight from the source CDN; a blank tile in a pack you are
-  // choosing from is the worst place for a slow or missing image.
-  const [artState, setArtState] = useState<"loading" | "ready" | "failed">(
-    card.imageThumb ? "loading" : "failed",
-  );
-
+  // choosing from is the worst place for a slow or missing image, which is why
+  // CardArt retries before settling on the name.
   return (
     <li>
       <button
@@ -173,25 +170,11 @@ function CardButton({
           className="relative overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-black/10 transition group-hover:ring-2 group-hover:ring-zinc-900 dark:bg-zinc-900 dark:ring-white/15 dark:group-hover:ring-zinc-100"
           style={{ aspectRatio: aspectRatio(card.type) }}
         >
-          {/* The name shows underneath until the art covers it — art is ~25KB
-              of WebP now, but a slow tile should still say what it is. */}
-          {artState !== "ready" && (
-            <div className="absolute inset-0 flex items-center justify-center p-2 text-center text-xs text-zinc-600 dark:text-zinc-300">
-              {card.name}
-            </div>
-          )}
-          {card.imageThumb && artState !== "failed" && (
-            // Plain <img> on purpose — see CLAUDE.md on not proxying card art.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cardThumb(card.imageThumb) ?? undefined}
-              alt={card.name}
-              loading="lazy"
-              onLoad={() => setArtState("ready")}
-              onError={() => setArtState("failed")}
-              className="relative size-full object-contain"
-            />
-          )}
+          <CardArt
+            src={cardThumb(card.imageThumb)}
+            name={card.name}
+            className="object-contain"
+          />
         </div>
         <p className="mt-1 flex items-center gap-1.5 text-xs">
           <span
@@ -281,21 +264,27 @@ export function PickScreen({
   );
 }
 
-/** End screen: the finished pool, still sortable, and a way to keep it. */
+/**
+ * End screen: the finished pool, still sortable.
+ *
+ * There is no "save as cube" any more. It predated `/drafts`, when a finished
+ * draft became unreachable the moment a newer one started and flattening it
+ * into a cube was the only way to keep it. Drafts are now kept as drafts —
+ * with their packs, their pick order and the main/side split, none of which
+ * survives being turned into a cube — so the button copied a pool into a
+ * second place for no gain and left people with cubes they did not mean to
+ * make. Cloning a cube is still how you get an editable copy of a *cube*.
+ */
 export function EndScreen({
   draftId,
   returnPath,
   pool,
-  defaultName,
 }: {
   draftId: string;
   returnPath: string;
   pool: PoolCard[];
-  defaultName: string;
 }) {
-  const [name, setName] = useState(defaultName);
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
 
   const move = async (card: PoolCard, board: "main" | "side") => {
     setError(null);
@@ -307,32 +296,14 @@ export function EndScreen({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Save this pool as a cube</span>
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            className="h-10 w-72 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          />
-        </label>
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() =>
-            startTransition(async () => {
-              setError(null);
-              await runAction(() => saveDraftAsCubeAction(draftId, name), setError);
-            })
-          }
-          className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-        >
-          {pending ? "Saving…" : "Save as cube"}
-        </button>
-        <span className="text-sm text-zinc-500">
-          Creates a private cube you own; sidelined cards go to its sideboard.
-        </span>
-      </div>
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        This draft is saved. Sort your pool between main and sideboard here —
+        it keeps, and you can reopen it any time from{" "}
+        <a href="/drafts" className="underline underline-offset-2">
+          your drafts
+        </a>
+        .
+      </p>
 
       {error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">

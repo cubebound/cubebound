@@ -361,7 +361,7 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - Card images render with a plain `<img>`, never `next/image`: optimizing through Vercel would proxy and cache them, which we are deliberately not doing yet — and would turn the line above from true into false.
 - **`image_thumb` and `image_full` are the same URL on every row** — the source has no thumbnail rendition, so a grid of tiles was pulling a ~875KB PNG per card and a twelve-card draft pack came to roughly 10MB. Riot's CDN is Sanity and resizes on request, so `cardThumb`/`cardFull` in `src/lib/card-images.ts` append `?w=…&fm=webp`. This is still the source CDN serving its own asset, so it stays inside the no-proxy rule. It happens at render time rather than in the sync so it applies to rows already stored, and an unrecognised host passes through untouched.
 - **`THUMB_WIDTH` is a source width, and must stay near 2× the rendered one.** Tiles render at 246 CSS px everywhere they appear, so it is 512: ~48KB, still roughly 18× lighter than the PNG. 320 was tried first and looked blurry — an undersized image on a 2× display reads as *unreadable card text*, not merely as a small picture, so trading further down the size is a false economy.
-- **A card tile shows its name until the art covers it.** Art arrives over the network and a blank tile is indistinguishable from a bug — that exact confusion was reported once. Tiles render the name underneath and let the image paint over it, falling back permanently on `onError`.
+- **A card tile shows its name until the art covers it, and retries before giving up.** Art arrives over the network and a blank tile is indistinguishable from a bug — that confusion has been reported twice. `src/components/card-art.tsx` is the one implementation: the name underneath, the art painting over it, **two retries** with a short backoff, then the name for good. The first version failed permanently on the first `onError`, which assumed a failure meant a bad URL; in practice the URLs are fine and the failures are transient — one card came back blank in a draft pack while its image served a normal 200 throughout, and appeared once the pack came round and the tile re-rendered. Two details make it work and are easy to leave out. The attempt number rides in the `src` as a cache-buster, because re-assigning an identical `src` does not make a browser fetch again. And a `ref` checks `complete && !naturalWidth` on mount, because **an image that fails before hydration never fires `onError`** — the browser requested it from the server-rendered HTML and the event was over before React attached a listener. Without that check the retry never ran on the card browser's sixty-tile grid, which is where it matters most; with it, 20 forced failures all recovered.
 - Rules text contains symbol tokens (`:rb_energy_1:`, `:rb_rune_fury:`). Never render `rules_text` raw — go through `parseRulesText` in `src/lib/rules-text.ts`, which resolves the tokens to badges and degrades unknown ones to readable words. Note the source names domain symbols `rune_*` but they are **Power** costs; runes are the resource cards you exhaust or recycle to produce Energy and Power.
 - Printings: `cards.base_id` is the id of the **canonical printing** of a card, resolved from card data — not from the id string. Sets reprint cards in their high-numbered showcase slots, within a set (`SFD-049` → `SFD-224`) and across sets (`OGN-013` "Pouty Poro" → `UNL-220`), so no amount of suffix-stripping can group them. Identity is `(lower(name), type)`; see `assignBaseIds` in `src/lib/card-ids.ts` and the matching SQL in `drizzle/0003_base_id_print_groups.sql`, which must stay in step. Because identity is name-based, different cards sharing a collector number (`UNL-T01` "Baron Pit" vs `UNL-001` "Arena Kingpin") never group. `npm run check:printings` asserts all of this.
 - Do **not** use rules text as card identity: showcase reprints drop the parenthetical reminder text and sometimes reword the ability outright.
@@ -671,6 +671,10 @@ restriction, so a row cannot come to mean two different things depending on
 where you meet it. The listing `queries/cubes.ts` used to own is gone; it
 counted the maybeboard, which nothing else does.
 
+- **Explore shows the top 50 of an ordering and does not page.** The number of
+  cubes in the database is not a visitor's business, and a page count reports it
+  implicitly — so there is no total and no pagination, just the head of whichever
+  sort you asked for. Searching is how you reach past the cap.
 - **Explore lists public cubes only, and that rule lives in the query.**
   Unlisted means "reachable by link but not advertised", so a search result
   would defeat the setting — including a search for its exact name by its own
@@ -863,8 +867,12 @@ smart; C adds the deck builder.
 - **Drafts are kept as drafts.** `/drafts` lists every draft the user has sat
   in, and `?draft={id}` on the draft route reopens one — a draft holds the
   packs it was dealt, every pick in order and the main/side split, none of
-  which survives being flattened into a cube. "Save as cube" stays for when you
-  want to *edit* the result. Without the id parameter the route shows the
+  which survives being flattened into a cube. **"Save as cube" is gone**: it
+  predated `/drafts`, when a finished draft became unreachable the moment a
+  newer one started and flattening it into a cube was the only way to keep it.
+  Now that drafts keep, it copied a pool into a second place for no gain and
+  left people with cubes they had not meant to make. Cloning is still how you
+  get an editable copy of a *cube*. Without the id parameter the route shows the
   latest draft of that cube, which is why a finished draft used to become
   unreachable the moment a new one started. A draft id belonging to someone
   else, or to another cube, falls back to the latest rather than opening.

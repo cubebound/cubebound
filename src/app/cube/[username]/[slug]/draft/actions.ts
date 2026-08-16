@@ -1,19 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import {
-  addCubeCard,
-  createCube,
   getCubeById,
-  recordCubeChange,
 } from "@/db/queries/cubes";
 import {
   createDraftRow,
   deleteDraft,
   getDraft,
-  getDraftPicks,
   getDraftPools,
   markDraftComplete,
   recordPicks,
@@ -29,7 +24,6 @@ import {
 } from "@/lib/draft/config";
 import { applyPick } from "@/lib/draft/engine";
 import { generatePacks } from "@/lib/draft/packs";
-import { defaultSectionForType } from "@/lib/riftbound";
 
 import { restoreDraftState } from "./state";
 
@@ -205,49 +199,3 @@ export async function deleteDraftAction(draftId: string): Promise<DraftActionSta
   return {};
 }
 
-/** Turns a finished pool into a private cube of the drafter's own. */
-export async function saveDraftAsCubeAction(
-  draftId: string,
-  name: string,
-): Promise<DraftActionState> {
-  const owned = await requireOwnDraft(draftId);
-  if ("error" in owned) return { error: owned.error };
-
-  const restored = await restoreDraftState(owned.draft);
-  if ("error" in restored) return { error: restored.error };
-
-  const pool = restored.state.pools[restored.state.humanSeat] ?? [];
-  if (pool.length === 0) return { error: "There's nothing in your pool yet." };
-
-  // Keep the main/side split the drafter made: their sideboard becomes the
-  // cube's sideboard rather than being flattened back into the deck.
-  const picks = (await getDraftPicks(owned.draft.id))
-    .filter((pick) => pick.seat === owned.draft.humanSeat)
-    .sort((a, b) => a.round - b.round || a.pickNumber - b.pickNumber);
-  const boards = picks.map((pick) => pick.board);
-
-  const cube = await createCube({
-    ownerId: owned.profile.id,
-    name: (name.trim() || "Drafted pool").slice(0, 100),
-    description: null,
-    visibility: "private",
-  });
-
-  // One row per card, quantity-merged by addCubeCard when a pool holds two.
-  for (const [index, card] of pool.entries()) {
-    const section =
-      boards[index] === "side" ? "sideboard" : defaultSectionForType(card.type);
-    await addCubeCard(cube.id, card.id, section, 1);
-  }
-  await recordCubeChange({
-    cubeId: cube.id,
-    actorId: owned.profile.id,
-    actorUsername: owned.profile.username,
-    kind: "cards_imported",
-    quantity: pool.length,
-    toValue: String(new Set(pool.map((card) => card.id)).size),
-  });
-
-  revalidatePath("/cubes");
-  redirect(`/cube/${owned.profile.username}/${cube.slug}/edit`);
-}

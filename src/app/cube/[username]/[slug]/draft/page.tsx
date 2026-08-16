@@ -209,12 +209,7 @@ export default async function DraftPage({
         others,
       )}
       {state.status === "complete" ? (
-        <EndScreen
-          draftId={draft.id}
-          returnPath={draftPath}
-          pool={pool}
-          defaultName={`${cube.name} draft`}
-        />
+        <EndScreen draftId={draft.id} returnPath={draftPath} pool={pool} />
       ) : (
         <PickScreen
           draftId={draft.id}

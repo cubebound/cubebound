@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import CubeResults from "@/components/cube-results";
-import Pagination from "@/components/pagination";
-import { CUBES_PAGE_SIZE, searchCubesPage, type CubeSort } from "@/db/queries/discovery";
+import { searchCubes, type CubeSort } from "@/db/queries/discovery";
+
+/** How many cubes Explore will show for one ordering. Past this, search. */
+const EXPLORE_LIMIT = 50;
 import { getCurrentUser } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -25,7 +27,11 @@ function one(value: string | string[] | undefined): string {
 export default async function ExplorePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string | string[]; card?: string | string[]; sort?: string | string[]; page?: string | string[] }>;
+  searchParams: Promise<{
+    q?: string | string[];
+    card?: string | string[];
+    sort?: string | string[];
+  }>;
 }) {
   const params = await searchParams;
   const keywords = one(params.q).slice(0, 100);
@@ -33,15 +39,19 @@ export default async function ExplorePage({
   const sort: CubeSort = one(params.sort) === "follows" ? "follows" : "updated";
 
   const current = await getCurrentUser();
-  const { cubes, total, page, pageCount } = await searchCubesPage({
+  // A capped list rather than a paged one. The total number of cubes in the
+  // database is not something visitors need, and pagination would report it
+  // implicitly through the page count — so Explore shows the top of whichever
+  // ordering you asked for and stops. Searching is how you reach past it.
+  const cubes = await searchCubes({
     keywords,
     cardName,
     sort,
     viewerId: current?.profile?.id ?? null,
-    page: Number(one(params.page)) || 1,
+    limit: EXPLORE_LIMIT,
   });
 
-  const href = (next: Partial<{ q: string; card: string; sort: string; page: number }>) => {
+  const href = (next: Partial<{ q: string; card: string; sort: string }>) => {
     const query = new URLSearchParams();
     const q = next.q ?? keywords;
     const c = next.card ?? cardName;
@@ -49,14 +59,13 @@ export default async function ExplorePage({
     if (q) query.set("q", q);
     if (c) query.set("card", c);
     if (s !== "updated") query.set("sort", s);
-    if (next.page && next.page > 1) query.set("page", String(next.page));
     const string = query.toString();
     return string ? `/explore?${string}` : "/explore";
   };
 
   const sortTab = (label: string, value: CubeSort) => (
     <Link
-      href={href({ sort: value, page: 1 })}
+      href={href({ sort: value })}
       aria-current={sort === value ? "page" : undefined}
       className={`rounded-md px-3 py-1.5 text-sm font-medium ${
         sort === value
@@ -109,8 +118,10 @@ export default async function ExplorePage({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {sortTab("Recently updated", "updated")}
         {sortTab("Most followed", "follows")}
-        <span className="ml-auto text-sm tabular-nums text-zinc-500">
-          {total} {total === 1 ? "cube" : "cubes"}
+        <span className="ml-auto text-sm text-zinc-500">
+          {cubes.length === EXPLORE_LIMIT
+            ? `Top ${EXPLORE_LIMIT}`
+            : `${cubes.length} ${cubes.length === 1 ? "cube" : "cubes"}`}
         </span>
       </div>
 
@@ -127,18 +138,6 @@ export default async function ExplorePage({
         />
       </div>
 
-      {pageCount > 1 && (
-        <div className="mt-6">
-          <Pagination
-            page={page}
-            pageCount={pageCount}
-            total={total}
-            pageSize={CUBES_PAGE_SIZE}
-            href={(target) => href({ page: target })}
-            label="cubes"
-          />
-        </div>
-      )}
     </div>
   );
 }

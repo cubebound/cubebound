@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, type ReactNode } from "react";
 
 import type { BrowseCard } from "@/db/queries/cards";
+import CardArt from "@/components/card-art";
 import { cardFull, cardThumb } from "@/lib/card-images";
 import { aspectRatio, DOMAIN_COLORS, titleCase } from "@/lib/riftbound";
 import { parseRulesText, type RulesSymbol } from "@/lib/rules-text";
@@ -312,19 +313,14 @@ export function CardTile({
           className={`relative overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-black/5 transition group-hover:ring-2 group-hover:ring-zinc-400 group-focus-visible:ring-2 group-focus-visible:ring-zinc-500 dark:bg-zinc-800 dark:ring-white/10 ${dimmed ? "opacity-45" : ""}`}
           style={{ aspectRatio: aspectRatio(card.type) }}
         >
-          {thumb ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={thumb}
-              alt={card.name}
-              loading="lazy"
-              className="size-full object-cover transition group-hover:scale-[1.02]"
-            />
-          ) : (
-            <div className="flex size-full items-center justify-center px-2 text-center text-xs text-zinc-500">
-              {card.name}
-            </div>
-          )}
+          {/* Retries a failed fetch before settling on the name: this grid
+              shows sixty tiles at once, so a transient CDN blip used to leave
+              broken images with nothing to identify them. */}
+          <CardArt
+            src={thumb}
+            name={card.name}
+            className="object-cover transition group-hover:scale-[1.02]"
+          />
           {/* Printing count is a bare number, not "×N" — that reads as a
               quantity, and a tile can show both at once. */}
           {showPrintingCount && card.printingCount > 1 && (
