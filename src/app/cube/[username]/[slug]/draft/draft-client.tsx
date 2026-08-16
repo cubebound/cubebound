@@ -68,10 +68,14 @@ export function StartDraft({
   cubeId,
   returnPath,
   pools,
+  currentDraftPath,
 }: {
   cubeId: string;
   returnPath: string;
   pools: PoolCounts;
+  /** Set when a draft of this cube already exists, so the screen can say it
+   *  survives. Starting another never destroys one. */
+  currentDraftPath?: string | null;
 }) {
   const [state, setState] = useState<DraftActionState>({});
   const [pending, startTransition] = useTransition();
@@ -86,6 +90,20 @@ export function StartDraft({
 
   return (
     <div className="max-w-2xl space-y-4">
+      {currentDraftPath && (
+        <p className="rounded-md border border-zinc-200 p-3 text-sm text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
+          Starting a new draft keeps the current one — it stays in{" "}
+          <a href="/drafts" className="underline underline-offset-2">
+            your drafts
+          </a>
+          .{" "}
+          <a href={currentDraftPath} className="underline underline-offset-2">
+            Back to it
+          </a>
+          .
+        </p>
+      )}
+
       <DraftSettings pools={pools} onChange={setConfig} />
 
       <button

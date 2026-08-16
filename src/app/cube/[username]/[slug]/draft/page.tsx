@@ -36,11 +36,15 @@ export default async function DraftPage({
   searchParams,
 }: {
   params: Promise<{ username: string; slug: string }>;
-  searchParams: Promise<{ draft?: string | string[] }>;
+  searchParams: Promise<{ draft?: string | string[]; new?: string | string[] }>;
 }) {
   const { username, slug } = await params;
   const query = await searchParams;
   const requestedId = Array.isArray(query.draft) ? query.draft[0] : query.draft;
+  // "New draft" routes here rather than dealing on the spot, so the settings
+  // are seen before anything is dealt — otherwise they are reachable only on a
+  // cube you have never drafted, which is nobody after the first time.
+  const wantsNew = (Array.isArray(query.new) ? query.new[0] : query.new) === "1";
   const cube = await getCubeByOwnerAndSlug(username, slug);
 
   // Same rule as the public page: anyone who can view a cube can draft it.
@@ -107,7 +111,7 @@ export default async function DraftPage({
   const history = await listDraftsForUser(current.profile.id);
   const forThisCube = history.filter((entry) => entry.cubeId === cube.id);
 
-  if (!draft) {
+  if (!draft || wantsNew) {
     // The settings panel does its own arithmetic from these counts, live as
     // you type — see draft-settings.tsx for why that matters more than a good
     // error message after the click.
@@ -121,7 +125,12 @@ export default async function DraftPage({
     return (
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
         {header()}
-        <StartDraft cubeId={cube.id} returnPath={draftPath} pools={counts} />
+        <StartDraft
+          cubeId={cube.id}
+          returnPath={draftPath}
+          pools={counts}
+          currentDraftPath={draft ? `${draftPath}?draft=${draft.id}` : null}
+        />
       </div>
     );
   }
@@ -196,11 +205,7 @@ export default async function DraftPage({
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
       {header(
-        <RestartDraft
-          cubeId={cube.id}
-          draftPath={draftPath}
-          unfinished={state.status !== "complete"}
-        />,
+        <RestartDraft draftPath={draftPath} />,
         others,
       )}
       {state.status === "complete" ? (

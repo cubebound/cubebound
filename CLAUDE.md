@@ -868,9 +868,12 @@ smart; C adds the deck builder.
 - Generic page controls live in `src/components/pagination.tsx`; the card
   browser's `CardPagination` wraps them to carry its filters through the link,
   which is the only part that differs between the two.
-- **"New draft" confirms when the current one is unfinished.** Nothing is
-  destroyed — the old draft stays in the list — but the button is one click
-  from twenty picks of work, and the screen should say so before it acts.
+- **"New draft" is a link to `?new=1`, not an action.** It used to deal on
+  click, which made the settings screen reachable only on a cube you had never
+  drafted — that is, never, after the first time. Routing to the settings makes
+  that screen the commit point, and it also replaces the old confirm: nothing is
+  dealt by *looking* at settings, and the screen says plainly that the current
+  draft survives, which is what the confirm existed to promise.
 - **Milestone A adds migration `0007`**, which was applied to production before
   the environment split (see "Environments"). The general rule still holds for
   the next one: a deploy does not migrate, so a feature adding tables fails at
