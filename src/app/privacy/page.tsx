@@ -11,8 +11,9 @@ export const metadata: Metadata = {
 /** The date the wording below last changed. Update it when the policy does. */
 const LAST_UPDATED = "16 August 2026";
 
-/** Where privacy requests go. */
-const CONTACT = "privacy@cubebound.gg";
+/** Where privacy requests go. Defined once — it appears four times below, and
+ *  a policy that lists an address nobody reads is worse than no policy. */
+const CONTACT = "contact@cubebound.gg";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
