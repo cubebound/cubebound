@@ -8,8 +8,10 @@ import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-para
 import CardGrid from "./card-grid";
 
 export const metadata: Metadata = {
-  title: "Cards",
-  description: "Browse every Riftbound card by set, domain, type and rarity.",
+  title: "Riftbound Card Database — All Sets",
+  description:
+    "Browse every Riftbound card by set, domain, energy cost, type, rarity and " +
+    "trait. Full art and rules text for all sets.",
 };
 
 export default async function CardsPage({

@@ -10,8 +10,10 @@ const EXPLORE_LIMIT = 60;
 const EXPLORE_PAGE_SIZE = 20;
 
 export const metadata: Metadata = {
-  title: "Explore cubes",
-  description: "Find Riftbound cubes by name, description, primer or the cards they hold.",
+  title: "Riftbound Cubes to Draft & Clone",
+  description:
+    "Browse Riftbound cubes built by the community. Search by name, description, " +
+    "primer or the cards they hold, then draft or clone one into your own account.",
 };
 
 const pagerClass =

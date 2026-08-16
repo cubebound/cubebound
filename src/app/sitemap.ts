@@ -23,6 +23,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${site}/`, changeFrequency: "weekly", priority: 1 },
     { url: `${site}/explore`, changeFrequency: "daily", priority: 0.8 },
     { url: `${site}/cards`, changeFrequency: "weekly", priority: 0.7 },
+    // The only page that explains the format rather than serving the tool, so
+    // it is the one a search engine can understand the site by.
+    {
+      url: `${site}/guides/riftbound-cube-drafting`,
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    { url: `${site}/privacy`, changeFrequency: "yearly", priority: 0.2 },
   ];
 
   let cubes: Awaited<ReturnType<typeof listPublicCubesForSitemap>> = [];

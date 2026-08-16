@@ -35,7 +35,8 @@ Open items:
   URLs. The live domain must stay on the Supabase redirect allowlist; see
   "Auth and data access" for what breaks when it isn't.
 - **CI covers typecheck, lint, build, `check:primer-safety`, `check:draft` and
-  `check:analytics`** on push and PR. The other ten need a live Supabase and are
+  `check:analytics`** on push and PR. The other eleven need a live Supabase or the
+  card pool and are
   a documented pre-deploy manual gate — see "Checks". Run that gate before
   deploying.
 - Feature work lands on a branch and pushes to
@@ -262,6 +263,8 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 ```
 /                                     landing
 /cards                                card browser (milestone 3)
+/guides/riftbound-cube-drafting       the format explained — static, no data
+/privacy                              privacy policy — static, must match the code
 /explore                              public cube search — ?q= &card= &sort= &page=
 /u/{username}                         public profile — their public cubes; ?q= &page=
 /profile                              redirect to your own /u/{username}
@@ -352,7 +355,43 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - Never hand-edit card data; fix the sync instead.
 - Keep components small; colocate route-specific components under their route folder.
 - Riftbound term casing in UI: domains and card types are proper nouns (Fury, Battlefield). Sources store them lowercase; title-case at the boundary via `titleCase` in `src/lib/riftbound.ts`.
-- Filter dropdowns are built from the **distinct values actually in the DB**, then sorted by the canonical lists in `src/lib/riftbound.ts` with unrecognized values kept at the end (`sortByCanonical`). A new set's new rarity therefore appears without a code change — `Promo` already does, and is not in `RARITIES`.
+- Filter dropdowns are built from the **distinct values actually in the DB**, then sorted by the canonical lists in `src/lib/riftbound.ts` with unrecognized values kept at the end (`sortByCanonical`). A new set's new rarity therefore appears without a code change — `Promo` already does, and is not in `RARITIES`. That is also why sorting asserts on a **rank**, not a value: "sort by rarity ends at Showcase" is wrong, because `Promo` sorts after it.
+- **Set, domain, rarity and energy are multi-select; they OR within a filter and
+  AND across filters.** Ticking Fury and Calm means either — an AND would return
+  only dual-domain cards, a much rarer question. The URL keys stay **singular and
+  repeat** (`?domain=Fury&domain=Calm`) rather than becoming `domains`, so links
+  shared before multi-select still work, and because that is exactly what a plain
+  HTML checkbox group submits: the no-JS path and the router produce the same URL.
+  Type and trait stay single-select — they are long lists where narrowing is the
+  point.
+- **The energy filter buckets 0–8, `9+` and `none`.** The pool thins sharply at
+  the top (9, 10 and 12 together are 23 cards against 220 at cost 2), so a chip
+  per value up there would be three that rarely match and a gap at 11; `9+` is a
+  `>=` so a future 13-cost card needs no code change. **`none` is not 0** —
+  legends, runes and battlefields have no energy cost at all, 243 of 1,288
+  printings, and without a bucket of their own they would be the fifth of the
+  pool no cost filter could reach. `check:card-filters` asserts the buckets
+  partition the pool exactly, which is what catches both mistakes.
+- **A set's printed name comes from the stored raw payload**
+  (`data->'card'->'set'->>'label'`), not a lookup table, so a newly synced set
+  names itself like every other filter value. The six retired-source token rows
+  have a different payload shape and yield null, so the code stands in. Ordered
+  by **name**, not code: the codes interleave promos through the real sets
+  (JDG, OGN, OGS, OPP, PR…), which reads as no order at all.
+- **Sorting is `?sort=` over set (default), name, energy, type, rarity.** Rarity
+  and type rank against the canonical lists rather than sorting alphabetically,
+  and **`CARD_TYPE_ORDER` is not `CARD_TYPES`** — the latter is display
+  vocabulary including "Champion Unit" and "Signature Spell", which are a `type`
+  plus a `supertype` and match no row's `type` column, so ranking against it
+  would drop every card into the fallback bucket. Every ordering ends with the
+  printed order as its tie-break, since 220 cards share cost 2.
+- **A `"use client"` module must import only *types* from `src/db/queries/`.**
+  Importing a value pulls `src/db/index.ts` in behind it and bundles the postgres
+  driver for the browser — which fails with a `node:crypto` resolution error
+  naming nothing relevant. That is why `CARD_SORTS` and `CARD_SORT_LABELS` live
+  in `src/lib/riftbound.ts` rather than beside `searchCards`. This is the mirror
+  of the rule below about client modules' exports not being callable from the
+  server: shared *values* belong in `src/lib/`, whichever direction they travel.
 - **`cards.tags` is the type line's trait half**, and it mixes three unrelated
   things: where a card is from (Ionia), what it is (Pirate, Dragon) and which
   champion it belongs to (Ahri). 127 distinct values, 95 of them champion names.
@@ -647,6 +686,27 @@ a stale row — but it means a source switch leaves residue worth checking for.
   is where a per-cube decision belongs. `sitemap.ts` lists public cubes and
   their owners via `searchCubes`, so the public-only rule is the same single one
   Explore uses, and it degrades to the static pages rather than 500ing.
+- **The sitemap has a thin-content floor: `SITEMAP_MIN_CARDS` (20).** A
+  near-empty cube's page is a name, a byline and nothing to read, and on a site
+  this size a handful of them is a large share of everything indexable — two
+  abandoned test cubes were a sixth of the sitemap. Submitting a URL is a claim
+  that it is worth reading, so the sitemap makes that claim only where it is
+  true. The cubes stay public and reachable either way; this is about what is
+  *advertised*, not what exists.
+- **Page titles carry the words people search, not just the brand.** The
+  homepage default was `cubebound.gg`, which ranked for nothing because nobody
+  searches a brand they have not heard of; it is now
+  "Riftbound Cube Builder & Draft Simulator · cubebound.gg". The title template
+  still appends the suffix to every other page, so page titles must not repeat
+  it. `/guides/riftbound-cube-drafting` exists as the one page that explains the
+  format rather than serving the tool — a crawler meeting only a login wall and
+  a list of other people's cubes has nothing to understand the site by.
+- **`/privacy` describes what the code actually does, so it changes with the
+  code.** Its cookie list is `THEME_COOKIE` and `CUBE_VIEW_COOKIE`; "analytics"
+  is the Vercel Analytics component in the root layout; and it says plainly that
+  account deletion is not yet self-serve, because promising a button that does
+  not exist is the one genuinely dishonest thing that page could do. **When
+  account deletion ships, that section is part of the same change.**
 - **A cube's cover art is a card in that cube** (`cubes.cover_card_id`), picked
   on the settings page. Restricted to cards the cube holds, because a cover is
   meant to say what the cube *is* rather than be an arbitrary image slot.
@@ -975,6 +1035,7 @@ which is why they can create and delete accounts freely.
 | `check:primer-safety` | hostile markdown renders inert through the real component | nothing | **CI** |
 | `check:printings` | the TS and SQL `base_id` rules agree on every row | DB (read-only) | manual gate |
 | `check:browse-grid` | a grouped tile is a card, an all-printings tile is itself | Supabase + dev server | manual gate |
+| `check:card-filters` | multi-select ORs within a filter and ANDs across; energy buckets partition the pool; sorting uses the game's order | DB (read-only) | manual gate |
 | `check:copies-and-log` | quantity 2 lists as two entries; per-copy edits move one copy; edits reach the log | Supabase + dev server | manual gate |
 | `check:public-cube` | visibility gating, cloning, quantity-aware counts | Supabase + dev server | manual gate |
 | `check:auth-flow` | claiming a username refreshes the nav (`revalidatePath`) | Supabase + dev server + Chrome :9222 | manual gate |
@@ -1040,7 +1101,7 @@ reuses a populated `.next` and an existing `.env.local`, so it passes on state
 CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
 `npm ci`, set placeholder env, then run the steps.
 
-### Why the other eight are a manual gate, not CI
+### Why the other eleven are a manual gate, not CI
 
 Five of them `INSERT` directly into `auth.users` and then exchange a password
 grant against a live GoTrue endpoint to mint a session cookie. That needs a
@@ -1053,8 +1114,9 @@ expose secrets to pull requests from forks, so the job would fail on exactly
 the contributions most worth checking; and it means maintaining a second live
 project whose auth schema has to track production's.
 
-`check:printings` is excluded for a different reason — it validates the *card
-pool*, which changes only when `sync-cards` runs, not when app code changes.
+`check:printings` and `check:card-filters` are excluded for a different reason —
+they validate the *card pool*, which changes only when `sync-cards` runs, not
+when app code changes.
 Running it per-push against a freshly synced throwaway database would test less
 than running it by hand against the real pool. **Run it after every sync.**
 
@@ -1064,7 +1126,7 @@ The gate, before deploying and after any card sync:
 SIGNIN_PROBE=1 npm run dev:probe    # terminal 1 (probe armed; plain `npm run dev` also works
                                     #  for everything except check:magic-link)
 chrome --headless=new --remote-debugging-port=9222 --user-data-dir=/tmp/cbchrome about:blank
-npm run check:printings && npm run check:browse-grid && \
+npm run check:printings && npm run check:browse-grid && npm run check:card-filters && \
 npm run check:copies-and-log && npm run check:public-cube && \
 npm run check:auth-flow && npm run check:cube-ownership && \
 npm run check:magic-link && npm run check:import && npm run check:discovery && \

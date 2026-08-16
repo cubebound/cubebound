@@ -3,9 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+// Types only from the query layer — importing a *value* from there pulls
+// `src/db/index.ts` in behind it and bundles the postgres driver for the
+// browser. See the note on CARD_SORTS in src/lib/riftbound.ts.
 import type { CardFilters, FilterOptions } from "@/db/queries/cards";
 import { cardFilterParams } from "@/lib/card-search-params";
-import { DOMAIN_COLORS } from "@/lib/riftbound";
+import {
+  CARD_SORT_LABELS,
+  CARD_SORTS,
+  type CardSort,
+  DOMAIN_COLORS,
+  ENERGY_BUCKETS,
+  ENERGY_BUCKET_LABELS,
+} from "@/lib/riftbound";
 
 interface Props {
   options: FilterOptions;
@@ -19,9 +29,124 @@ interface Props {
   unit?: string;
 }
 
-const selectClass =
+const controlClass =
   "h-9 rounded-md border border-zinc-300 bg-white px-2 text-sm text-zinc-900 " +
   "focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+
+const checkboxClass = "size-4 shrink-0 accent-zinc-900 dark:accent-zinc-100";
+
+/** Adds or removes one value, always returning a new array. */
+function toggle(list: string[] | undefined, value: string, checked: boolean): string[] {
+  const next = new Set(list ?? []);
+  if (checked) next.add(value);
+  else next.delete(value);
+  return [...next];
+}
+
+/**
+ * A dropdown of checkboxes.
+ *
+ * Built on `<details>` rather than a controlled popover for two reasons: it
+ * opens and closes with no React state at all, and it keeps working with
+ * JavaScript off — the checkboxes inside carry real `name`/`value` attributes,
+ * so the surrounding form submits `?domain=Fury&domain=Calm` on its own. That
+ * is the same URL the router produces, so both paths agree.
+ *
+ * Closing on an outside click is done by setting `open` on the element
+ * directly. The alternative — mirroring open state in React — would mean
+ * writing state from an effect, which the compiler rightly rejects, to
+ * reproduce behaviour the browser already has.
+ */
+function FilterMenu({
+  label,
+  summary,
+  count,
+  children,
+  width = "w-64",
+}: {
+  label: string;
+  summary: string;
+  count: number;
+  children: React.ReactNode;
+  width?: string;
+}) {
+  const ref = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    const close = (event: Event) => {
+      const el = ref.current;
+      if (!el?.open) return;
+      if (event.target instanceof Node && el.contains(event.target)) return;
+      el.open = false;
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && ref.current?.open) ref.current.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  return (
+    <details ref={ref} className="relative">
+      <summary
+        aria-label={label}
+        className={`${controlClass} flex cursor-pointer list-none items-center gap-1.5 whitespace-nowrap [&::-webkit-details-marker]:hidden ${
+          count > 0 ? "border-zinc-500 dark:border-zinc-400" : ""
+        }`}
+      >
+        <span>{summary}</span>
+        {/* Only past one: at a single choice the summary already names it, and
+            "Rare 1" reads as a quantity of cards rather than of filters. */}
+        {count > 1 && (
+          <span className="rounded bg-zinc-900 px-1.5 text-xs font-medium text-white tabular-nums dark:bg-zinc-100 dark:text-zinc-900">
+            {count}
+          </span>
+        )}
+        <svg viewBox="0 0 12 12" aria-hidden className="size-3 fill-current opacity-60">
+          <path d="M2 4.5 6 8.5 10 4.5Z" />
+        </svg>
+      </summary>
+      <div
+        className={`absolute left-0 z-30 mt-1 ${width} max-h-80 overflow-y-auto rounded-md border border-zinc-300 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900`}
+      >
+        {children}
+      </div>
+    </details>
+  );
+}
+
+/** One checkbox row inside a menu. */
+function CheckRow({
+  name,
+  value,
+  checked,
+  onChange,
+  children,
+}: {
+  name: string;
+  value: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
+      <input
+        type="checkbox"
+        name={name}
+        value={value}
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className={checkboxClass}
+      />
+      {children}
+    </label>
+  );
+}
 
 export default function CardFilterBar({
   options,
@@ -85,15 +210,31 @@ export default function CardFilterBar({
     );
   }
 
+  const sets = active.sets ?? [];
+  const domains = active.domains ?? [];
+  const rarities = active.rarities ?? [];
+  const energy = active.energy ?? [];
+
   const hasFilters = Boolean(
     active.q ||
-      active.set ||
-      active.domain ||
+      sets.length ||
+      domains.length ||
+      rarities.length ||
+      energy.length ||
       active.type ||
-      active.rarity ||
       active.trait ||
+      active.sort ||
       active.allPrintings,
   );
+
+  /**
+   * The button's label: the group name when nothing or several are chosen, and
+   * the choice itself when exactly one is. Listing two or three would truncate
+   * at this width and shift the whole bar as they were ticked, so past one the
+   * badge carries the number instead.
+   */
+  const summarize = (chosen: string[], plural: string, only?: string) =>
+    chosen.length === 1 ? (only ?? chosen[0]) : plural;
 
   return (
     <form
@@ -119,63 +260,128 @@ export default function CardFilterBar({
         className="h-9 min-w-56 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
       />
 
-      <select
-        name="set"
-        aria-label="Set"
-        value={active.set ?? ""}
-        onChange={(event) => navigate({ set: event.target.value })}
-        className={selectClass}
+      {/* Sets carry their printed name as well as the code: "SFD" means nothing
+          until you know it is Spiritforged, and the code alone was the filter
+          people asked about most. */}
+      <FilterMenu
+        label="Sets"
+        summary={summarize(
+          sets,
+          "Sets",
+          options.sets.find((s) => s.code === sets[0])?.label,
+        )}
+        count={sets.length}
+        width="w-72"
       >
-        <option value="">All sets</option>
-        {options.sets.map((value) => (
-          <option key={value} value={value}>
-            {value}
-          </option>
+        {options.sets.map((set) => (
+          <CheckRow
+            key={set.code}
+            name="set"
+            value={set.code}
+            checked={sets.includes(set.code)}
+            onChange={(checked) => navigate({ sets: toggle(sets, set.code, checked) })}
+          >
+            <span className="min-w-0 flex-1 truncate">{set.label}</span>
+            <span className="shrink-0 font-mono text-xs text-zinc-500">{set.code}</span>
+          </CheckRow>
         ))}
-      </select>
+      </FilterMenu>
 
-      <select
-        name="domain"
-        aria-label="Domain"
-        value={active.domain ?? ""}
-        onChange={(event) => navigate({ domain: event.target.value })}
-        className={selectClass}
-        style={
-          active.domain ? { borderColor: DOMAIN_COLORS[active.domain] ?? undefined } : undefined
-        }
+      <FilterMenu
+        label="Domains"
+        summary={summarize(domains, "Domains")}
+        count={domains.length}
+        width="w-56"
       >
-        <option value="">All domains</option>
-        {options.domains.map((value) => (
-          <option key={value} value={value}>
-            {value}
-          </option>
+        {options.domains.map((domain) => (
+          <CheckRow
+            key={domain}
+            name="domain"
+            value={domain}
+            checked={domains.includes(domain)}
+            onChange={(checked) => navigate({ domains: toggle(domains, domain, checked) })}
+          >
+            {/* The colour is the fast way to read this list — the names are
+                Riftbound's, not colours, so "Body" says nothing about orange. */}
+            <span
+              aria-hidden
+              className="size-3.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/20"
+              style={{ backgroundColor: DOMAIN_COLORS[domain] ?? "transparent" }}
+            />
+            {domain}
+          </CheckRow>
         ))}
-      </select>
+      </FilterMenu>
+
+      {/* Chips rather than rows: eleven buckets read as a scale laid out in a
+          grid, and a cost filter is something you tick several of at once. */}
+      <FilterMenu
+        label="Energy cost"
+        summary={summarize(energy, "Energy")}
+        count={energy.length}
+        width="w-64"
+      >
+        <div className="grid grid-cols-4 gap-1">
+          {ENERGY_BUCKETS.map((bucket) => {
+            const checked = energy.includes(bucket);
+            return (
+              <label
+                key={bucket}
+                className={`flex h-8 cursor-pointer items-center justify-center rounded border text-sm tabular-nums ${
+                  checked
+                    ? "border-zinc-900 bg-zinc-900 font-medium text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                    : "border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                } ${bucket === "none" ? "col-span-2" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  name="energy"
+                  value={bucket}
+                  checked={checked}
+                  onChange={(event) =>
+                    navigate({ energy: toggle(energy, bucket, event.target.checked) })
+                  }
+                  className="sr-only"
+                />
+                {ENERGY_BUCKET_LABELS[bucket] ?? bucket}
+              </label>
+            );
+          })}
+        </div>
+        <p className="mt-2 px-1 text-xs text-zinc-500">
+          “None” is legends, runes and battlefields, which have no energy cost
+          at all.
+        </p>
+      </FilterMenu>
+
+      <FilterMenu
+        label="Rarities"
+        summary={summarize(rarities, "Rarity")}
+        count={rarities.length}
+        width="w-52"
+      >
+        {options.rarities.map((rarity) => (
+          <CheckRow
+            key={rarity}
+            name="rarity"
+            value={rarity}
+            checked={rarities.includes(rarity)}
+            onChange={(checked) => navigate({ rarities: toggle(rarities, rarity, checked) })}
+          >
+            {rarity}
+          </CheckRow>
+        ))}
+      </FilterMenu>
 
       <select
         name="type"
         aria-label="Card type"
         value={active.type ?? ""}
         onChange={(event) => navigate({ type: event.target.value })}
-        className={selectClass}
+        className={controlClass}
       >
         <option value="">All types</option>
         {options.types.map((value) => (
-          <option key={value} value={value}>
-            {value}
-          </option>
-        ))}
-      </select>
-
-      <select
-        name="rarity"
-        aria-label="Rarity"
-        value={active.rarity ?? ""}
-        onChange={(event) => navigate({ rarity: event.target.value })}
-        className={selectClass}
-      >
-        <option value="">All rarities</option>
-        {options.rarities.map((value) => (
           <option key={value} value={value}>
             {value}
           </option>
@@ -190,7 +396,7 @@ export default function CardFilterBar({
         aria-label="Trait"
         value={active.trait ?? ""}
         onChange={(event) => navigate({ trait: event.target.value })}
-        className={selectClass}
+        className={controlClass}
       >
         <option value="">All traits</option>
         {options.traits.regions.length > 0 && (
@@ -222,6 +428,20 @@ export default function CardFilterBar({
         )}
       </select>
 
+      <select
+        name="sort"
+        aria-label="Sort by"
+        value={active.sort ?? "set"}
+        onChange={(event) => navigate({ sort: event.target.value as CardSort })}
+        className={controlClass}
+      >
+        {CARD_SORTS.map((value) => (
+          <option key={value} value={value}>
+            {CARD_SORT_LABELS[value]}
+          </option>
+        ))}
+      </select>
+
       <label
         className="flex h-9 cursor-pointer items-center gap-2 px-1 text-sm text-zinc-700 dark:text-zinc-300"
         title="Alt-art and signature printings are hidden by default"
@@ -232,12 +452,12 @@ export default function CardFilterBar({
           value="all"
           checked={active.allPrintings ?? false}
           onChange={(event) => navigate({ allPrintings: event.target.checked })}
-          className="size-4 accent-zinc-900 dark:accent-zinc-100"
+          className={checkboxClass}
         />
         All printings
       </label>
 
-      {/* Submit target for Enter / no-JS browsers; the selects auto-apply. */}
+      {/* Submit target for Enter / no-JS browsers; the controls auto-apply. */}
       <button
         type="submit"
         className="h-9 rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"

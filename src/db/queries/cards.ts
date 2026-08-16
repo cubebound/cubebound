@@ -4,19 +4,27 @@ import {
   count,
   countDistinct,
   eq,
+  gte,
   ilike,
   inArray,
+  isNull,
   or,
   sql,
   type SQL,
+  type SQLWrapper,
 } from "drizzle-orm";
 
 import { db } from "..";
 import { cards } from "../schema";
 import {
+  CARD_TYPE_ORDER,
   CARD_TYPES,
+  type CardSort,
   COLORLESS,
   DOMAINS,
+  ENERGY_HIGH,
+  ENERGY_MAX_BUCKET,
+  ENERGY_NONE,
   RARITIES,
   REGIONS,
   sortByCanonical,
@@ -24,14 +32,29 @@ import {
 
 export const PAGE_SIZE = 60;
 
+/**
+ * The active filters.
+ *
+ * Set, domain, rarity and energy are **multi-select and OR within themselves**,
+ * and AND across each other: picking Fury and Calm asks for cards in either,
+ * picking Fury and Common asks for Fury commons. OR is what people mean when
+ * they tick two domains — an AND would return only dual-domain Fury/Calm cards,
+ * which is a much rarer question and one the trait filter shape already covers.
+ *
+ * The URL keys stay singular and repeat (`?domain=Fury&domain=Calm`) rather than
+ * becoming `domains`, so links shared before multi-select existed still work.
+ */
 export interface CardFilters {
   q?: string;
-  set?: string;
-  domain?: string;
+  sets?: string[];
+  domains?: string[];
   type?: string;
-  rarity?: string;
+  rarities?: string[];
+  /** Bucket keys from `ENERGY_BUCKETS`: "0".."8", "9+", "none". */
+  energy?: string[];
   /** A single value from `cards.tags` — a region, creature type or champion. */
   trait?: string;
+  sort?: CardSort;
   page?: number;
   /** Show every printing instead of one row per base printing. */
   allPrintings?: boolean;
@@ -74,8 +97,15 @@ export type BrowseCard = {
   printingCount: number;
 };
 
+/** A set as the filter offers it: the code stays the value, the label is for
+ *  reading. "SFD" tells you nothing until you know it means Spiritforged. */
+export interface SetOption {
+  code: string;
+  label: string;
+}
+
 export interface FilterOptions {
-  sets: string[];
+  sets: SetOption[];
   domains: string[];
   types: string[];
   rarities: string[];
@@ -107,6 +137,18 @@ const rulesSearchText = sql`
       ':rb_rune_([a-z]+):', ' \\1 power ', 'g'),
     ':rb_([a-z0-9_]+):', ' \\1 ', 'g')`;
 
+/**
+ * One energy bucket as a condition. "9+" is open-ended and "none" is NULL —
+ * neither is an equality, which is why this is a switch rather than an
+ * `inArray` over the numbers.
+ */
+function energyCondition(bucket: string): SQL | undefined {
+  if (bucket === ENERGY_NONE) return isNull(cards.energyCost);
+  if (bucket === ENERGY_HIGH) return gte(cards.energyCost, ENERGY_MAX_BUCKET + 1);
+  const value = Number(bucket);
+  return Number.isInteger(value) ? eq(cards.energyCost, value) : undefined;
+}
+
 function buildWhere(filters: CardFilters): SQL | undefined {
   const clauses: SQL[] = [];
   const term = filters.q?.trim();
@@ -123,14 +165,41 @@ function buildWhere(filters: CardFilters): SQL | undefined {
     );
     if (nameOrRules) clauses.push(nameOrRules);
   }
-  if (filters.set) clauses.push(eq(cards.setCode, filters.set));
+  if (filters.sets?.length) clauses.push(inArray(cards.setCode, filters.sets));
   if (filters.type) clauses.push(eq(cards.type, filters.type));
-  if (filters.rarity) clauses.push(eq(cards.rarity, filters.rarity));
-  if (filters.domain) clauses.push(arrayContains(cards.domains, [filters.domain]));
+  if (filters.rarities?.length) clauses.push(inArray(cards.rarity, filters.rarities));
+
+  // Any of the ticked domains, not all of them — see the note on CardFilters.
+  // Array containment per domain rather than overlap, so the semantics match
+  // the single-domain filter this replaced exactly.
+  if (filters.domains?.length) {
+    const any = or(...filters.domains.map((d) => arrayContains(cards.domains, [d])));
+    if (any) clauses.push(any);
+  }
+
+  if (filters.energy?.length) {
+    const buckets = filters.energy
+      .map(energyCondition)
+      .filter((c): c is SQL => c !== undefined);
+    const any = or(...buckets);
+    if (any) clauses.push(any);
+  }
+
   // Exact containment, not a substring: the dropdown offers real values, and
   // "Zaun" must not also match a future "Zaunite".
   if (filters.trait) clauses.push(arrayContains(cards.tags, [filters.trait]));
   return clauses.length > 0 ? and(...clauses) : undefined;
+}
+
+/**
+ * Ranks a column against a canonical list, so "sort by rarity" means the game's
+ * order rather than alphabetical — Common before Uncommon before Rare, not
+ * Common, Epic, Rare. Anything unrecognized sorts last instead of failing,
+ * which is the same rule `sortByCanonical` follows for the dropdowns.
+ */
+function canonicalRank(column: SQL | SQLWrapper, order: readonly string[]): SQL {
+  const whens = order.map((value, index) => sql`when ${value} then ${index}`);
+  return sql`(case ${column} ${sql.join(whens, sql` `)} else ${order.length} end)`;
 }
 
 export async function searchCards(
@@ -154,25 +223,54 @@ export async function searchCards(
     "printing_count",
   );
 
-  // Set, then collector number. length() before the value sorts numeric strings
-  // numerically without a cast, which would throw on token ids like UNL-T01.
-  const displayOrder = (col: {
+  const sort = filters.sort ?? "set";
+
+  /**
+   * The ORDER BY for a sort, over either `cards` or the grouped subquery.
+   *
+   * Every ordering ends with the printed order as its tie-break, so equal
+   * values (and there are many — 220 cards cost 2) come out in a stable,
+   * meaningful sequence rather than whatever the plan happens to produce.
+   * length() before the value sorts numeric strings numerically without a
+   * cast, which would throw on token ids like UNL-T01.
+   */
+  const orderFor = (col: {
     setCode: unknown;
     collectorNo: unknown;
     id: unknown;
-  }) => [
-    col.setCode as never,
-    sql`length(${col.collectorNo})`,
-    col.collectorNo as never,
-    col.id as never,
-  ];
+    name: unknown;
+    energyCost: unknown;
+    type: unknown;
+    rarity: unknown;
+  }) => {
+    const printed = [
+      col.setCode as never,
+      sql`length(${col.collectorNo})`,
+      col.collectorNo as never,
+      col.id as never,
+    ];
+    switch (sort) {
+      case "name":
+        return [col.name as never, ...printed];
+      // Costless cards last rather than first: they have no cost at all, so
+      // leading with them would read as a pile of zero-drops.
+      case "energy":
+        return [sql`${col.energyCost} asc nulls last`, col.name as never, ...printed];
+      case "type":
+        return [canonicalRank(col.type as SQLWrapper, CARD_TYPE_ORDER), ...printed];
+      case "rarity":
+        return [canonicalRank(col.rarity as SQLWrapper, RARITIES), ...printed];
+      default:
+        return printed;
+    }
+  };
 
   if (!grouped) {
     const rows = await db
       .select({ ...browseColumns, printingCount })
       .from(cards)
       .where(where)
-      .orderBy(...displayOrder(cards))
+      .orderBy(...orderFor(cards))
       .limit(PAGE_SIZE)
       .offset(offset);
     return { cards: rows, total, page, pageCount };
@@ -192,7 +290,7 @@ export async function searchCards(
   const rows = await db
     .select()
     .from(representative)
-    .orderBy(...displayOrder(representative))
+    .orderBy(...orderFor(representative))
     .limit(PAGE_SIZE)
     .offset(offset);
 
@@ -257,7 +355,18 @@ export async function getCardById(id: string): Promise<BrowseCard | null> {
  */
 export async function getFilterOptions(): Promise<FilterOptions> {
   const [sets, domains, types, rarities, tags, championTags] = await Promise.all([
-    db.selectDistinct({ value: cards.setCode }).from(cards),
+    // The set's printed name comes out of the stored raw payload rather than a
+    // lookup table here, so a newly synced set names itself — the same rule the
+    // other dropdowns follow. `min()` because the grouping needs an aggregate;
+    // every set has exactly one label. The six retired-source token rows have a
+    // different payload shape and yield null, so the code stands in for them.
+    db.execute<{ code: string; label: string | null }>(
+      sql`select ${cards.setCode} as code,
+                 min(${cards.data}->'card'->'set'->>'label') as label
+          from ${cards}
+          group by ${cards.setCode}
+          order by ${cards.setCode}`,
+    ),
     db.execute<{ value: string }>(
       sql`select distinct unnest(${cards.domains}) as value from ${cards}`,
     ),
@@ -282,7 +391,14 @@ export async function getFilterOptions(): Promise<FilterOptions> {
   const regions = new Set<string>(REGIONS);
 
   return {
-    sets: values(sets).sort(),
+    // By printed name, not by code. The codes interleave the promo sets through
+    // the real ones (JDG, OGN, OGS, OPP, PR…), which reads as no order at all;
+    // by name the main sets and the "Riftbound … Promotional" ones fall into
+    // their own runs.
+    sets: [...sets]
+      .filter((row) => row.code)
+      .map((row) => ({ code: row.code, label: row.label || row.code }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
     domains: sortByCanonical(values(domains), [...DOMAINS, COLORLESS]),
     types: sortByCanonical(values(types), CARD_TYPES),
     rarities: sortByCanonical(values(rarities), RARITIES),

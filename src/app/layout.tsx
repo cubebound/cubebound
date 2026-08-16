@@ -36,11 +36,19 @@ export async function generateMetadata(): Promise<Metadata> {
   const site = resolveSiteUrl(await headers());
   return {
     metadataBase: new URL(site),
+    // The default is the homepage's title, and it is the strongest on-page
+    // signal there is — so it names what the site *does*, not just the brand.
+    // "cubebound.gg" alone ranked for nothing because nobody searches a brand
+    // they have never heard of. The template keeps the suffix on every other
+    // page, so page titles must not repeat it.
     title: {
-      default: "cubebound.gg",
+      default: "Riftbound Cube Builder & Draft Simulator · cubebound.gg",
       template: "%s · cubebound.gg",
     },
-    description: "Build and draft Riftbound cubes.",
+    description:
+      "Build a Riftbound cube from the full card pool, draft it against bots, " +
+      "and share it. A free cube builder and draft simulator for Riftbound, " +
+      "Riot's League of Legends TCG.",
     openGraph: {
       siteName: "cubebound.gg",
       type: "website",
@@ -98,7 +106,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 the views or opinions of Riot Games or anyone officially involved
                 in producing or managing Riot Games properties.
               </p>
-              <p className="mt-2 text-xs text-zinc-500">
+              <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-500">
+                <Link
+                  href="/guides/riftbound-cube-drafting"
+                  className="underline-offset-2 hover:text-zinc-700 hover:underline dark:hover:text-zinc-300"
+                >
+                  How to build and draft a cube
+                </Link>
+                <Link
+                  href="/privacy"
+                  className="underline-offset-2 hover:text-zinc-700 hover:underline dark:hover:text-zinc-300"
+                >
+                  Privacy
+                </Link>
                 <a
                   href="https://x.com/cubeboundgg"
                   target="_blank"

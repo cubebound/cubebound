@@ -228,6 +228,18 @@ export async function searchCubesPage(
  * and wasteful for two thousand. A crawler needs a URL and a date. Public only,
  * by the same `visibility` rule as everything else here.
  */
+/**
+ * Cubes worth crawling: public, and holding at least `SITEMAP_MIN_CARDS`.
+ *
+ * The floor is the point. A near-empty cube is thin content — the page is a
+ * name, a byline and nothing to read — and on a site this size a handful of
+ * them is a large share of everything indexable, which drags the whole domain.
+ * Two abandoned test cubes were a sixth of the sitemap. Submitting a page is a
+ * claim that it is worth reading, so the sitemap makes that claim only where
+ * it is true; the cubes themselves stay reachable and public either way.
+ */
+export const SITEMAP_MIN_CARDS = 20;
+
 export async function listPublicCubesForSitemap(
   limit: number,
 ): Promise<{ slug: string; ownerUsername: string; updatedAt: Date }[]> {
@@ -239,7 +251,12 @@ export async function listPublicCubesForSitemap(
     })
     .from(cubes)
     .innerJoin(users, eq(users.id, cubes.ownerId))
-    .where(eq(cubes.visibility, "public"))
+    .where(
+      and(
+        eq(cubes.visibility, "public"),
+        sql`${cardCount} >= ${SITEMAP_MIN_CARDS}`,
+      ),
+    )
     .orderBy(desc(cubes.updatedAt))
     .limit(limit);
 }
