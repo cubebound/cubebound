@@ -22,7 +22,11 @@ import {
 import type { Cube, Draft, User } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { canViewCube } from "@/lib/cube-access";
-import { DEFAULT_DRAFT_CONFIG } from "@/lib/draft/config";
+import {
+  DEFAULT_DRAFT_CONFIG,
+  validateDraftConfig,
+  type DraftConfig,
+} from "@/lib/draft/config";
 import { applyPick } from "@/lib/draft/engine";
 import { generatePacks } from "@/lib/draft/packs";
 import { defaultSectionForType } from "@/lib/riftbound";
@@ -71,32 +75,72 @@ async function requireOwnDraft(
   return { draft, profile: current.profile };
 }
 
-/** Deals a fresh draft of a cube. */
+/**
+ * Deals a fresh draft of a cube.
+ *
+ * The config arrives from a browser, so it is **re-validated and rebuilt here**
+ * rather than trusted: only the known fields are read, each is coerced to a
+ * whole number, and `validateDraftConfig` decides. The form is a convenience;
+ * this is the rule.
+ */
 export async function startDraftAction(
   cubeId: string,
   returnPath: string,
+  requested?: unknown,
 ): Promise<DraftActionState & { draftId?: string }> {
   const allowed = await requireDraftableCube(cubeId);
   if ("error" in allowed) return { error: allowed.error };
 
+  const config = readDraftConfig(requested);
+  const problems = validateDraftConfig(config);
+  if (problems.length > 0) return { error: problems[0].message };
+
   const pools = await getDraftPools(allowed.cube.id);
   const seed = crypto.randomUUID();
-  const generated = generatePacks(DEFAULT_DRAFT_CONFIG, pools, seed);
+  const generated = generatePacks(config, pools, seed);
   if (!generated.ok) return { error: generated.error };
 
   const draft = await createDraftRow({
     cubeId: allowed.cube.id,
     drafterId: allowed.profile.id,
     seed,
-    // Snapshotted so a cube edited mid-draft cannot change what was dealt.
-    config: { ...DEFAULT_DRAFT_CONFIG },
+    // Snapshotted so a cube edited mid-draft — or different settings next
+    // time — cannot change what was dealt.
+    config: { ...config },
     packs: generated.packs.map((round) => round.map((pack) => pack.map((c) => c.id))),
-    seats: DEFAULT_DRAFT_CONFIG.seats,
+    seats: config.seats,
     humanSeat: 0,
   });
 
   revalidatePath(returnPath.startsWith("/") ? returnPath : "/");
   return { draftId: draft.id };
+}
+
+/**
+ * Rebuilds a config from untrusted input.
+ *
+ * Field by field rather than a spread, so a client cannot smuggle in extra keys
+ * that would be snapshotted into `drafts.config` and read back later — most
+ * pointedly `passDirections`, which would let a caller pin the passing order
+ * for a draft the engine derives it for.
+ */
+function readDraftConfig(input: unknown): DraftConfig {
+  const source = (input ?? {}) as Record<string, unknown>;
+  const num = (key: keyof DraftConfig, fallback: number) => {
+    const value = Number(source[key]);
+    return Number.isFinite(value) ? Math.floor(value) : fallback;
+  };
+  return {
+    seats: num("seats", DEFAULT_DRAFT_CONFIG.seats),
+    packsPerPlayer: num("packsPerPlayer", DEFAULT_DRAFT_CONFIG.packsPerPlayer),
+    packSize: num("packSize", DEFAULT_DRAFT_CONFIG.packSize),
+    legendSlots: num("legendSlots", DEFAULT_DRAFT_CONFIG.legendSlots),
+    battlefieldSlots: num("battlefieldSlots", DEFAULT_DRAFT_CONFIG.battlefieldSlots),
+    legendOrBattlefieldSlots: num(
+      "legendOrBattlefieldSlots",
+      DEFAULT_DRAFT_CONFIG.legendOrBattlefieldSlots,
+    ),
+  };
 }
 
 /** Takes one card for the human seat, then resolves every bot and passes. */

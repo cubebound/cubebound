@@ -4,6 +4,11 @@ import { useState, useTransition } from "react";
 
 import { cardThumb } from "@/lib/card-images";
 import { domainDot } from "@/lib/domain-columns";
+import {
+  DEFAULT_DRAFT_CONFIG,
+  validateDraftConfig,
+  type DraftConfig,
+} from "@/lib/draft/config";
 import { aspectRatio } from "@/lib/riftbound";
 
 import {
@@ -13,6 +18,7 @@ import {
   startDraftAction,
   type DraftActionState,
 } from "./actions";
+import DraftSettings, { type PoolCounts } from "./draft-settings";
 import PoolPiles, { type PoolCard } from "./pool-piles";
 
 export interface DraftTile {
@@ -61,57 +67,43 @@ async function runAction<T extends { error?: string }>(
 export function StartDraft({
   cubeId,
   returnPath,
-  summary,
-  warnings,
-  blocked,
+  pools,
 }: {
   cubeId: string;
   returnPath: string;
-  summary: string;
-  warnings: string[];
-  blocked: string | null;
+  pools: PoolCounts;
 }) {
   const [state, setState] = useState<DraftActionState>({});
   const [pending, startTransition] = useTransition();
+  const [config, setConfig] = useState<DraftConfig>(DEFAULT_DRAFT_CONFIG);
+
+  // The settings panel computes this too, but the button needs its own answer:
+  // an incoherent config must not be submittable at all. Pool sufficiency is
+  // deliberately *not* checked here — a shortfall in a reserved section is a
+  // warning that falls back to main, and the server re-derives the blocking
+  // case with the real pool anyway.
+  const problems = validateDraftConfig(config);
 
   return (
     <div className="max-w-2xl space-y-4">
-      <p className="text-sm text-zinc-700 dark:text-zinc-300">{summary}</p>
+      <DraftSettings pools={pools} onChange={setConfig} />
 
-      {warnings.map((warning) => (
-        <p
-          key={warning}
-          className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
-        >
-          {warning}
-        </p>
-      ))}
-
-      {blocked ? (
-        <p
-          role="alert"
-          className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
-        >
-          {blocked}
-        </p>
-      ) : (
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() =>
-            startTransition(async () => {
-              setState({});
-              await runAction(
-                () => startDraftAction(cubeId, returnPath),
-                (message) => setState({ error: message }),
-              );
-            })
-          }
-          className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-        >
-          {pending ? "Dealing…" : "Start draft"}
-        </button>
-      )}
+      <button
+        type="button"
+        disabled={pending || problems.length > 0}
+        onClick={() =>
+          startTransition(async () => {
+            setState({});
+            await runAction(
+              () => startDraftAction(cubeId, returnPath, config),
+              (message) => setState({ error: message }),
+            );
+          })
+        }
+        className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+      >
+        {pending ? "Dealing…" : "Start draft"}
+      </button>
 
       {state.error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">

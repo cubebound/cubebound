@@ -9,7 +9,12 @@
  */
 
 import { chooseBotPick, commitDomains } from "./bots";
-import type { DraftConfig, PassDirection } from "./config";
+import {
+  passDirectionForRound,
+  validateDraftConfig,
+  type DraftConfig,
+  type PassDirection,
+} from "./config";
 import type { DraftCard, PackGrid } from "./packs";
 
 export interface DraftState {
@@ -43,14 +48,9 @@ export function directionStep(direction: PassDirection): 1 | -1 {
   return direction === "left" ? 1 : -1;
 }
 
+/** Re-exported from config, where the derivation lives. */
 export function directionForRound(config: DraftConfig, round: number): PassDirection {
-  const direction = config.passDirections[round];
-  if (!direction) {
-    throw new Error(
-      `No pass direction configured for round ${round} (have ${config.passDirections.length})`,
-    );
-  }
-  return direction;
+  return passDirectionForRound(config, round);
 }
 
 function openRound(allPacks: PackGrid, round: number): DraftCard[][] {
@@ -68,11 +68,11 @@ export function createDraft({
   seed: string;
   humanSeat?: number;
 }): DraftState {
-  if (config.passDirections.length < config.packsPerPlayer) {
-    throw new Error(
-      `passDirections has ${config.passDirections.length} entries but the draft runs ` +
-        `${config.packsPerPlayer} rounds`,
-    );
+  // Directions are derived per round, so a draft can run any number of packs.
+  // What can still be incoherent is the config itself.
+  const problems = validateDraftConfig(config);
+  if (problems.length > 0) {
+    throw new Error(`Invalid draft config: ${problems.map((p) => p.message).join(" ")}`);
   }
   if (humanSeat < 0 || humanSeat >= config.seats) {
     throw new Error(`humanSeat ${humanSeat} is outside 0..${config.seats - 1}`);

@@ -759,10 +759,38 @@ smart; C adds the deck builder.
   Every random decision goes through `createRng(seed, ...parts)`, whose streams
   are derived per seat and pick rather than drawn from one shared generator —
   replay then cannot drift if call order ever changes.
-- **Configuration is fixed and lives in named constants** (`draft/config.ts`):
-  3 packs per seat, 12 cards per pack, 1 legend-or-battlefield slot, 8 seats,
-  passing left-right-left. The engine takes a config object so the numbers are
-  named and snapshotted, not because there is a settings UI — there isn't one.
+- **Configuration is chosen per draft on the start screen** and snapshotted
+  into `drafts.config`, so a cube edited mid-draft — or different settings next
+  time — cannot change what was already dealt. Seats, packs, cards per pack, and
+  three kinds of reserved slot: legend, battlefield, and either-at-random.
+  Defaults are the Legacy booster: 8 seats, 3 packs, 12 cards, 1 either-slot.
+  Bounds live in `DRAFT_LIMITS` and are enforced by `validateDraftConfig` **on
+  the server** — the config arrives from a browser, so `readDraftConfig` rebuilds
+  it field by field rather than spreading it, which also stops a caller
+  smuggling in `passDirections` and pinning the passing order.
+- **Passing direction is derived, not stored.** It used to be a fixed
+  `["left","right","left"]` array that `directionForRound` threw on past round
+  three — so more than three packs was impossible, and the failure landed
+  mid-draft rather than at creation. `passDirectionForRound` alternates from
+  left for any round, which reproduces the old default exactly. A draft that
+  *stored* a list still wins, so nothing in flight can drift.
+- **Reserved slots come out of the pack, not on top of it**: 12 cards with 1
+  legend and 2 battlefield slots is 9 main cards. The start screen shows the
+  arithmetic live, because an 8-seat 3-pack draft with one legend slot needs 24
+  legends and most cubes hold far fewer — finding that out after pressing start
+  is a bad way to learn a number was too big.
+- **A dedicated slot never substitutes the other type.** Short on legends, a
+  legend slot fills from **main**, not from battlefields — you asked for a
+  legend. Only the either-slot swaps, which is what it is for. A shortfall in
+  any reserved section warns and falls back; only a main pool too small to cover
+  its own slots *plus* the whole fallback actually blocks.
+- **Legends and battlefields reach a pack only through a reserved slot.** The
+  main pool is filtered by card *type*, not just by section: a card's section is
+  the owner's filing decision and nothing stops them putting a legend in `main`,
+  but the reserved slots exist so those types turn up a known number of times
+  per pack, and a stray one makes that number a lie. `filterMainPool` reports
+  what it removed so the start screen can say so rather than silently dropping
+  cards someone filed on purpose.
 - **The pack template follows Riftbound's Legacy booster**: eleven cards from
   the cube's main section plus one Legend-or-Battlefield, chosen 50/50 per
   pack. Legends and battlefields are a deck's *identity* rather than its body —

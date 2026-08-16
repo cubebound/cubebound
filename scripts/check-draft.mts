@@ -14,11 +14,18 @@ import {
   DEFAULT_DRAFT_CONFIG,
   finalPoolSize,
   mainSlotsPerPack,
+  passDirectionForRound,
   totalMainCardsNeeded,
+  validateDraftConfig,
   type DraftConfig,
 } from "../src/lib/draft/config";
 import { applyPick, createDraft } from "../src/lib/draft/engine";
-import { generatePacks, type DraftPools, type PoolEntry } from "../src/lib/draft/packs";
+import {
+  filterMainPool,
+  generatePacks,
+  type DraftPools,
+  type PoolEntry,
+} from "../src/lib/draft/packs";
 import { createRng } from "../src/lib/draft/rng";
 
 const failures: string[] = [];
@@ -74,6 +81,20 @@ function buildPools(): DraftPools {
 }
 
 const pools = buildPools();
+
+/** Singleton entries of one type, for the configurable-slot cases below, where
+ *  the interesting variable is the slot counts rather than the quantities. */
+function makeEntries(prefix: string, count: number, type: string): PoolEntry[] {
+  return Array.from({ length: count }, (_, i) => ({
+    card: {
+      id: `${prefix}-${i}`,
+      name: `${prefix} ${i}`,
+      type,
+      domains: [DOMAINS[i % 6]],
+    },
+    quantity: 1,
+  }));
+}
 
 function quantityOf(pools: DraftPools, id: string): number {
   for (const section of [pools.main, pools.legends, pools.battlefields]) {
@@ -144,10 +165,11 @@ function runDraft(seed: string) {
     const after = result.state.packs.map((pack) => pack.map((card) => card.id));
     const openedNewRound = result.state.round !== round;
     if (!openedNewRound) {
-      // Derive the step from the configured direction *name*, never from the
-      // engine's own helper — asserting through directionStep would verify the
-      // engine against itself and pass even if it stopped alternating.
-      const step = config.passDirections[round] === "left" ? 1 : -1;
+      // Restate the alternation rule here rather than calling the engine's
+      // helper: asserting through `directionForRound` would verify the engine
+      // against itself and pass even if it stopped alternating. Round 0 goes
+      // left, and it flips every round after.
+      const step = round % 2 === 0 ? 1 : -1;
       const seats = config.seats;
       let ok = true;
       for (let seat = 0; seat < seats; seat++) {
@@ -225,8 +247,10 @@ expect(
 
 // --- 3. Passing alternates left, right, left --------------------------------
 expect(
-  config.passDirections.slice(0, 3).join(",") === "left,right,left",
-  `default passing should be left,right,left, got ${config.passDirections.join(",")}`,
+  [0, 1, 2, 3, 4].map((r) => passDirectionForRound(config, r)).join(",") ===
+    "left,right,left,right,left",
+  `passing should alternate from left for any number of rounds, got ` +
+    `${[0, 1, 2, 3, 4].map((r) => passDirectionForRound(config, r)).join(",")}`,
 );
 const badPasses = run.passObservations.filter((o) => !o.ok);
 expect(
@@ -293,6 +317,263 @@ if (noLb.ok) {
   expect(
     sizes.size === 1 && sizes.has(config.packSize),
     "fallback packs should still be full size",
+  );
+}
+
+// --- configurable slots -------------------------------------------------------
+// Every setting the start screen offers, and the rule each one must obey.
+
+/** A pool big enough that nothing runs short unless a case means it to. */
+const bigPools = (): DraftPools => ({
+  main: makeEntries("M", 600, "Unit"),
+  legends: makeEntries("L", 200, "Legend"),
+  battlefields: makeEntries("B", 200, "Battlefield"),
+});
+
+const typesIn = (packs: { type: string }[][][]) => {
+  const counts = new Map<string, number>();
+  for (const card of packs.flat().flat()) {
+    counts.set(card.type, (counts.get(card.type) ?? 0) + 1);
+  }
+  return counts;
+};
+
+{
+  // Dedicated slots deliver exactly what was reserved, in every pack.
+  const custom: DraftConfig = {
+    ...DEFAULT_DRAFT_CONFIG,
+    seats: 4,
+    packsPerPlayer: 2,
+    packSize: 10,
+    legendSlots: 2,
+    battlefieldSlots: 3,
+    legendOrBattlefieldSlots: 0,
+  };
+  const dealt = generatePacks(custom, bigPools(), "slots");
+  expect(dealt.ok === true, "a fully supplied custom config should deal");
+  if (dealt.ok) {
+    expect(
+      dealt.warnings.length === 0,
+      `no warnings expected with a big pool, got: ${dealt.warnings.join(" | ")}`,
+    );
+    expect(
+      dealt.packs.length === 2 && dealt.packs[0].length === 4,
+      "the grid should be rounds by seats as configured",
+    );
+    const sizes = new Set(dealt.packs.flat().map((pack) => pack.length));
+    expect(sizes.size === 1 && sizes.has(10), `every pack should hold 10, got ${[...sizes]}`);
+
+    for (const pack of dealt.packs.flat()) {
+      const legends = pack.filter((c) => c.type === "Legend").length;
+      const fields = pack.filter((c) => c.type === "Battlefield").length;
+      expect(legends === 2, `each pack should hold exactly 2 legends, got ${legends}`);
+      expect(fields === 3, `each pack should hold exactly 3 battlefields, got ${fields}`);
+    }
+    expect(
+      (typesIn(dealt.packs).get("Unit") ?? 0) === 4 * 2 * 5,
+      `main slots should fill the remainder, got ${typesIn(dealt.packs).get("Unit")}`,
+    );
+  }
+}
+
+{
+  // Legends and battlefields reach a pack ONLY through a reserved slot. With
+  // none reserved none may appear, even though the cube holds plenty and some
+  // are filed in the main section.
+  const pools: DraftPools = {
+    main: [
+      ...makeEntries("M", 200, "Unit"),
+      ...makeEntries("StrayL", 5, "Legend"),
+      ...makeEntries("StrayB", 5, "Battlefield"),
+    ],
+    legends: makeEntries("L", 50, "Legend"),
+    battlefields: makeEntries("B", 50, "Battlefield"),
+  };
+  const noReserved: DraftConfig = {
+    ...DEFAULT_DRAFT_CONFIG,
+    seats: 4,
+    packsPerPlayer: 1,
+    packSize: 8,
+    legendSlots: 0,
+    battlefieldSlots: 0,
+    legendOrBattlefieldSlots: 0,
+  };
+  const dealt = generatePacks(noReserved, pools, "none");
+  expect(dealt.ok === true, "reserving nothing should still deal");
+  if (dealt.ok) {
+    const counts = typesIn(dealt.packs);
+    expect(
+      !counts.has("Legend") && !counts.has("Battlefield"),
+      `with no reserved slots neither type may appear, got ${counts.get("Legend") ?? 0} ` +
+        `legends and ${counts.get("Battlefield") ?? 0} battlefields`,
+    );
+    expect(
+      dealt.warnings.some((w) => w.includes("main section")),
+      "dropping legends or battlefields filed in main must be reported, not silent",
+    );
+  }
+
+  const filtered = filterMainPool(pools.main);
+  expect(filtered.removed === 10, `10 stray cards should be removed, got ${filtered.removed}`);
+  expect(
+    filtered.pool.every((e) => e.card.type === "Unit"),
+    "nothing of a reserved type may survive the main-pool filter",
+  );
+}
+
+{
+  // A dedicated slot never substitutes the other type: short on legends, it
+  // fills from main even though battlefields are plentiful.
+  const pools: DraftPools = {
+    main: makeEntries("M", 400, "Unit"),
+    legends: makeEntries("L", 3, "Legend"),
+    battlefields: makeEntries("B", 200, "Battlefield"),
+  };
+  const custom: DraftConfig = {
+    ...DEFAULT_DRAFT_CONFIG,
+    seats: 4,
+    packsPerPlayer: 2,
+    packSize: 10,
+    legendSlots: 1,
+    battlefieldSlots: 0,
+    legendOrBattlefieldSlots: 0,
+  };
+  const dealt = generatePacks(custom, pools, "short-legends");
+  expect(dealt.ok === true, "a legend shortfall should fall back rather than block");
+  if (dealt.ok) {
+    const counts = typesIn(dealt.packs);
+    expect(
+      (counts.get("Legend") ?? 0) === 3,
+      `only the 3 real legends should be dealt, got ${counts.get("Legend")}`,
+    );
+    expect(
+      !counts.has("Battlefield"),
+      "a legend slot must never take a battlefield — that type was not asked for",
+    );
+    expect(dealt.warnings.some((w) => w.includes("legend")), "a legend shortfall must warn");
+  }
+}
+
+{
+  // The flexible slot is the one that swaps.
+  const pools: DraftPools = {
+    main: makeEntries("M", 400, "Unit"),
+    legends: [],
+    battlefields: makeEntries("B", 200, "Battlefield"),
+  };
+  const custom: DraftConfig = {
+    ...DEFAULT_DRAFT_CONFIG,
+    seats: 4,
+    packsPerPlayer: 1,
+    packSize: 10,
+    legendSlots: 0,
+    battlefieldSlots: 0,
+    legendOrBattlefieldSlots: 2,
+  };
+  const dealt = generatePacks(custom, pools, "flex");
+  expect(dealt.ok === true, "an either-slot should deal from whichever side exists");
+  if (dealt.ok) {
+    expect(
+      (typesIn(dealt.packs).get("Battlefield") ?? 0) === 4 * 2,
+      `every either-slot should have taken a battlefield, got ` +
+        `${typesIn(dealt.packs).get("Battlefield")}`,
+    );
+    expect(dealt.warnings.length === 0, "swapping inside an either-slot is not a shortfall");
+  }
+}
+
+{
+  // Main has to cover its own slots and any fallback, or the deal blocks.
+  const tooBig: DraftConfig = {
+    ...DEFAULT_DRAFT_CONFIG,
+    seats: 8,
+    packsPerPlayer: 3,
+    packSize: 12,
+    legendSlots: 2,
+    battlefieldSlots: 0,
+    legendOrBattlefieldSlots: 0,
+  };
+  const thin: DraftPools = {
+    main: makeEntries("M", 240, "Unit"),
+    legends: makeEntries("L", 10, "Legend"),
+    battlefields: [],
+  };
+  const dealt = generatePacks(tooBig, thin, "thin");
+  expect(dealt.ok === false, "main must cover the legend shortfall too, or blocking is wrong");
+  if (!dealt.ok) {
+    expect(
+      dealt.error.includes("278"),
+      `the error should state the real requirement, got: ${dealt.error}`,
+    );
+  }
+}
+
+{
+  // More than three packs used to throw: directions were a fixed 3-array.
+  const long: DraftConfig = {
+    ...DEFAULT_DRAFT_CONFIG,
+    seats: 2,
+    packsPerPlayer: 5,
+    packSize: 4,
+    legendSlots: 0,
+    battlefieldSlots: 0,
+    legendOrBattlefieldSlots: 0,
+  };
+  const dealt = generatePacks(long, bigPools(), "long");
+  expect(dealt.ok === true, "five packs should deal");
+  if (dealt.ok) {
+    let running = createDraft({ config: long, packs: dealt.packs, seed: "long" });
+    let picks = 0;
+    while (running.status === "active" && picks < 500) {
+      running = applyPick(running, running.packs[running.humanSeat][0].id).state;
+      picks += 1;
+    }
+    expect(running.status === "complete", "a five-pack draft should run to completion");
+    expect(
+      running.pools[0].length === finalPoolSize(long),
+      `a seat should finish with ${finalPoolSize(long)} cards, got ${running.pools[0].length}`,
+    );
+  }
+}
+
+{
+  // Bounds are the server's rule, not the form's.
+  const bad = (patch: Partial<DraftConfig>) =>
+    validateDraftConfig({ ...DEFAULT_DRAFT_CONFIG, ...patch }).length > 0;
+  expect(bad({ seats: 1 }), "one seat has nobody to pass to");
+  expect(bad({ seats: 9 }), "nine seats is over the cap");
+  expect(bad({ packsPerPlayer: 0 }), "zero packs is not a draft");
+  expect(bad({ packSize: 0 }), "zero cards is not a pack");
+  expect(bad({ seats: 2.5 }), "fractional seats are not a thing");
+  expect(bad({ legendSlots: -1 }), "negative slots are not a thing");
+  expect(
+    bad({ packSize: 4, legendSlots: 3, battlefieldSlots: 3 }),
+    "reserved slots must fit inside the pack",
+  );
+  expect(
+    !bad({ packSize: 6, legendSlots: 3, battlefieldSlots: 3, legendOrBattlefieldSlots: 0 }),
+    "reserving the whole pack is odd but legal",
+  );
+  expect(
+    validateDraftConfig(DEFAULT_DRAFT_CONFIG).length === 0,
+    "the default config must be valid",
+  );
+}
+
+{
+  // A draft dealt before directions were derived still replays with the ones it
+  // stored, so nothing in flight can drift.
+  const legacy: DraftConfig = {
+    ...DEFAULT_DRAFT_CONFIG,
+    passDirections: ["right", "right", "right"],
+  };
+  expect(
+    [0, 1, 2].map((r) => passDirectionForRound(legacy, r)).join(",") === "right,right,right",
+    "a stored direction list must win over the derivation",
+  );
+  expect(
+    passDirectionForRound(legacy, 3) === "right",
+    "and past its end the derivation takes over",
   );
 }
 

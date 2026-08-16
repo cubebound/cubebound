@@ -12,12 +12,6 @@ import {
 } from "@/db/queries/drafts";
 import { getCurrentUser } from "@/lib/auth";
 import { canViewCube } from "@/lib/cube-access";
-import {
-  DEFAULT_DRAFT_CONFIG,
-  finalPoolSize,
-  mainSlotsPerPack,
-} from "@/lib/draft/config";
-import { generatePacks } from "@/lib/draft/packs";
 
 import RestartDraft from "./draft-controls";
 import { EndScreen, PickScreen, StartDraft, type DraftTile } from "./draft-client";
@@ -53,7 +47,6 @@ export default async function DraftPage({
   const current = await getCurrentUser();
   if (!canViewCube(cube, current?.profile?.id)) notFound();
 
-  const config = DEFAULT_DRAFT_CONFIG;
   const publicPath = `/cube/${cube.ownerUsername}/${cube.slug}`;
   const draftPath = `${publicPath}/draft`;
 
@@ -115,27 +108,20 @@ export default async function DraftPage({
   const forThisCube = history.filter((entry) => entry.cubeId === cube.id);
 
   if (!draft) {
-    // Dry-run the deal so the start screen can show real warnings and block on
-    // a pool that cannot fill the packs, rather than failing after the click.
+    // The settings panel does its own arithmetic from these counts, live as
+    // you type — see draft-settings.tsx for why that matters more than a good
+    // error message after the click.
     const pools = await getDraftPools(cube.id);
-    const trial = generatePacks(config, pools, "preflight");
-    const summary =
-      `${config.seats} seats · ${config.packsPerPlayer} packs each · ` +
-      `${config.packSize} cards per pack (${mainSlotsPerPack(config)} from the main ` +
-      `section plus 1 legend or battlefield) · passing ` +
-      `${config.passDirections.slice(0, config.packsPerPlayer).join(", ")}. ` +
-      `You'll finish with ${finalPoolSize(config)} cards.`;
+    const counts = {
+      main: pools.main.reduce((n, e) => n + e.quantity, 0),
+      legends: pools.legends.reduce((n, e) => n + e.quantity, 0),
+      battlefields: pools.battlefields.reduce((n, e) => n + e.quantity, 0),
+    };
 
     return (
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
         {header()}
-        <StartDraft
-          cubeId={cube.id}
-          returnPath={draftPath}
-          summary={summary}
-          warnings={trial.ok ? trial.warnings : []}
-          blocked={trial.ok ? null : trial.error}
-        />
+        <StartDraft cubeId={cube.id} returnPath={draftPath} pools={counts} />
       </div>
     );
   }

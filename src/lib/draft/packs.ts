@@ -10,7 +10,9 @@
 
 import {
   mainSlotsPerPack,
+  totalBattlefieldsNeeded,
   totalLegendOrBattlefieldNeeded,
+  totalLegendsNeeded,
   totalMainCardsNeeded,
   type DraftConfig,
 } from "./config";
@@ -31,7 +33,8 @@ export interface PoolEntry {
 }
 
 export interface DraftPools {
-  /** The cube's main section. Never includes legends or battlefields. */
+  /** The cube's main section. Legends and battlefields filed here are dropped
+   *  before dealing — see `filterMainPool`. */
   main: PoolEntry[];
   legends: PoolEntry[];
   battlefields: PoolEntry[];
@@ -60,6 +63,24 @@ export function expandPool(entries: PoolEntry[]): DraftCard[] {
   return copies;
 }
 
+/** Legends and battlefields reach a pack only through a reserved slot. */
+const RESERVED_TYPES = new Set(["Legend", "Battlefield"]);
+
+/**
+ * Strips legends and battlefields out of the main pool.
+ *
+ * A card's *section* is the owner's filing decision, and nothing stops them
+ * putting a legend in `main`; a card's *type* is what it is. For dealing, type
+ * wins: the reserved slots exist precisely so legends and battlefields turn up
+ * a known number of times per pack, and a stray one in the main pool makes that
+ * number a lie. What was removed is returned so the caller can say so rather
+ * than silently dropping cards someone filed on purpose.
+ */
+export function filterMainPool(main: PoolEntry[]): { pool: PoolEntry[]; removed: number } {
+  const pool = main.filter((entry) => !RESERVED_TYPES.has(entry.card.type));
+  return { pool, removed: main.length - pool.length };
+}
+
 /**
  * Deals every pack for a draft.
  *
@@ -67,8 +88,13 @@ export function expandPool(entries: PoolEntry[]): DraftCard[] {
  * silently ran short packs would look like a bug in the engine to whoever hit
  * it, and the cube owner can fix it by adding cards. Running short of legends
  * or battlefields is different — those sections are small by nature and a cube
- * with none is still a legitimate cube (see "Runes are optional content"), so
- * that fills from main and says so.
+ * with none is still a legitimate cube (see "Runes are optional content") — so
+ * those slots fall back to main and say so.
+ *
+ * **A dedicated slot never substitutes the other type.** Ask for a legend slot
+ * and the cube is out of legends, and it fills from main rather than handing
+ * you a battlefield: you asked for a legend. Only the explicit
+ * legend-or-battlefield slot swaps between them, which is the whole point of it.
  */
 export function generatePacks(
   config: DraftConfig,
@@ -77,92 +103,120 @@ export function generatePacks(
 ): PackGenerationResult {
   const warnings: string[] = [];
 
-  const mainNeeded = totalMainCardsNeeded(config);
-  const mainAvailable = expandPool(pools.main);
-  if (mainAvailable.length < mainNeeded) {
-    return {
-      ok: false,
-      error:
-        `This cube's main section has ${mainAvailable.length} ` +
-        `${mainAvailable.length === 1 ? "card" : "cards"}, but a ${config.seats}-seat ` +
-        `draft of ${config.packsPerPlayer} packs needs ${mainNeeded} ` +
-        `(${config.seats} seats × ${config.packsPerPlayer} packs × ` +
-        `${mainSlotsPerPack(config)} cards). Add ${mainNeeded - mainAvailable.length} ` +
-        `more to the main section to draft it.`,
-    };
+  const { pool: mainPool, removed } = filterMainPool(pools.main);
+  if (removed > 0) {
+    warnings.push(
+      `${removed} legend/battlefield ${removed === 1 ? "card is" : "cards are"} filed in ` +
+        `this cube's main section. Those types are dealt only through reserved slots, so ` +
+        `${removed === 1 ? "it was" : "they were"} left out of the main pool.`,
+    );
   }
 
-  const rng = createRng(seed, "packs");
-  const mainDeck = shuffle(mainAvailable, rng);
+  const mainAvailable = expandPool(mainPool);
   const legendDeck = shuffle(expandPool(pools.legends), createRng(seed, "legends"));
   const battlefieldDeck = shuffle(
     expandPool(pools.battlefields),
     createRng(seed, "battlefields"),
   );
 
+  const mainNeeded = totalMainCardsNeeded(config);
+  const legendsNeeded = totalLegendsNeeded(config);
+  const battlefieldsNeeded = totalBattlefieldsNeeded(config);
   const lbNeeded = totalLegendOrBattlefieldNeeded(config);
-  const lbAvailable = legendDeck.length + battlefieldDeck.length;
-  if (lbAvailable === 0) {
+
+  // Dedicated slots draw first, so a shortage lands on the flexible slot, which
+  // has somewhere else to go, rather than on one that named a type.
+  const legendShort = Math.max(0, legendsNeeded - legendDeck.length);
+  const battlefieldShort = Math.max(0, battlefieldsNeeded - battlefieldDeck.length);
+  const spareForFlexible =
+    Math.max(0, legendDeck.length - legendsNeeded) +
+    Math.max(0, battlefieldDeck.length - battlefieldsNeeded);
+  const lbShort = Math.max(0, lbNeeded - spareForFlexible);
+
+  const shortfall = (kind: string, need: number, have: number, short: number) =>
+    `This cube has ${have} ${kind} ${have === 1 ? "card" : "cards"} but the draft ` +
+    `reserves ${need} ${kind} ${need === 1 ? "slot" : "slots"}, so ${short} of them ` +
+    `${short === 1 ? "is" : "are"} filled from the main section instead.`;
+
+  if (legendShort > 0) {
+    warnings.push(shortfall("legend", legendsNeeded, legendDeck.length, legendShort));
+  }
+  if (battlefieldShort > 0) {
     warnings.push(
-      `This cube has no legends or battlefields, so every pack is ${config.packSize} ` +
-        `cards from the main section instead of ${mainSlotsPerPack(config)} plus a ` +
-        `Legend-or-Battlefield.`,
+      shortfall("battlefield", battlefieldsNeeded, battlefieldDeck.length, battlefieldShort),
     );
-  } else if (lbAvailable < lbNeeded) {
+  }
+  if (lbShort > 0) {
     warnings.push(
-      `This cube has ${lbAvailable} legend/battlefield ` +
-        `${lbAvailable === 1 ? "card" : "cards"} but the draft has ${lbNeeded} such ` +
-        `slots, so ${lbNeeded - lbAvailable} of them are filled from the main section.`,
+      `This cube has ${spareForFlexible} legend/battlefield ` +
+        `${spareForFlexible === 1 ? "card" : "cards"} left for ${lbNeeded} ` +
+        `legend-or-battlefield ${lbNeeded === 1 ? "slot" : "slots"}, so ${lbShort} of ` +
+        `${lbShort === 1 ? "them is" : "them are"} filled from the main section instead.`,
     );
   }
 
-  // A shortfall in the L/B sections is drawn from main, so main has to cover
-  // both its own slots and the gap before any pack is dealt.
-  const fallbackNeeded = Math.max(0, lbNeeded - lbAvailable);
-  if (mainAvailable.length < mainNeeded + fallbackNeeded) {
+  // Every reserved slot that cannot be filled becomes a main card, so main has
+  // to cover its own slots and the whole gap before any pack is dealt.
+  const fallbackNeeded = legendShort + battlefieldShort + lbShort;
+  const mainTotal = mainNeeded + fallbackNeeded;
+  if (mainAvailable.length < mainTotal) {
     return {
       ok: false,
       error:
-        `This cube needs ${mainNeeded + fallbackNeeded} main-section cards to fill ` +
-        `${config.seats} seats × ${config.packsPerPlayer} packs (including ` +
-        `${fallbackNeeded} filling for missing legends/battlefields), but has ` +
-        `${mainAvailable.length}.`,
+        `This cube's main section has ${mainAvailable.length} ` +
+        `${mainAvailable.length === 1 ? "card" : "cards"}, but a ${config.seats}-seat ` +
+        `draft of ${config.packsPerPlayer} packs needs ${mainTotal}` +
+        (fallbackNeeded > 0
+          ? ` (${mainNeeded} main, plus ${fallbackNeeded} filling for missing ` +
+            `legends or battlefields)`
+          : ` (${config.seats} seats × ${config.packsPerPlayer} packs × ` +
+            `${mainSlotsPerPack(config)} cards)`) +
+        `. Add ${mainTotal - mainAvailable.length} more cards, or reserve fewer slots.`,
     };
   }
+
+  const mainDeck = shuffle(mainAvailable, createRng(seed, "packs"));
 
   const packs: PackGrid = [];
   let mainCursor = 0;
   let legendCursor = 0;
   let battlefieldCursor = 0;
 
+  const takeLegend = () =>
+    legendCursor < legendDeck.length ? legendDeck[legendCursor++] : undefined;
+  const takeBattlefield = () =>
+    battlefieldCursor < battlefieldDeck.length
+      ? battlefieldDeck[battlefieldCursor++]
+      : undefined;
+  const takeMain = () => mainDeck[mainCursor++];
+
   for (let round = 0; round < config.packsPerPlayer; round++) {
     const roundPacks: DraftCard[][] = [];
     for (let seat = 0; seat < config.seats; seat++) {
       const pack: DraftCard[] = [];
 
-      for (let slot = 0; slot < config.legendOrBattlefieldSlots; slot++) {
-        const takeLegend = () =>
-          legendCursor < legendDeck.length ? legendDeck[legendCursor++] : undefined;
-        const takeBattlefield = () =>
-          battlefieldCursor < battlefieldDeck.length
-            ? battlefieldDeck[battlefieldCursor++]
-            : undefined;
+      // Dedicated slots: the named type, or main. Never the other type.
+      for (let slot = 0; slot < config.legendSlots; slot++) {
+        pack.push(takeLegend() ?? takeMain());
+      }
+      for (let slot = 0; slot < config.battlefieldSlots; slot++) {
+        pack.push(takeBattlefield() ?? takeMain());
+      }
 
-        // 50/50 per pack; if that section is exhausted take the other, and if
-        // both are, fall back to main (already accounted for above).
+      // The flexible slot: 50/50, and if that side is spent, take the other.
+      for (let slot = 0; slot < config.legendOrBattlefieldSlots; slot++) {
         const preferLegend = createRng(seed, "lb", round, seat, slot).next() < 0.5;
         const taken = preferLegend
           ? (takeLegend() ?? takeBattlefield())
           : (takeBattlefield() ?? takeLegend());
-
-        pack.push(taken ?? mainDeck[mainCursor++]);
+        pack.push(taken ?? takeMain());
       }
 
       for (let slot = 0; slot < mainSlotsPerPack(config); slot++) {
-        pack.push(mainDeck[mainCursor++]);
+        pack.push(takeMain());
       }
 
-      // Shuffle within the pack so the guaranteed slot isn't always first.
+      // Shuffle within the pack so the reserved slots aren't always first.
       roundPacks.push(shuffle(pack, createRng(seed, "pack", round, seat)));
     }
     packs.push(roundPacks);
