@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Where `npm run build:isolated` puts its output, so a build run against a
+    // live dev server doesn't then get linted as source.
+    ".next-build/**",
   ]),
 ]);
 

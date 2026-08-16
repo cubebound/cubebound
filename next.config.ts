@@ -43,6 +43,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  /**
+   * `npm run build` and `npm run dev` share `.next` by default, and a build
+   * **overwrites the dev server's client chunks** — the browser then asks for
+   * `/_next/static/development/...` files that no longer exist and the page
+   * stops loading, while server-rendered fetches keep working and hide it.
+   * `npm run build:isolated` sets this to a scratch directory so the gate can
+   * be run without touching a dev server that is up.
+   */
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

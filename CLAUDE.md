@@ -964,6 +964,17 @@ are absent. **No production credentials belong in CI under any arrangement.**
 route helpers (`LayoutProps<"/">`, `PageProps<…>`) into `.next/types` and
 tsconfig includes them — plain `tsc` fails on a tree that has never been built.
 
+**Never run `npm run build` while `npm run dev` is up — use
+`npm run build:isolated`.** They share `.next`, and a build overwrites the dev
+server's client chunks: the browser then asks for
+`/_next/static/development/...` files that no longer exist and pages stop
+loading, while `curl` keeps getting 200 because server-rendered HTML is
+unaffected. That combination — working fetches, broken browser — is very hard
+to read as a build problem, and it has cost real debugging time twice. The
+isolated build targets `.next-build` via `NEXT_DIST_DIR` and leaves the dev
+server alone. If it has already happened: restart `npm run dev` and hard-reload
+the browser.
+
 **Verify CI changes from a fresh clone, not the working tree.** A local run
 reuses a populated `.next` and an existing `.env.local`, so it passes on state
 CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
