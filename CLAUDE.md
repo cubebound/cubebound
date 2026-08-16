@@ -890,6 +890,12 @@ smart; C adds the deck builder.
 - Generic page controls live in `src/components/pagination.tsx`; the card
   browser's `CardPagination` wraps them to carry its filters through the link,
   which is the only part that differs between the two.
+- **"Draft" on a cube means "set one up", so both Draft buttons link to
+  `?new=1`.** Resuming the latest draft made the settings unreachable from a
+  cube for anyone who had drafted it before, which is everyone after the first
+  time. Picking up where you left off is what `/drafts`, the draft switcher and
+  the "Back to it" link on the settings screen are for. The **bare
+  `/cube/…/draft` still resumes**, so a bookmark keeps working.
 - **"New draft" is a link to `?new=1`, not an action.** It used to deal on
   click, which made the settings screen reachable only on a cube you had never
   drafted — that is, never, after the first time. Routing to the settings makes

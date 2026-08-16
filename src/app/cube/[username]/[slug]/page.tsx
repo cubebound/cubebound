@@ -173,7 +173,12 @@ export default async function CubePage({
               settingsHref={isOwner ? `${basePath}/settings` : undefined}
             />
             <Link
-              href={`${basePath}/draft`}
+              /* `?new=1` opens the settings rather than resuming. "Draft"
+                 on a cube means "set one up"; picking up where you left off is
+                 what /drafts and the "Back to it" link on that screen are for,
+                 and silently resuming made the settings unreachable from here
+                 for anyone who had drafted this cube before. */
+              href={`${basePath}/draft?new=1`}
               className="inline-flex h-9 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
             >
               Draft
