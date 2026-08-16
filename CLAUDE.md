@@ -35,7 +35,7 @@ Open items:
   URLs. The live domain must stay on the Supabase redirect allowlist; see
   "Auth and data access" for what breaks when it isn't.
 - **CI covers typecheck, lint, build, `check:primer-safety`, `check:draft` and
-  `check:analytics`, `check:markdown-edit`** on push and PR. The other twelve need
+  `check:analytics`, `check:markdown-edit`** on push and PR. The other thirteen need
   a live Supabase or the
   card pool and are
   a documented pre-deploy manual gate — see "Checks". Run that gate before
@@ -374,7 +374,7 @@ a stale row — but it means a source switch leaves residue worth checking for.
   pool no cost filter could reach. `check:card-filters` asserts the buckets
   partition the pool exactly, which is what catches both mistakes.
 - **`getFilterOptions` is memoised in-process for five minutes**
-  (`FILTER_OPTIONS_TTL_MS`). Its six queries ran on every card-browser load and
+  (`CARD_POOL_TTL_MS`). Its six queries ran on every card-browser load and
   exhausted the connection pool in production — see "Page speed". The values
   describe the card pool, so they only change when `sync-cards` runs and a new
   set appears within five minutes of a sync with nobody doing anything. It is a
@@ -1104,6 +1104,7 @@ which is why they can create and delete accounts freely.
 | `check:analytics` | copies not rows, costless cards off the curve, Multi bucketing, keyword normalisation | nothing | **CI** |
 | `check:markdown-edit` | the primer toolbar's transforms: every button toggles, headings replace rather than stack, `diffRange` is minimal | nothing | **CI** |
 | `check:primer-toolbar` | the toolbar is *wired*: a click reaches React state, Ctrl+B matches the button, and the result saves byte-for-byte | Supabase + dev server + Chrome :9222 | manual gate |
+| `check:load` | 40 concurrent card-browser requests do not exhaust the connection pool, and an unrelated route stays up | **freshly started** dev server | manual gate |
 | `check:share-previews` | all three OG routes return real PNGs; cover set and cover falling back; a private cube stays generic; `og:image` is absolute | Supabase + dev server | manual gate |
 
 `check:magic-link` needs the dev server started as `SIGNIN_PROBE=1 npm run
@@ -1161,7 +1162,7 @@ reuses a populated `.next` and an existing `.env.local`, so it passes on state
 CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
 `npm ci`, set placeholder env, then run the steps.
 
-### Why the other twelve are a manual gate, not CI
+### Why the other thirteen are a manual gate, not CI
 
 Five of them `INSERT` directly into `auth.users` and then exchange a password
 grant against a live GoTrue endpoint to mint a session cookie. That needs a
@@ -1190,7 +1191,7 @@ npm run check:printings && npm run check:browse-grid && npm run check:card-filte
 npm run check:copies-and-log && npm run check:public-cube && \
 npm run check:auth-flow && npm run check:cube-ownership && \
 npm run check:magic-link && npm run check:import && npm run check:discovery && \
-npm run check:primer-toolbar && \
+npm run check:primer-toolbar && npm run check:load && \
 npm run check:share-previews
 ```
 
@@ -1281,11 +1282,21 @@ Two things dominate, and neither is the amount of data.
     `idle_timeout: 20` so a frozen instance hands its connections back, and
     `connect_timeout: 10` so exhaustion fails fast with a digest instead of
     hanging — a page that errors is far easier to diagnose than one that stalls.
-  - Reproduce with 40 concurrent requests to `/cards`. Before: 39 of 40 timed
-    out at 60s. After: 40 of 40 return 200, slowest 4.2s. **The symptom appeared
-    twice in local testing first and was written off as "I hammered the dev
-    server"** — it was the same bug both times, and a hang under self-inflicted
-    load is a finding, not an artefact.
+  - Reproduce with `npm run check:load` — 40 concurrent requests to `/cards`
+    plus a probe at `/explore`. Before: the slowest took 45s. After: 5s.
+    **The symptom appeared twice in local testing first and was written off as
+    "I hammered the dev server"** — it was the same bug both times, and a hang
+    under self-inflicted load is a finding, not an artefact.
+  - **`check:load` needs a freshly started dev server.** One that had been up
+    for hours through dozens of hot reloads failed it outright with identical
+    code, and a restart passed immediately and kept passing. The cause was not
+    pinned down: `pg_stat_activity` held steady at 13 across forced reload
+    cycles, but that is measured through the transaction pooler, which
+    multiplexes and cannot see client-side pools. Production is serverless with
+    short-lived processes and no HMR, so the pattern does not obviously exist
+    there — which is not the same as ruled out. If the site ever slows over
+    days rather than under bursts, this is the first thing to suspect, and
+    `connect_timeout` errors in Sentry are how it would show up.
 
 - **Supabase is remote: a query costs ~60ms whatever it asks for.** Returning
   427 cube_cards rows measured 72ms against 59ms for a one-row lookup, so a

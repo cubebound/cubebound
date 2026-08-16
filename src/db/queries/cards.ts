@@ -202,9 +202,59 @@ function canonicalRank(column: SQL | SQLWrapper, order: readonly string[]): SQL 
   return sql`(case ${column} ${sql.join(whens, sql` `)} else ${order.length} end)`;
 }
 
-export async function searchCards(
-  filters: CardFilters,
-): Promise<{ cards: BrowseCard[]; total: number; page: number; pageCount: number }> {
+type CardSearchResult = {
+  cards: BrowseCard[];
+  total: number;
+  page: number;
+  pageCount: number;
+};
+
+/**
+ * The unfiltered first page, memoised.
+ *
+ * `/cards` with nothing set is the same 60 rows for every visitor and is the
+ * page people land on, so it was the most repeated query on the site — and it
+ * counts across all 1,288 rows before returning any of them. The cache is
+ * deliberately **only** the default view: two entries at most (grouped and all
+ * printings), no key-building, no way for a crafted querystring to grow it.
+ * Anything with a filter, a sort or a page number reads through as before.
+ *
+ * Same TTL and same reasoning as the filter options: this describes the card
+ * pool, which changes only when `sync-cards` runs.
+ *
+ * The cached object is shared between requests, so **nothing may mutate it**.
+ * Callers render it and nothing more; if that ever changes, copy on read.
+ */
+const defaultBrowseMemo = new Map<string, { at: number; value: CardSearchResult }>();
+
+/** True when the filters are the bare `/cards` view — no filter, sort or page. */
+function isDefaultBrowse(filters: CardFilters): boolean {
+  return (
+    !filters.q &&
+    !filters.sets?.length &&
+    !filters.domains?.length &&
+    !filters.rarities?.length &&
+    !filters.energy?.length &&
+    !filters.type &&
+    !filters.trait &&
+    !filters.sort &&
+    (filters.page ?? 1) === 1
+  );
+}
+
+export async function searchCards(filters: CardFilters): Promise<CardSearchResult> {
+  if (isDefaultBrowse(filters)) {
+    const key = filters.allPrintings ? "all" : "grouped";
+    const hit = defaultBrowseMemo.get(key);
+    if (hit && Date.now() - hit.at < CARD_POOL_TTL_MS) return hit.value;
+    const value = await runSearchCards(filters);
+    defaultBrowseMemo.set(key, { at: Date.now(), value });
+    return value;
+  }
+  return runSearchCards(filters);
+}
+
+async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
   const where = buildWhere(filters);
   const grouped = !filters.allPrintings;
 
@@ -349,7 +399,8 @@ export async function getCardById(id: string): Promise<BrowseCard | null> {
 }
 
 /**
- * How long filter options are reused before being read again.
+ * How long anything derived from the card pool is reused before being read
+ * again — the filter options and the unfiltered first page of the browser.
  *
  * They describe the *card pool*, which changes only when `sync-cards` runs —
  * measured in months, not requests. Six queries were being fired on every
@@ -362,7 +413,7 @@ export async function getCardById(id: string): Promise<BrowseCard | null> {
  * instance simply reads once. A new set appears within five minutes of the
  * sync without anyone doing anything.
  */
-const FILTER_OPTIONS_TTL_MS = 5 * 60_000;
+const CARD_POOL_TTL_MS = 5 * 60_000;
 let filterOptionsMemo: { at: number; value: FilterOptions } | null = null;
 
 /**
@@ -372,7 +423,7 @@ let filterOptionsMemo: { at: number; value: FilterOptions } | null = null;
  */
 export async function getFilterOptions(): Promise<FilterOptions> {
   const now = Date.now();
-  if (filterOptionsMemo && now - filterOptionsMemo.at < FILTER_OPTIONS_TTL_MS) {
+  if (filterOptionsMemo && now - filterOptionsMemo.at < CARD_POOL_TTL_MS) {
     return filterOptionsMemo.value;
   }
   const value = await readFilterOptions();

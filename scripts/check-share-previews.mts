@@ -174,6 +174,47 @@ try {
     Boolean(tag?.includes(`/cube/${username}/${withCover.slug}/opengraph-image`)),
     `og:image should point at this cube's own preview (got ${tag})`,
   );
+
+  /**
+   * Fetch the advertised URL exactly as a scraper would.
+   *
+   * This is not the same request as the ones above. **Next appends its own
+   * hash** to og:image (`…/opengraph-image?c2531773f482a645`), and middleware
+   * now 308s any query string to the bare path so the CDN keeps one cache
+   * entry per preview instead of one per URL. So the real scraper path goes
+   * through a redirect that the clean-URL checks never touch — and share
+   * previews have already shipped broken once, with everything else green.
+   */
+  if (tag) {
+    let res: Response | null = null;
+    try {
+      res = await fetch(tag);
+    } catch (error) {
+      failures.push(`og:image URL was not fetchable — ${(error as Error).message}`);
+    }
+    if (res) {
+      const body = Buffer.from(await res.arrayBuffer());
+      expect(res.status === 200, `the advertised og:image returned ${res.status}`);
+      expect(
+        body.subarray(0, 4).equals(PNG_MAGIC),
+        `the advertised og:image is not a PNG (first bytes ${body.subarray(0, 8).toString("hex")})`,
+      );
+      // **Compared against this cube's own preview, not just to a size.** A
+      // redirect that threw the path away as well as the query would send every
+      // cube to the generic site image — still a valid PNG, still 67KB, and a
+      // "looks like a real image" assertion passes it. That mutation survived
+      // until this compared the actual bytes.
+      expect(
+        Boolean(covered && body.equals(covered)),
+        `the advertised og:image is not this cube's preview: ${body.length} bytes ` +
+          `against ${covered?.length} fetched directly — the redirect is losing the path`,
+      );
+      console.log(
+        `  ${"og:image as advertised".padEnd(34)} ${res.status} ${(body.length / 1024).toFixed(0)}KB` +
+          `${new URL(tag).search ? " (via redirect)" : ""}`,
+      );
+    }
+  }
 } catch (error) {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);
 } finally {
