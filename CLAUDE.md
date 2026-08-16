@@ -21,9 +21,10 @@ preview exactly what matched, then commit.
 
 **Cube analytics has shipped** — the Analytics tab on any cube page.
 
-**Solo bot drafting, milestone A, has shipped** — deal a cube into packs,
-draft against seven bots, save the pool as a cube. Milestone B makes the bots
-smart; milestone C adds the post-draft deck builder. See "Draft".
+**Solo bot drafting has shipped, and its settings are configurable** — choose
+seats, packs, pack size and reserved legend/battlefield slots, then draft
+against bots. Milestone B makes the bots smart; milestone C adds the post-draft
+deck builder. See "Draft".
 
 Then the rest of phase 2 in the order under "Product vision".
 
@@ -33,17 +34,19 @@ Open items:
   deployments and localhost each build their own correct magic-link and share
   URLs. The live domain must stay on the Supabase redirect allowlist; see
   "Auth and data access" for what breaks when it isn't.
-- **CI covers typecheck, lint, build, `check:primer-safety` and `check:draft`**
-  on push and PR. The other nine checks need a live Supabase and are a
-  documented pre-deploy manual gate — see "Checks". Run that gate before
+- **CI covers typecheck, lint, build, `check:primer-safety`, `check:draft` and
+  `check:analytics`** on push and PR. The other ten need a live Supabase and are
+  a documented pre-deploy manual gate — see "Checks". Run that gate before
   deploying.
 - Feature work lands on a branch and pushes to
   `github.com/cubebound/cubebound`; `master` is production — see
   "Environments".
-- **Everything through `0011` is merged and live**, and production has been
-  migrated. There is no feature branch in flight. The rule still stands for the
-  next one: a deploy does not run migrations, so a feature adding tables fails
-  at request time however green the build looks.
+- **Migrations are current: production is migrated through `0011` and nothing
+  newer exists.** Work since then has been code-only, so a deploy needs no
+  database step. The rule still stands for the next one: a deploy does not run
+  migrations, so a feature adding tables fails at request time however green the
+  build looks. **Check `git log origin/master..master` before assuming what is
+  live** — this file describes the code, not the deployment.
 - **Sentry ships wired but switched off.** Set `NEXT_PUBLIC_SENTRY_DSN` in
   Vercel to turn it on; `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN`
   additionally get readable stack traces. See "Share previews, crawling and
@@ -131,7 +134,9 @@ migration must say so explicitly — the deploy will look successful and the
 feature will fail at request time.
 
 Prefer `db:migrate` (versioned files) over `db:push` (diffs the schema and can
-drop columns).
+drop columns). `db:generate` writes a migration from a schema diff — useful as a
+starting point, but most migrations here are hand-written so the RLS statement
+and the comment explaining *why* travel with the DDL.
 
 ### How the split happened
 
