@@ -1,8 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 import { updatePrimerAction, type ActionState } from "@/app/cube/actions";
+import MarkdownToolbar, {
+  applyEdit,
+  markdownShortcut,
+} from "@/components/markdown-toolbar";
 import Primer from "@/components/primer";
 
 const initial: ActionState & { saved?: boolean } = {};
@@ -21,6 +25,7 @@ export default function PrimerEditor({
 }) {
   const [state, formAction, pending] = useActionState(updatePrimerAction, initial);
   const [draft, setDraft] = useState(primer ?? "");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dirty = draft !== (primer ?? "");
 
   return (
@@ -32,15 +37,25 @@ export default function PrimerEditor({
           <label htmlFor="primer" className="mb-1 block text-sm font-medium">
             Primer <span className="font-normal text-zinc-500">(markdown)</span>
           </label>
+          <MarkdownToolbar textareaRef={textareaRef} onChange={setDraft} />
           <textarea
+            ref={textareaRef}
             id="primer"
             name="primer"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              const edit = markdownShortcut(event);
+              if (!edit) return;
+              // Only now, so Ctrl+A / Ctrl+C and every other shortcut still
+              // reach the browser.
+              event.preventDefault();
+              applyEdit(event.currentTarget, edit, setDraft);
+            }}
             rows={22}
             spellCheck
-            placeholder={"# About this cube\n\nWhat's the archetype plan? How does drafting it feel?\n\n- Headings, lists, **bold**, links and tables all work.\n- HTML is not rendered."}
-            className="w-full rounded-md border border-zinc-300 bg-white p-3 font-mono text-sm leading-relaxed focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+            placeholder={"# About this cube\n\nWhat's the archetype plan? How does drafting it feel?\n\n- Use the buttons above, or write markdown directly.\n- HTML is not rendered."}
+            className="w-full rounded-b-md border border-zinc-300 bg-white p-3 font-mono text-sm leading-relaxed focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
           />
           <p className="mt-1 text-xs text-zinc-500">
             Markdown only — raw HTML is stripped when the primer is shown.

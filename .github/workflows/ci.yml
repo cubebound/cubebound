@@ -80,5 +80,8 @@ jobs:
       - name: Check analytics
         run: npm run check:analytics
 
+      - name: Markdown editor transforms
+        run: npm run check:markdown-edit
+
       - name: Build
         run: npm run build

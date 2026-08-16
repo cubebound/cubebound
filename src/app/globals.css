@@ -29,6 +29,22 @@
   --tint-base: #18181b;
 }
 
+/* Always reserve the scrollbar's width, whether or not the page needs one.
+   Without this, filtering the card browser from 960 results down to a dozen
+   removes the scrollbar, the viewport gains ~15px, and every centred container
+   on the page slides sideways — which reads as the layout twitching on every
+   keystroke. Measured: clientWidth 1425 with results, 1440 without. */
+html {
+  /* `scrollbar-gutter` alone was not enough: it computes to `stable` here but
+     reserves nothing, because with `overflow: visible` on both html and body
+     the viewport does the scrolling and there is no gutter to reserve.
+     `overflow-y: scroll` makes html the scroll container, which is what
+     actually holds the width steady. Keep both — the gutter property is the
+     one that stops the track being painted where a browser supports it. */
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+
 body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }

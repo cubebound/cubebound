@@ -35,7 +35,8 @@ Open items:
   URLs. The live domain must stay on the Supabase redirect allowlist; see
   "Auth and data access" for what breaks when it isn't.
 - **CI covers typecheck, lint, build, `check:primer-safety`, `check:draft` and
-  `check:analytics`** on push and PR. The other eleven need a live Supabase or the
+  `check:analytics`, `check:markdown-edit`** on push and PR. The other twelve need
+  a live Supabase or the
   card pool and are
   a documented pre-deploy manual gate — see "Checks". Run that gate before
   deploying.
@@ -419,6 +420,27 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - Rules text contains symbol tokens (`:rb_energy_1:`, `:rb_rune_fury:`). Never render `rules_text` raw — go through `parseRulesText` in `src/lib/rules-text.ts`, which resolves the tokens to badges and degrades unknown ones to readable words. Note the source names domain symbols `rune_*` but they are **Power** costs; runes are the resource cards you exhaust or recycle to produce Energy and Power.
 - Printings: `cards.base_id` is the id of the **canonical printing** of a card, resolved from card data — not from the id string. Sets reprint cards in their high-numbered showcase slots, within a set (`SFD-049` → `SFD-224`) and across sets (`OGN-013` "Pouty Poro" → `UNL-220`), so no amount of suffix-stripping can group them. Identity is `(lower(name), type)`; see `assignBaseIds` in `src/lib/card-ids.ts` and the matching SQL in `drizzle/0003_base_id_print_groups.sql`, which must stay in step. Because identity is name-based, different cards sharing a collector number (`UNL-T01` "Baron Pit" vs `UNL-001` "Arena Kingpin") never group. `npm run check:printings` asserts all of this.
 - Do **not** use rules text as card identity: showcase reprints drop the parenthetical reminder text and sometimes reword the ability outright.
+- **The filter bar's controls are fixed-width, and the page always reserves a
+  scrollbar.** Both exist because adjusting a filter made the whole page
+  twitch, and the causes were three separate things — measured, not guessed:
+  a menu button grew with its selection (`Sets` 65px, `Riftbound Organized Play
+  Promotional Cards` 321px), pushing every control right and tipping the bar
+  onto another row; the Clear button appeared the moment a first filter was
+  ticked, reflowing the row; and filtering to a short result removed the
+  scrollbar, widening the viewport by 15px so every centred container slid
+  sideways (`clientWidth` 1425 → 1440). So: `MENU_BUTTON_W` on every menu with
+  the label truncating, Clear always occupying its slot (`invisible`, not
+  unmounted), a fixed-width result count, and `overflow-y: scroll` on `html`.
+  `scrollbar-gutter: stable` **alone did nothing** — it computes to `stable`
+  but reserves no space while both `html` and `body` are `overflow: visible`,
+  because then the viewport is the scroller and there is no gutter to reserve.
+- **The bar is two deliberate rows, not one that wraps.** Its eleven controls
+  want ~1489px against 1377 available, so a single row wrapped — and *where* it
+  wrapped moved as labels changed width. Splitting it (text search above,
+  filters below) makes the height a constant. Because every control is now a
+  fixed width regardless of selection, the second row's wrap points at narrower
+  viewports no longer depend on the filters either, which is the property that
+  matters: a filter change must never change the layout.
 - Filter navigation must not throw away the reader's scroll position. `scroll: false` alone is not enough — the router still pulls the viewport to the top of the refreshed segment — so `CardFilterBar` captures `window.scrollY` before navigating and reapplies it when the transition settles.
 
 ## Chrome and theme
@@ -543,6 +565,34 @@ a stale row — but it means a source switch leaves residue worth checking for.
   through the real component and fails if anything executable survives — run it
   after touching that component. The public cube view renders the primer with
   the same component.
+- **The primer editor has a formatting toolbar, and it is a toolbar rather than
+  a WYSIWYG editor.** The primer is stored as markdown and rendered with
+  `rehype-sanitize` and no `rehype-raw`, so a rich-text surface would have to
+  round-trip HTML back into markdown to be storable, and anything it could
+  express that markdown cannot would be silently stripped on the way out.
+  Buttons that write markdown keep one representation and leave the source
+  readable. "Font size" maps to **headings**, because markdown has no font sizes
+  and offering them would mean raw HTML.
+- **Every toolbar operation toggles**, and the transforms live in
+  `src/lib/markdown-edit.ts` — pure, so `check:markdown-edit` covers all of them
+  without a browser. The cases worth knowing: unwrapping looks *outside* the
+  selection as well as inside, because double-clicking a word in `**bold**`
+  selects the word and not the asterisks (without that, Bold yields
+  `****bold****`); a heading strips whatever prefix is already there rather than
+  stacking `## # Title`; and a selection ending at the very start of the next
+  line formats one line, not two.
+- **Edits go through `document.execCommand("insertText")`.** It is deprecated,
+  and it is still the only way to change a textarea while keeping the browser's
+  native undo stack — Ctrl+Z after clicking Bold has to work, and assigning
+  `value` clears the undo history outright. `diffRange` narrows each edit to the
+  changed run so one click is one undo step rather than a whole-document swap.
+  The buttons and the Ctrl/Cmd shortcuts share `applyEdit`, so they cannot drift.
+- **A `<textarea>` submits CRLF whatever was typed into it**, per the HTML spec,
+  so `updatePrimerAction` normalises to LF before storing. Without that the
+  saved primer never equalled the editor's own `draft`, and its dirty check
+  (`draft !== primer`) reported "Unsaved changes" the instant a save succeeded.
+  Markdown renders either way, which is exactly why it went unnoticed for so
+  long. Any other textarea-backed field has the same trap.
 - **Every copy is its own entry in the UI.** `cube_cards` stores a quantity per
   (card, section) because two copies of one printing are genuinely identical,
   but nothing renders "×3" — a cube running three of a card shows three
@@ -1045,6 +1095,8 @@ which is why they can create and delete accounts freely.
 | `check:draft` | a full seeded 8-seat draft: quantities, pack template, passing, bots, determinism | nothing | **CI** |
 | `check:discovery` | explore is public-only, keywords AND, the card filter, sorting, follow state, both `/cubes` tabs | Supabase + dev server | manual gate |
 | `check:analytics` | copies not rows, costless cards off the curve, Multi bucketing, keyword normalisation | nothing | **CI** |
+| `check:markdown-edit` | the primer toolbar's transforms: every button toggles, headings replace rather than stack, `diffRange` is minimal | nothing | **CI** |
+| `check:primer-toolbar` | the toolbar is *wired*: a click reaches React state, Ctrl+B matches the button, and the result saves byte-for-byte | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:share-previews` | all three OG routes return real PNGs; cover set and cover falling back; a private cube stays generic; `og:image` is absolute | Supabase + dev server | manual gate |
 
 `check:magic-link` needs the dev server started as `SIGNIN_PROBE=1 npm run
@@ -1076,7 +1128,8 @@ exemption.
 ### What CI runs
 
 `.github/workflows/ci.yml`, on every push and pull request: typecheck, lint,
-`check:primer-safety`, `check:draft`, `check:analytics`, and a production build. It uses **placeholder** Supabase
+`check:primer-safety`, `check:draft`, `check:analytics`, `check:markdown-edit`,
+and a production build. It uses **placeholder** Supabase
 values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**
@@ -1101,7 +1154,7 @@ reuses a populated `.next` and an existing `.env.local`, so it passes on state
 CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
 `npm ci`, set placeholder env, then run the steps.
 
-### Why the other eleven are a manual gate, not CI
+### Why the other twelve are a manual gate, not CI
 
 Five of them `INSERT` directly into `auth.users` and then exchange a password
 grant against a live GoTrue endpoint to mint a session cookie. That needs a
@@ -1130,6 +1183,7 @@ npm run check:printings && npm run check:browse-grid && npm run check:card-filte
 npm run check:copies-and-log && npm run check:public-cube && \
 npm run check:auth-flow && npm run check:cube-ownership && \
 npm run check:magic-link && npm run check:import && npm run check:discovery && \
+npm run check:primer-toolbar && \
 npm run check:share-previews
 ```
 

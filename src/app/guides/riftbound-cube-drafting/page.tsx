@@ -212,7 +212,11 @@ export default function CubeDraftingGuide() {
           </p>
           <ul className="ml-5 list-disc space-y-2">
             <li>
-              <Term>Deck size.</Term>
+              <Term>Deck size.</Term> A fixed number keeps games comparable, and
+              plenty of cubes settle on one rather than using the constructed
+              minimum. Whatever you pick, the size you choose interacts with how
+              many cards each drafter ends up with, so it is worth revisiting
+              after your first session.
             </li>
             <li>
               <Term>Legends.</Term> Drafted, or picked freely after the draft the

@@ -218,7 +218,13 @@ export async function updatePrimerAction(
   const owned = await requireOwnedCube(String(formData.get("cubeId") ?? ""));
   if ("error" in owned) return { error: owned.error };
 
-  const primer = String(formData.get("primer") ?? "");
+  // **Normalise line endings.** A `<textarea>` submits CRLF, per the HTML
+  // spec, whatever was typed into it — so the stored primer never matched the
+  // editor's own `draft` state, and its dirty check (`draft !== primer`)
+  // reported "Unsaved changes" the instant a save succeeded. Markdown renders
+  // either way, which is why this went unnoticed; storing LF makes what comes
+  // back equal what was sent.
+  const primer = String(formData.get("primer") ?? "").replace(/\r\n/g, "\n");
   if (primer.length > PRIMER_MAX) {
     return { error: `Primers must be at most ${PRIMER_MAX.toLocaleString()} characters.` };
   }

@@ -57,6 +57,21 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         public page you can share — and anyone can clone one into their own
         account to make it theirs.
       </p>
+      {/* Above the Cube Cobra credit and below the pitch: someone who has never
+          drafted a cube needs this before they need a Create button, and it is
+          also the page most worth linking to from outside. */}
+      <p className="mt-4 text-zinc-600 dark:text-zinc-400">
+        New to cubes?{" "}
+        <Link
+          href="/guides/riftbound-cube-drafting"
+          className="font-medium underline underline-offset-2 hover:text-zinc-900 dark:hover:text-zinc-100"
+        >
+          Read how to build and draft a Riftbound cube
+        </Link>{" "}
+        — what a cube is, how legends and battlefields change drafting, and how
+        to size your pool.
+      </p>
+
       <p className="mt-4 text-sm text-zinc-500">
         Credit for many feature and design decisions goes to{" "}
         <a
