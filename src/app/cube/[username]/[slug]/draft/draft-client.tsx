@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { cardThumb } from "@/lib/card-images";
@@ -77,6 +78,7 @@ export function StartDraft({
    *  survives. Starting another never destroys one. */
   currentDraftPath?: string | null;
 }) {
+  const router = useRouter();
   const [state, setState] = useState<DraftActionState>({});
   const [pending, startTransition] = useTransition();
   const [config, setConfig] = useState<DraftConfig>(DEFAULT_DRAFT_CONFIG);
@@ -112,10 +114,21 @@ export function StartDraft({
         onClick={() =>
           startTransition(async () => {
             setState({});
-            await runAction(
+            const result = await runAction(
               () => startDraftAction(cubeId, returnPath, config),
               (message) => setState({ error: message }),
             );
+            // Navigate explicitly. This screen used to rely on the action's
+            // revalidate to re-render the page into the pick screen, which
+            // worked only while it rendered on `!draft` alone — with `?new=1`
+            // still in the URL the page just renders these settings again, so
+            // a successful start looked like nothing happening and a second
+            // click dealt a second draft. Opening the new draft by id also
+            // beats trusting "latest".
+            if (result?.draftId) {
+              router.push(`${returnPath}?draft=${result.draftId}`);
+              router.refresh();
+            }
           })
         }
         className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
