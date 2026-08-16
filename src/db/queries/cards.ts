@@ -349,11 +349,38 @@ export async function getCardById(id: string): Promise<BrowseCard | null> {
 }
 
 /**
+ * How long filter options are reused before being read again.
+ *
+ * They describe the *card pool*, which changes only when `sync-cards` runs —
+ * measured in months, not requests. Six queries were being fired on every
+ * `/cards` load and on every re-render of the editor's browse tab, which is
+ * the tab you sit in while adding cards one after another. That burst is what
+ * exhausted the connection pool in production.
+ *
+ * Deliberately an in-process memo rather than a framework cache: it needs no
+ * revalidation story, cannot be wrong for longer than the TTL, and a cold
+ * instance simply reads once. A new set appears within five minutes of the
+ * sync without anyone doing anything.
+ */
+const FILTER_OPTIONS_TTL_MS = 5 * 60_000;
+let filterOptionsMemo: { at: number; value: FilterOptions } | null = null;
+
+/**
  * Distinct filter values straight from the card pool, so a newly synced set
  * shows up without a code change. Ordered by the game's canonical sequences
  * rather than alphabetically.
  */
 export async function getFilterOptions(): Promise<FilterOptions> {
+  const now = Date.now();
+  if (filterOptionsMemo && now - filterOptionsMemo.at < FILTER_OPTIONS_TTL_MS) {
+    return filterOptionsMemo.value;
+  }
+  const value = await readFilterOptions();
+  filterOptionsMemo = { at: now, value };
+  return value;
+}
+
+async function readFilterOptions(): Promise<FilterOptions> {
   const [sets, domains, types, rarities, tags, championTags] = await Promise.all([
     // The set's printed name comes out of the stored raw payload rather than a
     // lookup table here, so a newly synced set names itself — the same rule the
