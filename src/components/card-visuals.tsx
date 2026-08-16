@@ -243,20 +243,6 @@ export function CardDetail({
               </Stat>
             )}
             {card.might !== null && <Stat label="Might">{card.might}</Stat>}
-            {card.keywords.length > 0 && (
-              <Stat label="Keywords">
-                <span className="flex flex-wrap gap-1">
-                  {card.keywords.map((keyword) => (
-                    <span
-                      key={keyword}
-                      className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800"
-                    >
-                      {titleCase(keyword)}
-                    </span>
-                  ))}
-                </span>
-              </Stat>
-            )}
             {/* The type line's trait half. Shown as links so a card is a way
                 into "everything else from Ionia" — the filter exists, and this
                 is where someone is actually wondering about it. */}

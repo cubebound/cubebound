@@ -52,6 +52,14 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
     setCounts(inCube);
   }
 
+  // The panel is mounted only while open, so "on mount" is "on open": the
+  // point of a quick-add is that opening it costs one click and you are
+  // already typing. It is also the right thing for the dialog it sits in —
+  // opening a modal should move focus into it.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
   const term = query.trim();
   const longEnough = term.length >= 2;
   const searching = longEnough && answered.term !== term;

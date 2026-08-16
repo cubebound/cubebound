@@ -738,6 +738,10 @@ synchronous, no extra queries — and renders through hand-drawn SVG in
   `[Add]`), and drops the markers that are not keywords: `&gt;` / `&gt;&gt;`,
   which separate cost from effect, and the `NO TEXT` placeholder. Done at render
   time, so it works on rows already stored and needs no re-sync.
+  `cards.keywords` is consequently **not selected by `browseColumns`** — it was
+  fetched on every card query and read by nothing. The column and the sync's
+  writes stay, so a source that starts filling it loses nothing; select it again
+  when something reads it.
 - Word counts run on `rulesTextToPlain`, so a card isn't scored as verbose for
   carrying symbols.
 

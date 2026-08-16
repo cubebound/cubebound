@@ -83,7 +83,7 @@ export function Panel({
  * where it starts, which is far less arithmetic than building arc paths and
  * cannot produce a malformed `d` attribute.
  */
-export function Donut({ slices, unit = "cards" }: { slices: Slice[]; unit?: string }) {
+export function Donut({ slices }: { slices: Slice[] }) {
   const total = slices.reduce((n, s) => n + s.count, 0);
   if (total === 0) {
     return <p className="py-10 text-center text-sm text-zinc-500">Nothing to chart yet.</p>;
@@ -106,7 +106,7 @@ export function Donut({ slices, unit = "cards" }: { slices: Slice[]; unit?: stri
 
   return (
     <div className="flex flex-wrap items-center justify-center gap-6">
-      <svg viewBox="0 0 160 160" className="size-40 shrink-0" role="img" aria-label={`${total} ${unit}`}>
+      <svg viewBox="0 0 160 160" className="size-40 shrink-0" role="img" aria-label={`${total} cards`}>
         <g transform="rotate(-90 80 80)">
           {arcs.map(({ slice, length, offset }) => (
             <circle
@@ -164,12 +164,10 @@ export function BarChart({
   groups,
   max,
   height = 260,
-  showValues = true,
 }: {
   groups: BarGroup[];
   max: number;
   height?: number;
-  showValues?: boolean;
 }) {
   if (groups.length === 0 || max === 0) {
     return <p className="py-10 text-center text-sm text-zinc-500">Nothing to chart yet.</p>;
@@ -180,11 +178,9 @@ export function BarChart({
       <div className="flex min-w-[28rem] items-end gap-2" style={{ height }}>
         {groups.map((group) => (
           <div key={group.label} className="flex h-full min-w-0 flex-1 flex-col justify-end">
-            {showValues && (
-              <p className="mb-1 text-center text-[11px] tabular-nums text-zinc-500">
-                {group.total > 0 ? group.total : ""}
-              </p>
-            )}
+            <p className="mb-1 text-center text-[11px] tabular-nums text-zinc-500">
+              {group.total > 0 ? group.total : ""}
+            </p>
             {/* One column per bucket; the segments stack bottom-up, which is
                 why they render in reverse. */}
             <div
