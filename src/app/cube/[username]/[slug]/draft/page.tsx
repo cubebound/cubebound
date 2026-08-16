@@ -49,7 +49,7 @@ export default async function DraftPage({
 
   // Same rule as the public page: anyone who can view a cube can draft it.
   const current = await getCurrentUser();
-  if (!canViewCube(cube, current?.profile?.id)) notFound();
+  if (!canViewCube(cube, current?.profile?.id, current?.profile?.isAdmin)) notFound();
 
   const publicPath = `/cube/${cube.ownerUsername}/${cube.slug}`;
   const draftPath = `${publicPath}/draft`;

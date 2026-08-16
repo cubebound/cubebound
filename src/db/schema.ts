@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -67,7 +68,37 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  // Moderation. Owner-only for now — see "Moderation" in CLAUDE.md.
+  isAdmin: boolean("is_admin").notNull().default(false),
+  // Set means the account's cubes stop rendering for everyone but an admin.
+  // Reversible, unlike deletion, which is why it is the primary verb.
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
 });
+
+/**
+ * What a moderator did, and to what.
+ *
+ * Kept deliberately outside the cascade: `actor_id` sets null and `target_id`
+ * is not a foreign key at all, because the record has to outlive both the
+ * moderator and the thing acted on. `snapshot` is the only trace a deleted
+ * cube or account leaves.
+ */
+export const moderationLog = pgTable(
+  "moderation_log",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorId: uuid("actor_id").references(() => users.id, { onDelete: "set null" }),
+    actorUsername: text("actor_username").notNull(),
+    action: text("action").notNull(),
+    targetType: text("target_type").notNull(),
+    targetId: uuid("target_id").notNull(),
+    targetLabel: text("target_label").notNull(),
+    reason: text("reason"),
+    snapshot: jsonb("snapshot"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("moderation_log_created_at_idx").on(table.createdAt.desc())],
+);
 
 export const cubes = pgTable(
   "cubes",
@@ -83,6 +114,10 @@ export const cubes = pgTable(
     // Rendered through src/components/primer.tsx, never as raw HTML.
     primer: text("primer"),
     visibility: cubeVisibilityEnum("visibility").notNull().default("public"),
+    // Hidden by a moderator. Reversible, and enforced in `canViewCube` so the
+    // rule lives in one place rather than in each page.
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    hiddenReason: text("hidden_reason"),
     // Art for the cube's share preview. Null falls back to a card from the cube
     // at render time, so an unset cover still previews with a picture.
     coverCardId: text("cover_card_id").references(() => cards.id, {

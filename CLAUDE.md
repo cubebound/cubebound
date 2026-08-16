@@ -66,9 +66,13 @@ Open items:
   speed"), keep card images on Riot's CDN, and check Vercel → Usage and
   Supabase → Usage for actual headroom rather than guessing. Usage was
   comfortably low as of 16 August 2026.
-- Still open before a wide launch, in order: a **Supabase auth rate limit** (not
-  code — see "Security posture"), then a report/takedown path for user-written
-  cube text now that Explore indexes it, then account deletion.
+- **Migration `0012` is not yet applied to production.** It is the moderation
+  one, and the tools fail at request time without it — a deploy does not run
+  migrations.
+- Still open before a wide launch: a **Supabase auth rate limit** (not code —
+  see "Security posture"). Moderation now covers hiding and account removal; a
+  user-facing *report* path is still absent, so problems have to be noticed
+  rather than reported.
 - The Riot adapter stays dormant until our API application is approved.
 - Six UNL token rows still come from the retired riftscribe source.
 
@@ -244,6 +248,8 @@ cubes         id, owner_id → users, name, slug, description, primer,
               unique (owner_id, slug)
 cube_cards    pk (cube_id, card_id, section), quantity, added_at
               section ('main'|'legends'|'runes'|'battlefields'|'sideboard'|'maybeboard')
+moderation_log id, actor_id (set null), actor_username, action, target_type,
+              target_id (NOT a FK), target_label, reason, snapshot jsonb, created_at
 cube_changes  id, cube_id, actor_id (set null on delete), actor_username, kind,
               card_id, card_name, quantity, from_section, to_section,
               from_value, to_value, created_at    -- indexed (cube_id, created_at)
@@ -262,7 +268,9 @@ Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0004` `cubes.primer` · `0005` `cube_changes` (+ RLS) ·
 `0006` the `cards_imported` change kind · `0007` `drafts` + `draft_picks` (+ RLS) ·
 `0008` `draft_picks.board` · `0009` the `maybeboard` section ·
-`0010` `cube_follows` (+ RLS) · `0011` `cubes.cover_card_id`.
+`0010` `cube_follows` (+ RLS) · `0011` `cubes.cover_card_id` ·
+`0012` moderation: `users.is_admin` / `users.suspended_at`, `cubes.hidden_at` /
+`hidden_reason`, `moderation_log` (+ RLS).
 
 Migrations are applied **per environment and by hand** — see "Environments".
 A migration in a merged branch is not live until production is migrated.
@@ -1154,6 +1162,7 @@ which is why they can create and delete accounts freely.
 | `check:markdown-edit` | the primer toolbar's transforms: every button toggles, headings replace rather than stack, `diffRange` is minimal | nothing | **CI** |
 | `check:primer-toolbar` | the toolbar is *wired*: a click reaches React state, Ctrl+B matches the button, and the result saves byte-for-byte | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:deck-export` | drafted decks export as names other builders accept: legends rebuilt as `Champion, Title`, promo variant suffixes stripped, copies aggregated, and the result re-imports here | DB (read-only) | manual gate |
+| `check:moderation` | hide/suspend take effect and drop out of every listing including the owner's own; `canUseCube` refuses even the owner; deleting an account cascades and leaves a surviving log entry | DB | manual gate |
 | `check:pool` | the pool is bounded and releases (`max` / `idle_timeout` / `connect_timeout`), the filter options and default card page are memoised, and filtered searches are **not** | DB (3 queries) | manual gate |
 | `check:share-previews` | all three OG routes return real PNGs; cover set and cover falling back; a private cube stays generic; `og:image` is absolute | Supabase + dev server | manual gate |
 
@@ -1241,7 +1250,8 @@ npm run check:printings && npm run check:browse-grid && npm run check:card-filte
 npm run check:copies-and-log && npm run check:public-cube && \
 npm run check:auth-flow && npm run check:cube-ownership && \
 npm run check:magic-link && npm run check:import && npm run check:discovery && \
-npm run check:primer-toolbar && npm run check:pool && \nnpm run check:deck-export && \
+npm run check:primer-toolbar && npm run check:pool && \
+npm run check:moderation && npm run check:deck-export && \
 npm run check:share-previews
 ```
 
@@ -1257,6 +1267,49 @@ Each creates throwaway accounts and deletes them again, including on failure.
 If these ever need to be automated, the path is the Supabase CLI (`supabase
 start`) in CI, which brings up Postgres and GoTrue per run with no secrets and
 no shared state — not a hosted test project.
+
+## Moderation
+
+Owner-only, and deliberately small. `users.is_admin` is the flag; there is no
+moderator role beyond it yet.
+
+- **Suspend and hide are the primary verbs; delete is the last resort.** There
+  is no point-in-time recovery on this plan, so a wrong delete cannot be undone
+  from anywhere. Both delete actions require the cube name or username typed
+  exactly, and `check:cube-ownership` fails the build if either stops
+  *comparing* that confirmation — checking only that the word `confirm` appears
+  let a mutation through that deleted the guard and left the variable behind.
+- **`canViewCube` is still the one read rule**, now taking `hiddenAt` and
+  `ownerSuspendedAt`. Those live on `ViewableCube` as a required type rather
+  than being read loosely, so adding a moderation state breaks every call site
+  that has not considered it — which is how the check scripts caught up.
+- **A hidden cube stays visible to its owner; a suspended account's cubes do
+  not, even to the owner.** Hiding tells the owner why, on the page, because
+  otherwise they conclude the site is broken and email about it. Suspension is
+  the account being switched off, so it applies to them too. Admins see
+  everything, since reviewing what you hid is the job.
+- **`canUseCube` is separate from `canViewCube`**: readable is not usable.
+  Cloning, drafting and following all go through the stricter one, so a hidden
+  cube cannot be copied out from under the moderation by its own owner.
+- **The exclusion lives in `conditions()` in `discovery.ts`, above the
+  `includeNonPublic` branch**, so it applies to *every* listing — Explore, a
+  profile, the followed tab, the sitemap, and the owner's own `/cubes`. That
+  last one is the point: the owner's list is where a hidden cube would
+  otherwise still be advertised.
+- **`moderation_log` is outside every cascade.** `actor_id` sets null and
+  `target_id` is deliberately not a foreign key, because the record has to
+  outlive both the moderator and the thing acted on; `snapshot` is the only
+  trace a deleted cube or account leaves. Unlike `recordCubeChange`, logging
+  here does **not** swallow failures, and it is written *before* the action, so
+  an action with no audit trail cannot happen.
+- Deleting an account deletes the **`auth.users`** row, not just the profile.
+  Deleting the public row alone would leave an auth account that can still sign
+  in and claim a fresh username on `/welcome` — the same person, a clean slate,
+  no record.
+- **A hand-written migration needs a `drizzle/meta/_journal.json` entry.**
+  Without one `db:migrate` prints "migrations applied successfully" and applies
+  nothing; `0012` was silently skipped that way, and the failure only surfaced
+  as a missing relation at request time.
 
 ## Security posture
 

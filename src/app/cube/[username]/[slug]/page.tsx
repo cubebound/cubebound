@@ -12,6 +12,7 @@ import { getCubeCards } from "@/db/queries/cubes";
 import { getFollowState } from "@/db/queries/discovery";
 import { loadCube, loadViewer } from "@/lib/cube-request";
 import type { SearchParams } from "@/lib/card-search-params";
+import { CubeModerationPanel } from "@/components/moderation-panel";
 import { canEditCube, canViewCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
 import { countCopies } from "@/lib/cube-cards";
@@ -89,9 +90,13 @@ export default async function CubePage({
     searchParams,
     cookies(),
   ]);
-  if (!canViewCube(cube, current?.profile?.id)) notFound();
+  if (!canViewCube(cube, current?.profile?.id, current?.profile?.isAdmin)) notFound();
 
   const isOwner = canEditCube(cube, current?.profile?.id);
+  const isAdmin = Boolean(current?.profile?.isAdmin);
+  const hiddenAt = cube.hiddenAt;
+  const hiddenReason = cube.hiddenReason;
+  const cubeName = cube.name;
   const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab;
   const hasPrimer = Boolean(cube.primer?.trim());
   const showingPrimer = tab === "primer" && hasPrimer;
@@ -149,6 +154,27 @@ export default async function CubePage({
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
+      {/* Above the header, not beside the owner's buttons: acting on someone
+          else's cube by mistake is the failure to design against. */}
+      {isAdmin && (
+        <div className="mb-5">
+          <CubeModerationPanel
+            cubeId={cubeId}
+            cubeName={cubeName}
+            hidden={Boolean(hiddenAt)}
+            hiddenReason={hiddenReason}
+          />
+        </div>
+      )}
+
+      {/* The owner is told, rather than left thinking the site is broken. */}
+      {!isAdmin && isOwner && hiddenAt && (
+        <p className="mb-5 rounded-md border border-amber-400/60 bg-amber-50/60 p-3 text-sm dark:border-amber-500/40 dark:bg-amber-950/20">
+          This cube has been hidden by a moderator and is not visible to anyone
+          else.{hiddenReason ? ` Reason: ${hiddenReason}` : ""}
+        </p>
+      )}
+
       <header className="mb-5">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">{cube.name}</h1>

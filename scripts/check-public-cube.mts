@@ -47,13 +47,14 @@ const created: string[] = [];
 try {
   // --- the access rule itself ------------------------------------------------
   for (const visibility of ["public", "unlisted"]) {
-    expect(canViewCube({ ownerId: "a", visibility }, null), `${visibility} should be readable signed out`);
-    expect(canViewCube({ ownerId: "a", visibility }, "b"), `${visibility} should be readable by others`);
+    const cube = { ownerId: "a", visibility, hiddenAt: null, ownerSuspendedAt: null };
+    expect(canViewCube(cube, null), `${visibility} should be readable signed out`);
+    expect(canViewCube(cube, "b"), `${visibility} should be readable by others`);
   }
-  expect(!canViewCube({ ownerId: "a", visibility: "private" }, null), "private is not public");
-  expect(!canViewCube({ ownerId: "a", visibility: "private" }, "b"), "private is not readable by others");
-  expect(canViewCube({ ownerId: "a", visibility: "private" }, "a"), "private is readable by its owner");
-  expect(!canEditCube({ ownerId: "a", visibility: "public" }, "b"), "public is still not editable by others");
+  expect(!canViewCube({ ownerId: "a", visibility: "private", hiddenAt: null, ownerSuspendedAt: null }, null), "private is not public");
+  expect(!canViewCube({ ownerId: "a", visibility: "private", hiddenAt: null, ownerSuspendedAt: null }, "b"), "private is not readable by others");
+  expect(canViewCube({ ownerId: "a", visibility: "private", hiddenAt: null, ownerSuspendedAt: null }, "a"), "private is readable by its owner");
+  expect(!canEditCube({ ownerId: "a", visibility: "public", hiddenAt: null, ownerSuspendedAt: null }, "b"), "public is still not editable by others");
 
   const owner = await createTestAccount(sql, { prefix: "own" });
   created.push(owner.id);
@@ -208,7 +209,7 @@ try {
 
   // A stranger must not be able to clone a private cube, even knowing its path.
   expect(
-    !canViewCube({ ownerId: owner.id, visibility: "private" }, stranger.id),
+    !canViewCube({ ownerId: owner.id, visibility: "private", hiddenAt: null, ownerSuspendedAt: null }, stranger.id),
     "the clone action's gate must reject a private cube for a stranger",
   );
 

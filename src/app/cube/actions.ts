@@ -36,7 +36,7 @@ import {
 } from "@/db/queries/cubes";
 import type { Cube, NewCubeChange, User } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { canEditCube, canViewCube } from "@/lib/cube-access";
+import { canEditCube, canUseCube } from "@/lib/cube-access";
 import {
   mergeImportRows,
   previewImport,
@@ -457,7 +457,10 @@ export async function cloneCubeAction(
   const username = String(formData.get("username") ?? "");
   const slug = String(formData.get("slug") ?? "");
   const source = await getCubeByOwnerAndSlug(username, slug);
-  if (!canViewCube(source, current.profile.id)) return { error: "Cube not found." };
+  // canUseCube, not canViewCube: a hidden cube stays readable by its owner so
+  // they can see it was moderated, but cloning it would be a way straight
+  // around the moderation.
+  if (!canUseCube(source, current.profile.id)) return { error: "Cube not found." };
 
   const clone = await cloneCube(
     source.id,

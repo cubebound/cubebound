@@ -5,6 +5,8 @@ import { notFound } from "next/navigation";
 import CubeResults from "@/components/cube-results";
 import Pagination from "@/components/pagination";
 import { CUBES_PAGE_SIZE, searchCubesPage } from "@/db/queries/discovery";
+import { getUserForModeration } from "@/db/queries/moderation";
+import { UserModerationPanel } from "@/components/moderation-panel";
 import { loadUserByUsername, loadViewer } from "@/lib/cube-request";
 
 interface RouteParams {
@@ -66,6 +68,9 @@ export default async function ProfilePage({
 
   const keywords = one(query.q).slice(0, 100);
   const isYou = current?.profile?.id === user.id;
+  const isAdmin = Boolean(current?.profile?.isAdmin);
+  // Only an admin pays for this query; nobody else can see what it feeds.
+  const moderation = isAdmin ? await getUserForModeration(user.username) : null;
 
   const { cubes, total, page, pageCount } = await searchCubesPage({
     ownerId: user.id,
@@ -86,6 +91,16 @@ export default async function ProfilePage({
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
+      {moderation && (
+        <div className="mb-6">
+          <UserModerationPanel
+            username={moderation.username}
+            suspended={Boolean(moderation.suspendedAt)}
+            cubeCount={moderation.cubeCount}
+          />
+        </div>
+      )}
+
       <div className="flex items-center gap-4">
         {/* The same initial the nav avatar uses, so you recognise the account. */}
         <span

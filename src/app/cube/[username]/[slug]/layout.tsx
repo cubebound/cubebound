@@ -30,7 +30,7 @@ export default async function CubeLayout({
 
   // Not found and not permitted look identical on purpose, so a private cube's
   // existence can't be probed.
-  if (!canViewCube(cube, viewer?.profile?.id)) notFound();
+  if (!canViewCube(cube, viewer?.profile?.id, viewer?.profile?.isAdmin)) notFound();
 
   return children;
 }

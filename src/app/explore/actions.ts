@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getCubeById } from "@/db/queries/cubes";
 import { followCube, unfollowCube } from "@/db/queries/discovery";
 import { getCurrentUser } from "@/lib/auth";
-import { canViewCube } from "@/lib/cube-access";
+import { canUseCube } from "@/lib/cube-access";
 
 export interface FollowState {
   error?: string;
@@ -26,7 +26,8 @@ async function requireFollowableCube(cubeId: string) {
     return { error: "Cube not found." } as const;
   }
   const cube = await getCubeById(cubeId);
-  if (!canViewCube(cube, current.profile.id)) return { error: "Cube not found." } as const;
+  // Following a moderated cube would keep it surfacing in someone's feed.
+  if (!canUseCube(cube, current.profile.id)) return { error: "Cube not found." } as const;
   return { cube, profile: current.profile } as const;
 }
 

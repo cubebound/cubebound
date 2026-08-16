@@ -127,6 +127,38 @@ try {
     }
   }
 
+  // Moderation is a privilege boundary of its own, in its own file. Scanned
+  // here for exactly the reason the others are: an action living where nothing
+  // reads it escapes the guarantee entirely.
+  const moderationSource = readFileSync("src/app/moderation/actions.ts", "utf8");
+  const moderationActions = moderationSource
+    .split(/export async function /)
+    .slice(1)
+    .map((body) => ({ name: body.slice(0, body.indexOf("(")), body }));
+  for (const { name, body } of moderationActions) {
+    if (!body.includes("requireAdmin")) {
+      failures.push(`moderation action ${name} does not call requireAdmin`);
+    }
+  }
+  expect(
+    moderationActions.length >= 4,
+    `expected the moderation actions to be exported, found ${moderationActions.length}`,
+  );
+  // The two irreversible ones must additionally demand a typed confirmation.
+  for (const name of ["deleteCubeAsAdminAction", "deleteUserAction"]) {
+    const action = moderationActions.find((a) => a.name === name);
+    if (!action) {
+      failures.push(`${name} is missing from the moderation actions`);
+    } else if (!/confirm\s*!==/.test(action.body)) {
+      // The *comparison*, not the word. Checking for "confirm" anywhere passed
+      // a mutation that deleted the guard and left the unused variable behind,
+      // which is precisely the shape a careless edit leaves.
+      failures.push(
+        `${name} is irreversible and must compare a typed confirmation, not just read one`,
+      );
+    }
+  }
+
   const source = readFileSync("src/app/cube/actions.ts", "utf8");
   const exported = [...source.matchAll(/export async function (\w+)/g)].map((m) => m[1]);
   const bodies = source.split(/export async function /).slice(1);

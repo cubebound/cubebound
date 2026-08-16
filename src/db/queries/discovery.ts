@@ -1,4 +1,4 @@
-import { and, desc, eq, exists, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, exists, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 
 import { db } from "..";
 import { cards, cubeCards, cubeFollows, cubes, users } from "../schema";
@@ -105,6 +105,14 @@ function cardFilter(cardName: string | undefined) {
 
 function conditions(options: CubeSearchOptions) {
   const parts = [
+    // **Moderation applies to every list, unconditionally.** Not behind
+    // `includeNonPublic`: that flag is what lets an owner see their own private
+    // cubes on /cubes, and a hidden cube must drop out of that list too, or the
+    // one place the owner looks still advertises it. Every listing on the site
+    // — Explore, /cubes, a profile, the followed tab and the sitemap — goes
+    // through here, which is exactly why the rule lives here and not in a page.
+    isNull(cubes.hiddenAt),
+    isNull(users.suspendedAt),
     options.includeNonPublic ? undefined : eq(cubes.visibility, "public"),
     options.ownerId ? eq(cubes.ownerId, options.ownerId) : undefined,
     keywordFilter(options.keywords),

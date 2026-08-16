@@ -223,7 +223,7 @@ try {
 
   // Following is gated on viewing — the action's gate, asserted directly.
   expect(
-    !canViewCube({ ownerId: owner.id, visibility: "private" }, reader.id),
+    !canViewCube({ ownerId: owner.id, visibility: "private", hiddenAt: null, ownerSuspendedAt: null }, reader.id),
     "the follow gate must reject a private cube for a stranger",
   );
 

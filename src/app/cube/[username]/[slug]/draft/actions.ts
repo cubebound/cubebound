@@ -16,7 +16,7 @@ import {
 } from "@/db/queries/drafts";
 import type { Cube, Draft, User } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { canViewCube } from "@/lib/cube-access";
+import { canUseCube } from "@/lib/cube-access";
 import {
   DEFAULT_DRAFT_CONFIG,
   validateDraftConfig,
@@ -48,7 +48,8 @@ async function requireDraftableCube(
   if (typeof cubeId !== "string" || cubeId.length === 0) return { error: "Cube not found." };
 
   const cube = await getCubeById(cubeId);
-  if (!canViewCube(cube, current.profile.id)) return { error: "Cube not found." };
+  // A moderated cube cannot be drafted, by anyone, owner included.
+  if (!canUseCube(cube, current.profile.id)) return { error: "Cube not found." };
   return { cube, profile: current.profile };
 }
 

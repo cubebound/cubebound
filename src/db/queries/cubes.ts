@@ -19,6 +19,9 @@ export type CubeVisibility = Cube["visibility"];
 
 export interface CubeWithOwner extends Cube {
   ownerUsername: string;
+  /** Suspension lives on the account, so the read rule needs it alongside the
+   *  cube's own `hiddenAt`. See `canViewCube`. */
+  ownerSuspendedAt: Date | null;
 }
 
 export type CubeCardRow = BrowseCard & {
@@ -26,9 +29,23 @@ export type CubeCardRow = BrowseCard & {
   quantity: number;
 };
 
-export async function getCubeById(id: string): Promise<Cube | null> {
-  const [cube] = await db.select().from(cubes).where(eq(cubes.id, id)).limit(1);
-  return cube ?? null;
+/**
+ * A cube plus the one field of its owner the access rule needs.
+ *
+ * The join is not optional: `canViewCube` cannot decide without knowing
+ * whether the owner is suspended, and a query that returned the cube alone
+ * would simply not compile against `ViewableCube` — which is the point.
+ */
+export async function getCubeById(
+  id: string,
+): Promise<(Cube & { ownerSuspendedAt: Date | null }) | null> {
+  const [row] = await db
+    .select({ cube: cubes, ownerSuspendedAt: users.suspendedAt })
+    .from(cubes)
+    .innerJoin(users, eq(users.id, cubes.ownerId))
+    .where(eq(cubes.id, id))
+    .limit(1);
+  return row ? { ...row.cube, ownerSuspendedAt: row.ownerSuspendedAt } : null;
 }
 
 export async function getCubeByOwnerAndSlug(
@@ -36,12 +53,22 @@ export async function getCubeByOwnerAndSlug(
   slug: string,
 ): Promise<CubeWithOwner | null> {
   const [row] = await db
-    .select({ cube: cubes, ownerUsername: users.username })
+    .select({
+      cube: cubes,
+      ownerUsername: users.username,
+      ownerSuspendedAt: users.suspendedAt,
+    })
     .from(cubes)
     .innerJoin(users, eq(users.id, cubes.ownerId))
     .where(and(eq(users.username, username.toLowerCase()), eq(cubes.slug, slug.toLowerCase())))
     .limit(1);
-  return row ? { ...row.cube, ownerUsername: row.ownerUsername } : null;
+  return row
+    ? {
+        ...row.cube,
+        ownerUsername: row.ownerUsername,
+        ownerSuspendedAt: row.ownerSuspendedAt,
+      }
+    : null;
 }
 
 /**
