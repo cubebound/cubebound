@@ -165,6 +165,7 @@ export default async function DraftPage({
         pickNumber: pick.pickNumber,
         id: card.id,
         name: card.name,
+        champion: card.champion,
         type: card.type,
         domains: card.domains,
         imageThumb: card.imageThumb,

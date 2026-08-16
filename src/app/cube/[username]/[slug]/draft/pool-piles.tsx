@@ -12,6 +12,8 @@ export interface PoolCard {
   pickNumber: number;
   id: string;
   name: string;
+  /** A legend's name is only its title; the champion completes it on export. */
+  champion: string | null;
   type: string;
   domains: string[];
   imageThumb: string | null;

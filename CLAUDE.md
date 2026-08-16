@@ -1057,6 +1057,25 @@ smart; C adds the deck builder.
   CDN and one occasionally fails; a blank tile in a pack you are choosing from
   is the worst place for that, so both the pack tiles and the pool piles fall
   back to the name on `onError`.
+- **A finished draft exports as a text decklist**, from the end screen, for
+  pasting into Piltover Archive and the other Riftbound builders. The format is
+  one `<quantity> <card name>` per line with no headers — what Piltover itself
+  exports and what the others parse. The binary deck code
+  (`Piltover-Archive/RiftboundDeckCodes`) is deliberately not used: it is a
+  dependency and an encoding to get wrong, where a text list is a paste a human
+  can read and fix.
+  **The names have to be rebuilt, and that is the whole feature.** `cards.name`
+  is normalised per type by the sync: champion units are stored `Darius,
+  Trifarian`, which is already right, but **a legend stores only its title**
+  (`Daughter of the Void`, champion `Kai'Sa`) — exported raw, every legend fails
+  to match. And 35 cards carry a promo suffix (`(Metal)` on 24, plus
+  `(Starter)`, `(Launch Exclusive)`, `(Ultimate)`, `(GG EZ)`), each of which has
+  a same-named plain card in the pool, so the suffix is stripped. `deckListName`
+  does both, in that order, so a variant legend still gets its champion.
+  Mainboard and sideboard are separate lists, never concatenated: the flat
+  format has no notion of a sideboard, so appending one would present cards the
+  drafter cut as part of the deck. Runes are absent because they are not
+  drafted, and the panel says so.
 - **Drafts are kept as drafts.** `/drafts` lists every draft the user has sat
   in, and `?draft={id}` on the draft route reopens one — a draft holds the
   packs it was dealt, every pick in order and the main/side split, none of
@@ -1134,6 +1153,7 @@ which is why they can create and delete accounts freely.
 | `check:analytics` | copies not rows, costless cards off the curve, Multi bucketing, keyword normalisation | nothing | **CI** |
 | `check:markdown-edit` | the primer toolbar's transforms: every button toggles, headings replace rather than stack, `diffRange` is minimal | nothing | **CI** |
 | `check:primer-toolbar` | the toolbar is *wired*: a click reaches React state, Ctrl+B matches the button, and the result saves byte-for-byte | Supabase + dev server + Chrome :9222 | manual gate |
+| `check:deck-export` | drafted decks export as names other builders accept: legends rebuilt as `Champion, Title`, promo variant suffixes stripped, copies aggregated, and the result re-imports here | DB (read-only) | manual gate |
 | `check:pool` | the pool is bounded and releases (`max` / `idle_timeout` / `connect_timeout`), the filter options and default card page are memoised, and filtered searches are **not** | DB (3 queries) | manual gate |
 | `check:share-previews` | all three OG routes return real PNGs; cover set and cover falling back; a private cube stays generic; `og:image` is absolute | Supabase + dev server | manual gate |
 
@@ -1221,7 +1241,7 @@ npm run check:printings && npm run check:browse-grid && npm run check:card-filte
 npm run check:copies-and-log && npm run check:public-cube && \
 npm run check:auth-flow && npm run check:cube-ownership && \
 npm run check:magic-link && npm run check:import && npm run check:discovery && \
-npm run check:primer-toolbar && npm run check:pool && \
+npm run check:primer-toolbar && npm run check:pool && \nnpm run check:deck-export && \
 npm run check:share-previews
 ```
 

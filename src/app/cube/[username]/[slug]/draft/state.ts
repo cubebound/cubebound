@@ -18,6 +18,8 @@ export type DetailedCard = DraftCard & {
   imageFull: string | null;
   energyCost: number | null;
   powerCost: Record<string, number> | null;
+  /** Needed to rebuild a legend's full name on export — see `deckListName`. */
+  champion: string | null;
 };
 
 /** Turns the stored id grid back into cards the engine can work with. */

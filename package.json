@@ -31,7 +31,8 @@
     "check:analytics": "tsx scripts/check-analytics.mts",
     "check:markdown-edit": "tsx scripts/check-markdown-edit.mts",
     "check:primer-toolbar": "tsx --env-file-if-exists=.env.local scripts/check-primer-toolbar.mts",
-    "check:pool": "tsx --env-file-if-exists=.env.local scripts/check-pool.mts"
+    "check:pool": "tsx --env-file-if-exists=.env.local scripts/check-pool.mts",
+    "check:deck-export": "tsx --env-file-if-exists=.env.local scripts/check-deck-export.mts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.70.0",

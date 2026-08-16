@@ -46,6 +46,8 @@ export async function getDraftCards(ids: string[]): Promise<Map<string, DraftCar
   imageFull: string | null;
   energyCost: number | null;
   powerCost: Record<string, number> | null;
+  /** Needed to rebuild a legend's full name on export — see `deckListName`. */
+  champion: string | null;
 }>> {
   if (ids.length === 0) return new Map();
   const rows = await db
@@ -58,6 +60,7 @@ export async function getDraftCards(ids: string[]): Promise<Map<string, DraftCar
       imageFull: cards.imageFull,
       energyCost: cards.energyCost,
       powerCost: cards.powerCost,
+      champion: cards.champion,
     })
     .from(cards)
     .where(inArray(cards.id, [...new Set(ids)]));

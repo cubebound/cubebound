@@ -20,6 +20,7 @@ import {
   type DraftActionState,
 } from "./actions";
 import DraftSettings, { type PoolCounts } from "./draft-settings";
+import DeckExport from "./deck-export";
 import PoolPiles, { type PoolCard } from "./pool-piles";
 
 export interface DraftTile {
@@ -259,6 +260,9 @@ export function PickScreen({
         </ul>
       </div>
 
+      {/* No export here: mid-draft the pool is a few picks, not a deck, and
+          offering to send it to a builder invites confusion about what is
+          finished. The end screen has it. */}
       <PoolPiles cards={pool} onMove={move} />
     </div>
   );
@@ -310,6 +314,8 @@ export function EndScreen({
           {error}
         </p>
       )}
+
+      <DeckExport pool={pool} />
 
       <PoolPiles cards={pool} onMove={move} />
     </div>
