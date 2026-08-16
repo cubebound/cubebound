@@ -22,7 +22,9 @@ function Section({
 }) {
   return (
     <section className="mt-10 scroll-mt-6" id={id}>
-      <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
+      <h2 className="text-xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+        {title}
+      </h2>
       <div className="mt-3 space-y-4">{children}</div>
     </section>
   );
@@ -30,6 +32,13 @@ function Section({
 
 const linkClass =
   "font-medium underline underline-offset-2 hover:text-zinc-900 dark:hover:text-zinc-100";
+
+/** Emphasis inside body copy — the term being defined, not a shout. */
+function Term({ children }: { children: React.ReactNode }) {
+  return (
+    <strong className="font-semibold text-zinc-900 dark:text-zinc-100">{children}</strong>
+  );
+}
 
 /**
  * The one page on the site that explains the format rather than serving the
@@ -39,8 +48,10 @@ const linkClass =
  * page is a login wall or a list of other people's cubes, which gives a crawler
  * nothing to understand the site *by*; this is the page that says what a
  * Riftbound cube is. Product-wise, the most common piece of feedback has been
- * from people who did not know a feature existed — so the guide links into the
- * parts of the app it describes rather than only describing them.
+ * from people who did not know a feature existed — so wherever the copy names
+ * something the site can do, it links there. The card-type mentions go to a
+ * **pre-filtered** browser (`/cards?type=Legend`) rather than to `/cards`,
+ * because "you need 24 legends" is only useful next to the legends.
  *
  * Like every route here it is dynamic — the root layout resolves
  * `metadataBase` from the request — but it makes **no database call**, so it
@@ -61,101 +72,100 @@ export default function CubeDraftingGuide() {
             How to build and draft a Riftbound cube
           </h1>
           <p className="mt-4 text-lg leading-relaxed">
-            A cube is a hand-picked pool of cards you draft over and over with
-            the same group. Riftbound&rsquo;s legends, battlefields and runes make
-            it work differently to a Magic cube — here is what changes, and how
-            groups are actually running it.
+            Welcome to the world of Riftbound Cubes! A cube is a curated pool of
+            cards you draft over and over again. While Magic: the Gathering has a
+            rich history and deep community of cube enthusiasts,
+            Riftbound&rsquo;s legends, battlefields and runes make it work
+            differently to a Magic cube. Here are some of the changes and nuances
+            to running a cube for Riftbound specifically.
           </p>
         </header>
 
-        <Section id="what-is-a-cube" title="What a cube is">
+        <Section id="what-is-a-cube" title="What is a cube?">
           <p>
             Instead of opening sealed product, you build one pool of cards
-            yourself — a few hundred, chosen deliberately — and draft out of it.
-            The same cards come back every time, so the format is whatever its
-            owner decides it is. A cube can be a greatest-hits list of the most
-            powerful cards printed, a budget pool, a single-set pool, or a
-            themed one built around a region or a mechanic.
+            yourself, usually a few hundred, and draft out of it. A cube can be a
+            list of the most powerful cards printed, a budget pool, a single-set
+            pool, or a themed one built around a region or a mechanic. The
+            possibilities are endless and this is a big part of why Cubes live in
+            my head rent free!
           </p>
           <p>
-            Nothing about a cube is singleton. Running three copies of a card
-            you want turning up often is a normal thing to do, and it is how you
-            control how frequently an effect shows up in packs.
+            Cubes can be singleton (one of each card) or you can have more than
+            one copy of cards in the cube (looking at you, spiderling enjoyers).
+            Running three copies of a card you want turning up often is a normal
+            thing to do, and it is how you control how frequently an effect shows
+            up in packs.
           </p>
         </Section>
 
         <Section id="riftbound-differences" title="What Riftbound changes">
           <p>
             Riftbound decks are not one pile of cards. A deck is a{" "}
-            <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
+            <Link href="/cards?type=Legend" className={linkClass}>
               legend
-            </strong>
+            </Link>
             , a main deck, a separate{" "}
-            <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
+            <Link href="/cards?type=Rune" className={linkClass}>
               rune deck
-            </strong>
+            </Link>
             , and a set of{" "}
-            <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
+            <Link href="/cards?type=Battlefield" className={linkClass}>
               battlefields
-            </strong>
+            </Link>
             . That has three consequences for drafting.
           </p>
           <p>
-            <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-              Legends are identity, not playables.
-            </strong>{" "}
-            Your legend determines which two domains you can access, and you
-            play exactly one. A legend in a normal pack is a card most seats
-            cannot use, and a drafter who never sees one has no deck at all.
-            That is why most cubes guarantee legends rather than leaving them to
-            the shuffle.
+            <Term>Legends determine domain identity.</Term> Your legend
+            determines which two (or sometimes three in limited) domains you can
+            access, and you play exactly one. A legend in a normal pack is a card
+            most seats cannot use, and a drafter who never sees one has no deck
+            at all. That is why many cubes guarantee legends rather than leaving
+            them to the shuffle.
           </p>
           <p>
-            <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-              Battlefields are a small, separate slot.
-            </strong>{" "}
-            You need a handful and no more, so they have the same problem in
-            miniature: valuable to everyone, but only up to a point.
+            <Term>Battlefields are a small, separate slot.</Term> You need a
+            handful and no more, so they have a similar problem. Valuable to
+            everyone, but only up to a point.
           </p>
           <p>
-            <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-              Runes are resources, not picks.
-            </strong>{" "}
-            They are the cards you exhaust and recycle to produce Energy and
-            Power. Almost every cube supplies them from outside the draft, the
-            way a Magic cube supplies basic lands — drafting them would mean
-            spending picks on your own mana base. A cube with no runes in it at
-            all is a perfectly normal cube.
+            <Term>Runes are resources, not picks.</Term> Almost every cube
+            supplies them from outside the draft, the way a Magic cube supplies
+            basic lands — drafting them would mean spending picks on your own
+            mana base. A cube with no runes in it at all is perfectly normal.
           </p>
           <p>
-            One more thing worth knowing before you build: a deck may use cards
-            from up to three domains, while a legend grants two. Signature
-            spells are tied to a champion by flavour, not by a deckbuilding
-            restriction — you can play one without running that champion. And no
-            legend or champion is strictly required.
+            Signature spells are another interesting wrinkle. Most cubes I have
+            seen allow any deck to play signature spells regardless of legend.
+            This creates some very interesting legend and signature spell
+            combinations that are not possible in constructed! Feel free to
+            experiment with your own cube here.
           </p>
         </Section>
 
         <Section id="sizing" title="Sizing the pool">
           <p>
-            The floor is set by arithmetic:{" "}
-            <em>seats × packs per player × cards per pack</em>. Eight players
-            drafting three packs of twelve need 288 cards to deal from, before
-            you have decided anything about what is in them. Most groups build
-            somewhat above the floor so the pool is not fully exhausted every
-            time, which keeps drafts from repeating themselves.
+            When deciding how many cards to put in the cube, you need to consider
+            a few things. How many players will be drafting the cube? How many
+            packs will you open? How many cards will be in each pack? At a
+            baseline, you need enough cards to fill the packs. Beyond that, it
+            can be interesting to think about whether every card shows up every
+            draft (if there are exactly enough cards to fill the packs), or if
+            there will be some cards that are not in the packs on any given draft
+            (more cards than are required). There are so many permutations and
+            ways to play a cube. The best way to learn what your group prefers is
+            just to try something and see how it goes! Iteration is the name of
+            the game with a cube.
           </p>
           <p>
             Legends and battlefields need their own count. If every pack
-            guarantees one legend, an eight-seat three-pack draft wants 24
-            legends — more than a lot of cubes hold. This is the number people
-            most often discover too late, so it is worth checking before the
-            first draft rather than during it.
-          </p>
-          <p>
-            Our{" "}
+            guarantees one legend, an eight-seat three-pack draft wants{" "}
+            <Link href="/cards?type=Legend" className={linkClass}>
+              24 legends
+            </Link>
+            . The{" "}
             <Link href="/cards" className={linkClass}>
-              card browser
+              Cubebound card browser
             </Link>{" "}
             filters the full pool by set, domain, energy cost, type, rarity and
             trait, which is the fastest way to see what is actually available in
@@ -164,94 +174,66 @@ export default function CubeDraftingGuide() {
         </Section>
 
         <Section id="pack-structure" title="How to structure packs">
+          <p>There are two approaches, and they suit different cubes.</p>
+          <ol className="ml-5 list-decimal space-y-4">
+            <li>
+              <Term>Reserved slots.</Term> Each pack contains a fixed number of
+              legends and battlefields, and the rest comes from the main pool.
+              Riftbound&rsquo;s own Legacy booster is the model most cubes copy:
+              twelve cards, of which one is a legend or a battlefield chosen at
+              random. Reserved slots come out of the pack size rather than on top
+              of it. Twelve cards with one reserved slot is eleven main cards.
+              This guarantees every seat gets shots at the cards their deck
+              cannot do without.
+            </li>
+            <li>
+              <Term>Shuffle everything together.</Term> Legends and battlefields
+              go into the main pile and turn up wherever the shuffle puts them.
+              Simpler, and some groups prefer the swinginess, but you should
+              expect seats to occasionally end up with no legend, so agree in
+              advance what happens when they do.
+            </li>
+          </ol>
           <p>
-            There are two approaches, and they suit different cubes.
-          </p>
-          <p>
-            <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-              Reserved slots.
-            </strong>{" "}
-            Each pack contains a fixed number of legends and battlefields, and
-            the rest comes from the main pool. Riftbound&rsquo;s own Legacy
-            booster is the model most cubes copy: twelve cards, of which one is
-            a legend <em>or</em> a battlefield chosen at random. Reserved slots
-            come out of the pack size rather than on top of it — twelve cards
-            with one reserved slot is eleven main cards. This guarantees every
-            seat gets shots at the cards their deck cannot do without.
-          </p>
-          <p>
-            <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-              Shuffle everything together.
-            </strong>{" "}
-            Legends and battlefields go into the main pile and turn up wherever
-            the shuffle puts them. Simpler, and some groups prefer the swinginess
-            — but you should expect seats to occasionally end up with no legend,
-            so agree in advance what happens when they do.
-          </p>
-          <p>
-            A common third variant is a{" "}
-            <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-              legend phase
-            </strong>
-            : before the main draft, everyone drafts a small pack of legends
-            only — two per drafter is typical — so every seat starts with an
-            identity and drafts toward it. It costs one extra pack and removes
-            the worst outcome in the format.
+            A common third variant is a <Term>legend phase</Term>: before the
+            main draft, everyone drafts a small pack of legends only (two per
+            drafter is typical) so every seat starts with an identity and drafts
+            toward it. It costs one extra pack and removes the worst outcome in
+            the format.
           </p>
         </Section>
 
         <Section id="house-rules" title="House rules worth agreeing up front">
           <p>
-            Cube drafting conventions in Riftbound are still community-defined,
-            and the game is young enough that no single approach has settled.
-            The questions worth answering before you sit down:
+            One of the most exciting things about Riftbound cubes is that
+            drafting conventions are still community-defined. The game is young
+            enough that no single approach has settled. The questions worth
+            answering before you and your friends start a session:
           </p>
           <ul className="ml-5 list-disc space-y-2">
             <li>
-              <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-                Deck size.
-              </strong>{" "}
-              Many cubes fix it — exactly 25 cards is a common choice — rather
-              than using the constructed minimum.
+              <Term>Deck size.</Term>
             </li>
             <li>
-              <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-                Legends.
-              </strong>{" "}
-              Drafted, or picked freely after the draft the way runes are? Some
-              groups treat the whole legend pool as available to everyone, which
-              removes legend screw entirely and makes the draft purely about the
-              main deck.
+              <Term>Legends.</Term> Drafted, or picked freely after the draft the
+              way runes are? Some groups treat the whole legend pool as available
+              to everyone, which removes legend screw entirely and makes the
+              draft purely about the main deck.
             </li>
             <li>
-              <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-                Runes.
-              </strong>{" "}
-              Almost always supplied freely, but say so, and say how many.
+              <Term>Battlefields.</Term> Drafted, or a shared pool everyone
+              builds from?
             </li>
             <li>
-              <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-                Battlefields.
-              </strong>{" "}
-              Drafted, or a shared pool everyone builds from?
-            </li>
-            <li>
-              <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-                Domains.
-              </strong>{" "}
-              Up to three is the constructed rule; some cubes cap at two to keep
-              decks focused when the card pool is small.
+              <Term>Domains.</Term> Up to three is the standard limited rule.
+              Depending on how the cube is designed though, two domains only can
+              be totally doable.
             </li>
           </ul>
           <p>
             Whatever you land on, write it down where drafters will see it. Every
-            cube on this site has a{" "}
-            <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-              primer
-            </strong>{" "}
-            — a long-form write-up attached to the cube — and it is the right
-            home for exactly this. The most common confusion we hear about is a
-            house rule that lived only in someone&rsquo;s head.
+            cube on this site has a <Term>primer</Term>, a long-form write-up
+            attached to the cube, and it is the right home for exactly this.
           </p>
         </Section>
 
@@ -262,15 +244,19 @@ export default function CubeDraftingGuide() {
               Explore
             </Link>{" "}
             lists public cubes, and any of them can be cloned into your own
-            account in one click and changed from there — a working cube is a far
-            better starting point than an empty one.
+            account in one click and changed from there.
           </p>
           <p>
-            When you are ready to test it, you can draft any cube on the site
+            When you are ready to test it, you can{" "}
+            <Link href="/explore" className={linkClass}>
+              draft any cube on the site
+            </Link>{" "}
             against bots without waiting for a group, choosing seats, packs, pack
-            size and how legends and battlefields are dealt. It is the cheapest
-            way to find out that your curve is wrong or that you are four legends
-            short.
+            size and how legends and battlefields are dealt. The bots are very
+            stupid for now, but it is so satisfying to see your cube at work!
+          </p>
+          <p className="font-medium text-zinc-900 dark:text-zinc-100">
+            Good luck out on the Rift and happy cube-ing!
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
@@ -284,6 +270,12 @@ export default function CubeDraftingGuide() {
               className="inline-flex h-10 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
             >
               Browse cubes
+            </Link>
+            <Link
+              href="/cards"
+              className="inline-flex h-10 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Browse cards
             </Link>
           </div>
         </Section>
