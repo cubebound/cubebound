@@ -16,9 +16,10 @@
  *
  *   npm run check:import
  */
-import { readFileSync } from "node:fs";
 
 import postgres from "postgres";
+
+import { fromEnvFile } from "./lib/env";
 
 import { getImportCatalog } from "../src/db/queries/cards";
 import {
@@ -39,22 +40,6 @@ import {
   resolveLine,
   type CatalogCard,
 } from "../src/lib/import-list";
-
-function fromEnvFile(name: string): string {
-  for (const file of [".env.local", ".env"]) {
-    let contents: string;
-    try {
-      contents = readFileSync(file, "utf8");
-    } catch {
-      continue;
-    }
-    const line = contents
-      .split(/\r?\n/)
-      .find((l) => l.trim().startsWith(`${name}=`));
-    if (line) return line.slice(line.indexOf("=") + 1).trim();
-  }
-  throw new Error(`${name} is not set`);
-}
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 

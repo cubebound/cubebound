@@ -18,8 +18,10 @@ import { readFileSync } from "node:fs";
 
 import postgres from "postgres";
 
+import { fromEnvFile } from "./lib/env";
+import { createTestAccount } from "./lib/test-account";
+
 import { addCubeCard, createCube, getCubeCards } from "../src/db/queries/cubes";
-import { claimUsername } from "../src/db/queries/users";
 import { canEditCube } from "../src/lib/cube-access";
 import { defaultSectionForType, isCubeSection } from "../src/lib/riftbound";
 import { slugify, uniqueSlug } from "../src/lib/slug";
@@ -27,77 +29,12 @@ import { slugify, uniqueSlug } from "../src/lib/slug";
 const APP = process.env.APP_URL ?? "http://localhost:3000";
 const CDP = process.env.CDP_URL ?? "http://127.0.0.1:9222";
 
-function fromEnvFile(name: string): string {
-  for (const file of [".env.local", ".env"]) {
-    let contents: string;
-    try {
-      contents = readFileSync(file, "utf8");
-    } catch {
-      continue;
-    }
-    const line = contents.split(/\r?\n/).find((l) => l.trim().startsWith(`${name}=`));
-    if (line) return line.slice(line.indexOf("=") + 1).trim();
-  }
-  throw new Error(`${name} not found in .env.local or .env`);
-}
-
-const projectUrl = new URL(fromEnvFile("NEXT_PUBLIC_SUPABASE_URL"));
-const projectRef = projectUrl.host.split(".")[0];
-const publishable = fromEnvFile("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 
 const failures: string[] = [];
 const expect = (ok: boolean, message: string) => {
   if (!ok) failures.push(message);
 };
-
-async function makeUser(label: string): Promise<{ id: string; username: string; cookie: string }> {
-  const email = `cube-${label}-${Date.now()}@cubebound.test`;
-  const password = `Pw-${Math.random().toString(36).slice(2)}`;
-  // GoTrue scans the token columns into non-nullable Go strings.
-  const [row] = await sql`
-    insert into auth.users (
-      instance_id, id, aud, role, email, encrypted_password,
-      email_confirmed_at, created_at, updated_at,
-      raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous,
-      confirmation_token, recovery_token, email_change_token_new, email_change,
-      phone_change, phone_change_token, email_change_token_current, reauthentication_token
-    ) values (
-      '00000000-0000-0000-0000-000000000000', gen_random_uuid(),
-      'authenticated', 'authenticated', ${email},
-      extensions.crypt(${password}, extensions.gen_salt('bf')),
-      now(), now(), now(),
-      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, false, false,
-      '', '', '', '', '', '', '', ''
-    ) returning id`;
-
-  const username = `cube${label}${Date.now() % 1000000}`;
-  const claimed = await claimUsername(row.id, username);
-  if (!claimed.ok) throw new Error(`could not claim username: ${claimed.error}`);
-
-  const res = await fetch(`${projectUrl.origin}/auth/v1/token?grant_type=password`, {
-    method: "POST",
-    headers: { apikey: publishable, "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  const s = await res.json();
-  if (!res.ok) throw new Error(`token grant failed: ${JSON.stringify(s)}`);
-  const value =
-    "base64-" +
-    Buffer.from(
-      JSON.stringify({
-        access_token: s.access_token,
-        refresh_token: s.refresh_token,
-        user: s.user,
-        token_type: s.token_type,
-        expires_in: s.expires_in,
-        expires_at: s.expires_at,
-      }),
-      "utf8",
-    ).toString("base64url");
-
-  return { id: row.id, username, cookie: `sb-${projectRef}-auth-token=${value}` };
-}
 
 const created: string[] = [];
 
@@ -211,9 +148,9 @@ try {
   expect(exported.length >= 7, `expected the cube actions to be exported, found ${exported.length}`);
 
   // ---- set up owner, intruder and a cube -----------------------------------
-  const owner = await makeUser("a");
+  const owner = await createTestAccount(sql, { prefix: "a" });
   created.push(owner.id);
-  const intruder = await makeUser("b");
+  const intruder = await createTestAccount(sql, { prefix: "b" });
   created.push(intruder.id);
 
   const cube = await createCube({

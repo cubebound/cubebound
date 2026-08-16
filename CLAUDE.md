@@ -96,6 +96,16 @@ database only. Local work cannot reach production data. That is what makes the
 manual gate safe to run against a live Supabase: the accounts those checks
 create and delete are dev accounts.
 
+**Throwaway accounts come from `scripts/lib/test-account.ts`.** The
+`insert into auth.users` it wraps was byte-identical in six checks with two
+near-identical variants — and that column list is brittle, since GoTrue needs
+several non-null with no defaults, so one upstream change broke every copy at
+once. `scripts/lib/env.ts` holds the env-file reader **and imports nothing**:
+some checks run without `--env-file-if-exists`, so anything they import must
+not reach `src/db/index.ts`, which reads `DATABASE_URL` at load time and
+throws. Keeping the reader beside the account helpers pulled the database layer
+in behind it and broke `check:printings` on import.
+
 **Never mutate an existing account to get a session.** Every check script
 creates a throwaway `auth.users` row, claims a username, mints a token against
 it, and deletes it in a `finally`. An ad-hoc script that instead `UPDATE`s an

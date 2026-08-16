@@ -20,9 +20,9 @@
  * mailbox. They exist to be *found*, not to be used. Follow, search and browse
  * from your own account.
  */
-import { readFileSync } from "node:fs";
-
 import postgres from "postgres";
+
+import { fromEnvFile } from "./lib/env";
 
 import { db } from "../src/db";
 import { cubeCards, cubeFollows, cubes as cubesTable } from "../src/db/schema";
@@ -31,20 +31,6 @@ import { defaultSectionForType } from "../src/lib/riftbound";
 import { slugify, uniqueSlug } from "../src/lib/slug";
 
 const SEED_DOMAIN = "seed.cubebound.test";
-
-function fromEnvFile(name: string): string {
-  for (const file of [".env.local", ".env"]) {
-    let contents: string;
-    try {
-      contents = readFileSync(file, "utf8");
-    } catch {
-      continue;
-    }
-    const line = contents.split(/\r?\n/).find((l) => l.trim().startsWith(`${name}=`));
-    if (line) return line.slice(line.indexOf("=") + 1).trim();
-  }
-  throw new Error(`${name} not found in .env.local or .env`);
-}
 
 const arg = (name: string, fallback?: string) => {
   const i = process.argv.indexOf(`--${name}`);

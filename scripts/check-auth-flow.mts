@@ -20,26 +20,13 @@
  * Set SUPABASE_SECRET_KEY to use the admin API; otherwise the user is inserted
  * straight into auth.users (we own the database).
  */
-import { readFileSync } from "node:fs";
 
 import postgres from "postgres";
 
+import { fromEnvFile } from "./lib/env";
+
 const APP = process.env.APP_URL ?? "http://localhost:3000";
 const CDP = process.env.CDP_URL ?? "http://127.0.0.1:9222";
-
-function fromEnvFile(name: string): string {
-  for (const file of [".env.local", ".env"]) {
-    let contents: string;
-    try {
-      contents = readFileSync(file, "utf8");
-    } catch {
-      continue;
-    }
-    const line = contents.split(/\r?\n/).find((l) => l.trim().startsWith(`${name}=`));
-    if (line) return line.slice(line.indexOf("=") + 1).trim();
-  }
-  throw new Error(`${name} not found in .env.local or .env`);
-}
 
 const projectUrl = new URL(fromEnvFile("NEXT_PUBLIC_SUPABASE_URL"));
 const origin = projectUrl.origin;

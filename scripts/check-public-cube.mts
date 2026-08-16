@@ -14,9 +14,11 @@
  *
  *   npm run check:public-cube
  */
-import { readFileSync } from "node:fs";
 
 import postgres from "postgres";
+
+import { fromEnvFile } from "./lib/env";
+import { createTestAccount, deleteTestAccounts } from "./lib/test-account";
 
 import { getCardById } from "../src/db/queries/cards";
 import {
@@ -28,79 +30,17 @@ import {
   getCubeCards,
   updateCube,
 } from "../src/db/queries/cubes";
-import { claimUsername } from "../src/db/queries/users";
 import { canEditCube, canViewCube } from "../src/lib/cube-access";
 import { defaultSectionForType } from "../src/lib/riftbound";
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
 
-function fromEnvFile(name: string): string {
-  for (const file of [".env.local", ".env"]) {
-    let contents: string;
-    try {
-      contents = readFileSync(file, "utf8");
-    } catch {
-      continue;
-    }
-    const line = contents.split(/\r?\n/).find((l) => l.trim().startsWith(`${name}=`));
-    if (line) return line.slice(line.indexOf("=") + 1).trim();
-  }
-  throw new Error(`${name} not found in .env.local or .env`);
-}
-
-const projectUrl = new URL(fromEnvFile("NEXT_PUBLIC_SUPABASE_URL"));
-const projectRef = projectUrl.host.split(".")[0];
-const publishable = fromEnvFile("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 
 const failures: string[] = [];
 const expect = (ok: boolean, message: string) => {
   if (!ok) failures.push(message);
 };
-
-async function makeUser(label: string) {
-  const email = `public-${label}-${Date.now()}@cubebound.test`;
-  const password = `Pw-${Math.random().toString(36).slice(2)}`;
-  const [row] = await sql`
-    insert into auth.users (
-      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-      created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous,
-      confirmation_token, recovery_token, email_change_token_new, email_change,
-      phone_change, phone_change_token, email_change_token_current, reauthentication_token
-    ) values (
-      '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated',
-      ${email}, extensions.crypt(${password}, extensions.gen_salt('bf')), now(), now(), now(),
-      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, false, false,
-      '', '', '', '', '', '', '', ''
-    ) returning id`;
-
-  const username = `pub${label}${Date.now() % 1000000}`;
-  const claimed = await claimUsername(row.id, username);
-  if (!claimed.ok) throw new Error(claimed.error);
-
-  const res = await fetch(`${projectUrl.origin}/auth/v1/token?grant_type=password`, {
-    method: "POST",
-    headers: { apikey: publishable, "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-  const s = await res.json();
-  if (!res.ok) throw new Error(`token grant failed: ${JSON.stringify(s)}`);
-  const value =
-    "base64-" +
-    Buffer.from(
-      JSON.stringify({
-        access_token: s.access_token,
-        refresh_token: s.refresh_token,
-        user: s.user,
-        token_type: s.token_type,
-        expires_in: s.expires_in,
-        expires_at: s.expires_at,
-      }),
-      "utf8",
-    ).toString("base64url");
-
-  return { id: row.id, username, cookie: `sb-${projectRef}-auth-token=${value}` };
-}
 
 const created: string[] = [];
 
@@ -115,9 +55,9 @@ try {
   expect(canViewCube({ ownerId: "a", visibility: "private" }, "a"), "private is readable by its owner");
   expect(!canEditCube({ ownerId: "a", visibility: "public" }, "b"), "public is still not editable by others");
 
-  const owner = await makeUser("own");
+  const owner = await createTestAccount(sql, { prefix: "own" });
   created.push(owner.id);
-  const stranger = await makeUser("str");
+  const stranger = await createTestAccount(sql, { prefix: "str" });
   created.push(stranger.id);
 
   const cube = await createCube({
@@ -283,7 +223,7 @@ try {
 } catch (error) {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);
 } finally {
-  for (const id of created) await sql`delete from auth.users where id = ${id}::uuid`;
+  await deleteTestAccounts(sql, created);
   await sql.end();
 }
 

@@ -11,25 +11,12 @@
  *
  * Read-only: it never writes to the database.
  */
-import { readFileSync } from "node:fs";
 
 import postgres from "postgres";
 
-import { assignBaseIds, cardIdentityKey, composeCardId, provisionalBaseId } from "../src/lib/card-ids";
+import { fromEnvFile } from "./lib/env";
 
-function fromEnvFile(name: string): string {
-  for (const file of [".env.local", ".env"]) {
-    let contents: string;
-    try {
-      contents = readFileSync(file, "utf8");
-    } catch {
-      continue;
-    }
-    const line = contents.split(/\r?\n/).find((l) => l.trim().startsWith(`${name}=`));
-    if (line) return line.slice(line.indexOf("=") + 1).trim();
-  }
-  throw new Error(`${name} not found in .env.local or .env`);
-}
+import { assignBaseIds, cardIdentityKey, composeCardId, provisionalBaseId } from "../src/lib/card-ids";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 const failures: string[] = [];

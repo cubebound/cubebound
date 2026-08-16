@@ -21,28 +21,14 @@
  *
  *   npm run check:share-previews
  */
-import { readFileSync } from "node:fs";
-
 import postgres from "postgres";
+
+import { fromEnvFile } from "./lib/env";
 
 import { addCubeCard, createCube, setCubeCover } from "../src/db/queries/cubes";
 import { claimUsername } from "../src/db/queries/users";
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
-
-function fromEnvFile(name: string): string {
-  for (const file of [".env.local", ".env"]) {
-    let contents: string;
-    try {
-      contents = readFileSync(file, "utf8");
-    } catch {
-      continue;
-    }
-    const line = contents.split(/\r?\n/).find((l) => l.trim().startsWith(`${name}=`));
-    if (line) return line.slice(line.indexOf("=") + 1).trim();
-  }
-  throw new Error(`${name} not found in .env.local or .env`);
-}
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 const failures: string[] = [];
