@@ -373,6 +373,13 @@ a stale row — but it means a source switch leaves residue worth checking for.
   printings, and without a bucket of their own they would be the fifth of the
   pool no cost filter could reach. `check:card-filters` asserts the buckets
   partition the pool exactly, which is what catches both mistakes.
+- **`getFilterOptions` is memoised in-process for five minutes**
+  (`FILTER_OPTIONS_TTL_MS`). Its six queries ran on every card-browser load and
+  exhausted the connection pool in production — see "Page speed". The values
+  describe the card pool, so they only change when `sync-cards` runs and a new
+  set appears within five minutes of a sync with nobody doing anything. It is a
+  plain module-level memo rather than a framework cache deliberately: no
+  revalidation story to get wrong, and a cold instance simply reads once.
 - **A set's printed name comes from the stored raw payload**
   (`data->'card'->'set'->>'label'`), not a lookup table, so a newly synced set
   names itself like every other filter value. The six retired-source token rows
@@ -1250,6 +1257,35 @@ Audited before the first wide share. What was checked, and what it turned up.
 ## Page speed
 
 Two things dominate, and neither is the amount of data.
+
+- **The connection pool is the scarcest resource, not query time.** The site
+  hung in production while cards were being added quickly from the editor's
+  browse tab. The database was healthy throughout — `/explore` answered in
+  240ms — but requests queued for a connection with no deadline, so *different*
+  routes timed out on different attempts and it read as the whole site being
+  down rather than as one slow page. **Intermittent hangs across unrelated
+  routes, while the database is demonstrably fine, means the pool.**
+  Two causes, both since fixed and both worth not reintroducing:
+  - `getFilterOptions` fired **six queries in one `Promise.all` on every card
+    browser load**, including every re-render of the tab you sit in while
+    adding cards. A single request could take the entire pool. It is now
+    memoised in-process for five minutes, which is right because those values
+    describe the *card pool* and change only when `sync-cards` runs. **Any new
+    fan-out on a hot path needs the same scrutiny**: the number that matters is
+    queries × concurrent requests, not the cost of one query.
+  - The pool was unbounded and never released. postgres-js defaults to `max`
+    10 with no idle timeout, and **every Vercel instance builds its own pool**,
+    so a burst spun up instances that each took ten connections and were then
+    frozen still holding them. `src/db/index.ts` now sets `max: 6` (the widest
+    `Promise.all` fan-out, so parallel queries are not serialised),
+    `idle_timeout: 20` so a frozen instance hands its connections back, and
+    `connect_timeout: 10` so exhaustion fails fast with a digest instead of
+    hanging — a page that errors is far easier to diagnose than one that stalls.
+  - Reproduce with 40 concurrent requests to `/cards`. Before: 39 of 40 timed
+    out at 60s. After: 40 of 40 return 200, slowest 4.2s. **The symptom appeared
+    twice in local testing first and was written off as "I hammered the dev
+    server"** — it was the same bug both times, and a hang under self-inflicted
+    load is a finding, not an artefact.
 
 - **Supabase is remote: a query costs ~60ms whatever it asks for.** Returning
   427 cube_cards rows measured 72ms against 59ms for a one-row lookup, so a
