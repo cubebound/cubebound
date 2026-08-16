@@ -124,6 +124,7 @@ function readDraftConfig(input: unknown): DraftConfig {
     const value = Number(source[key]);
     return Number.isFinite(value) ? Math.floor(value) : fallback;
   };
+  const flag = (key: keyof DraftConfig) => source[key] === true;
   return {
     seats: num("seats", DEFAULT_DRAFT_CONFIG.seats),
     packsPerPlayer: num("packsPerPlayer", DEFAULT_DRAFT_CONFIG.packsPerPlayer),
@@ -134,6 +135,8 @@ function readDraftConfig(input: unknown): DraftConfig {
       "legendOrBattlefieldSlots",
       DEFAULT_DRAFT_CONFIG.legendOrBattlefieldSlots,
     ),
+    shuffleLegendsIntoPacks: flag("shuffleLegendsIntoPacks"),
+    shuffleBattlefieldsIntoPacks: flag("shuffleBattlefieldsIntoPacks"),
   };
 }
 

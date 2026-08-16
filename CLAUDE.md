@@ -817,13 +817,28 @@ smart; C adds the deck builder.
   legend. Only the either-slot swaps, which is what it is for. A shortfall in
   any reserved section warns and falls back; only a main pool too small to cover
   its own slots *plus* the whole fallback actually blocks.
-- **Legends and battlefields reach a pack only through a reserved slot.** The
-  main pool is filtered by card *type*, not just by section: a card's section is
-  the owner's filing decision and nothing stops them putting a legend in `main`,
-  but the reserved slots exist so those types turn up a known number of times
-  per pack, and a stray one makes that number a lie. `filterMainPool` reports
-  what it removed so the start screen can say so rather than silently dropping
-  cards someone filed on purpose.
+- **Each of legends and battlefields is either reserved or shuffled — one
+  choice, not two settings.** Reserved means N guaranteed slots a pack; shuffled
+  means the whole section joins the main pile and turns up wherever the shuffle
+  puts it, for cubes that mix everything together and deal off the top. Both at
+  once is incoherent — the guaranteed count would be a lie — so
+  `validateDraftConfig` rejects it and the form offers a radio rather than a
+  number plus a checkbox, which makes the exclusivity structural instead of a
+  rule the UI has to police.
+  **The either-slot needs both types reserved**, because it draws from each:
+  shuffling one in empties the deck it would have taken from and would silently
+  turn it into a one-type slot. `canUseEitherSlot` is that rule.
+- **`buildMainPool` is both halves of the same rule.** When a type is
+  *reserved*, its type beats its section: a legend filed in `main` is dropped,
+  because the reserved slots exist so that type turns up a known number of times
+  and a stray makes the number a lie. When a type is *shuffled*, there is no
+  count to protect, so its section folds in and strays stay put. It reports both
+  what it removed and what it folded in, so the start screen can say so rather
+  than silently changing what a cube drafts.
+  A shuffled type's reserved deck is emptied at the same time, and **that** is
+  what stops a card being dealt from both piles — validation normally makes the
+  combination unreachable, so `check:draft` builds the contradictory config on
+  purpose to exercise the guard, since `generatePacks` does not validate.
 - **The pack template follows Riftbound's Legacy booster**: eleven cards from
   the cube's main section plus one Legend-or-Battlefield, chosen 50/50 per
   pack. Legends and battlefields are a deck's *identity* rather than its body —

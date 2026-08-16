@@ -33,6 +33,17 @@ export interface DraftConfig {
   battlefieldSlots: number;
   /** Slots that are one or the other, chosen at random per slot. */
   legendOrBattlefieldSlots: number;
+  /**
+   * Deal legends from the ordinary main slots instead of reserving any.
+   *
+   * For cubes that shuffle everything together and build packs off the pile.
+   * Mutually exclusive with reserving the type: a legend is either something
+   * the pack template guarantees a number of, or just another card in the
+   * shuffle, and both at once makes the guaranteed number a lie. The
+   * either-slot counts as reserving both types, so it has to be zero too.
+   */
+  shuffleLegendsIntoPacks: boolean;
+  shuffleBattlefieldsIntoPacks: boolean;
   seats: number;
   /**
    * Direction each round passes, indexed by round.
@@ -59,8 +70,30 @@ export const DEFAULT_DRAFT_CONFIG: DraftConfig = {
   legendSlots: DEFAULT_LEGEND_SLOTS,
   battlefieldSlots: DEFAULT_BATTLEFIELD_SLOTS,
   legendOrBattlefieldSlots: DEFAULT_LEGEND_OR_BATTLEFIELD_SLOTS,
+  shuffleLegendsIntoPacks: false,
+  shuffleBattlefieldsIntoPacks: false,
   seats: DEFAULT_SEATS,
 };
+
+/**
+ * How a type reaches a pack. The UI offers this as one choice per type, which
+ * is what makes the exclusivity structural rather than a rule the form has to
+ * police; the config stores it flat so an older snapshot still reads.
+ */
+export type TypeMode = "reserved" | "shuffled";
+
+export function legendMode(config: DraftConfig): TypeMode {
+  return config.shuffleLegendsIntoPacks ? "shuffled" : "reserved";
+}
+export function battlefieldMode(config: DraftConfig): TypeMode {
+  return config.shuffleBattlefieldsIntoPacks ? "shuffled" : "reserved";
+}
+
+/** Whether the either-slot is available: it draws both types, so it needs both
+ *  of them reserved. */
+export function canUseEitherSlot(config: DraftConfig): boolean {
+  return !config.shuffleLegendsIntoPacks && !config.shuffleBattlefieldsIntoPacks;
+}
 
 /**
  * Bounds, enforced on the server rather than only in the form.
@@ -141,6 +174,30 @@ export function validateDraftConfig(config: DraftConfig): ConfigProblem[] {
     ["slots", config.legendOrBattlefieldSlots, "Legend-or-battlefield slots"],
   ] as const) {
     range(field, value, label);
+  }
+
+  // A type is either reserved or shuffled, never both — otherwise the
+  // guaranteed count is a lie, and the either-slot silently changes meaning
+  // because the deck it draws from has been emptied into main.
+  if (config.shuffleLegendsIntoPacks && config.legendSlots > 0) {
+    problems.push({
+      field: "legendSlots",
+      message: "Legends can be reserved or shuffled into the packs, not both.",
+    });
+  }
+  if (config.shuffleBattlefieldsIntoPacks && config.battlefieldSlots > 0) {
+    problems.push({
+      field: "battlefieldSlots",
+      message: "Battlefields can be reserved or shuffled into the packs, not both.",
+    });
+  }
+  if (!canUseEitherSlot(config) && config.legendOrBattlefieldSlots > 0) {
+    problems.push({
+      field: "legendOrBattlefieldSlots",
+      message:
+        "A legend-or-battlefield slot draws both types, so it needs both reserved. " +
+        "Shuffling either one in leaves it nothing to guarantee.",
+    });
   }
 
   const reserved = reservedSlotsPerPack(config);

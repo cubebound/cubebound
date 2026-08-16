@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import {
+  canUseEitherSlot,
   DEFAULT_DRAFT_CONFIG,
   DRAFT_LIMITS,
   finalPoolSize,
@@ -62,6 +63,13 @@ export default function DraftSettings({
     flexible: totalLegendOrBattlefieldNeeded(config),
   };
 
+  // A shuffled type is part of the main pile, not a reserved section, so it
+  // grows what main can draw from and needs nothing of its own.
+  const mainAvailable =
+    pools.main +
+    (config.shuffleLegendsIntoPacks ? pools.legends : 0) +
+    (config.shuffleBattlefieldsIntoPacks ? pools.battlefields : 0);
+
   const legendShort = Math.max(0, needs.legends - pools.legends);
   const battlefieldShort = Math.max(0, needs.battlefields - pools.battlefields);
   const spare =
@@ -70,7 +78,7 @@ export default function DraftSettings({
   const flexibleShort = Math.max(0, needs.flexible - spare);
   const fallback = legendShort + battlefieldShort + flexibleShort;
   const mainTotal = needs.main + fallback;
-  const mainShort = Math.max(0, mainTotal - pools.main);
+  const mainShort = Math.max(0, mainTotal - mainAvailable);
 
   const field = (
     label: string,
@@ -92,6 +100,60 @@ export default function DraftSettings({
       />
       {hint && <span className="text-xs text-zinc-500">{hint}</span>}
     </label>
+  );
+
+  /**
+   * One choice per type: reserve a number of slots, or shuffle the section into
+   * the packs. A radio rather than a number plus a checkbox, so "both at once"
+   * cannot be expressed — `validateDraftConfig` still rejects it, because the
+   * config arrives from a browser, but the form should not offer it.
+   */
+  const typeMode = (
+    label: string,
+    slots: number,
+    shuffled: boolean,
+    setSlots: (n: number) => void,
+    setShuffled: (on: boolean) => void,
+    available: number,
+  ) => (
+    <fieldset className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+      <legend className="px-1 text-sm font-medium">
+        {label}{" "}
+        <span className="font-normal text-zinc-500">({available} in this cube)</span>
+      </legend>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="radio"
+          checked={!shuffled}
+          onChange={() => setShuffled(false)}
+          className="size-4 accent-zinc-900 dark:accent-zinc-100"
+        />
+        <span>Reserved slots</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={DRAFT_LIMITS.slots.min}
+          max={DRAFT_LIMITS.slots.max}
+          value={slots}
+          disabled={shuffled}
+          onChange={(event) => setSlots(Number(event.target.value))}
+          aria-label={`${label} slots per pack`}
+          className="h-8 w-16 rounded-md border border-zinc-300 bg-white px-2 text-sm disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900"
+        />
+        <span className="text-zinc-500">per pack</span>
+      </label>
+
+      <label className="mt-1.5 flex items-center gap-2 text-sm">
+        <input
+          type="radio"
+          checked={shuffled}
+          onChange={() => setShuffled(true)}
+          className="size-4 accent-zinc-900 dark:accent-zinc-100"
+        />
+        <span>Shuffled into the packs</span>
+      </label>
+    </fieldset>
   );
 
   const row = (label: string, need: number, have: number) => {
@@ -133,22 +195,54 @@ export default function DraftSettings({
         )}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {field("Legend slots", config.legendSlots, (n) => set({ legendSlots: n }), DRAFT_LIMITS.slots)}
-        {field(
-          "Battlefield slots",
-          config.battlefieldSlots,
-          (n) => set({ battlefieldSlots: n }),
-          DRAFT_LIMITS.slots,
+      <div className="grid gap-3 sm:grid-cols-2">
+        {typeMode(
+          "Legends",
+          config.legendSlots,
+          config.shuffleLegendsIntoPacks,
+          (n) => set({ legendSlots: n }),
+          (on) =>
+            set({
+              shuffleLegendsIntoPacks: on,
+              // Reserving and shuffling are the two halves of one choice, so
+              // picking one clears the other rather than leaving a stale number
+              // for the server to reject.
+              ...(on ? { legendSlots: 0, legendOrBattlefieldSlots: 0 } : {}),
+            }),
+          pools.legends,
         )}
-        {field(
-          "Either slots",
-          config.legendOrBattlefieldSlots,
-          (n) => set({ legendOrBattlefieldSlots: n }),
-          DRAFT_LIMITS.slots,
-          "One of the two, at random.",
+        {typeMode(
+          "Battlefields",
+          config.battlefieldSlots,
+          config.shuffleBattlefieldsIntoPacks,
+          (n) => set({ battlefieldSlots: n }),
+          (on) =>
+            set({
+              shuffleBattlefieldsIntoPacks: on,
+              ...(on ? { battlefieldSlots: 0, legendOrBattlefieldSlots: 0 } : {}),
+            }),
+          pools.battlefields,
         )}
       </div>
+
+      <label className="flex max-w-sm flex-col gap-1">
+        <span className="text-sm font-medium">Legend-or-battlefield slots</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={DRAFT_LIMITS.slots.min}
+          max={DRAFT_LIMITS.slots.max}
+          value={config.legendOrBattlefieldSlots}
+          disabled={!canUseEitherSlot(config)}
+          onChange={(event) => set({ legendOrBattlefieldSlots: Number(event.target.value) })}
+          className="h-9 w-full rounded-md border border-zinc-300 bg-white px-2 text-sm disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900"
+        />
+        <span className="text-xs text-zinc-500">
+          {canUseEitherSlot(config)
+            ? "One of the two per slot, at random."
+            : "Needs both legends and battlefields reserved — it draws from each."}
+        </span>
+      </label>
 
       {problems.length > 0 ? (
         <ul role="alert" className="space-y-1 text-sm text-red-600 dark:text-red-400">
@@ -163,16 +257,18 @@ export default function DraftSettings({
             {config.packSize} cards per pack
           </p>
           <p className="mt-0.5 text-zinc-600 dark:text-zinc-400">
-            {mainPerPack} from the main section
+            {mainPerPack} main {mainPerPack === 1 ? "slot" : "slots"}
             {reserved > 0 && ` plus ${reserved} reserved`}. You&rsquo;ll finish with{" "}
             {finalPoolSize(config)} cards.
           </p>
 
           <ul className="mt-2 space-y-0.5 text-xs">
             <li className="flex items-baseline gap-2">
-              <span className="w-36 shrink-0 text-zinc-600 dark:text-zinc-400">Main section</span>
+              <span className="w-36 shrink-0 text-zinc-600 dark:text-zinc-400">
+                Main pool
+              </span>
               <span className="tabular-nums">
-                needs {mainTotal}, cube has {pools.main}
+                needs {mainTotal}, cube has {mainAvailable}
               </span>
               {mainShort > 0 && (
                 <span className="font-medium text-red-600 dark:text-red-400">
@@ -201,7 +297,8 @@ export default function DraftSettings({
 
           {mainShort > 0 && (
             <p role="alert" className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">
-              Add {mainShort} more cards to the main section, or reserve fewer slots.
+              Add {mainShort} more cards, reserve fewer slots, or shuffle a section
+              into the packs.
             </p>
           )}
         </div>

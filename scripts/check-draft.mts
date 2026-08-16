@@ -14,6 +14,7 @@ import {
   DEFAULT_DRAFT_CONFIG,
   finalPoolSize,
   mainSlotsPerPack,
+  canUseEitherSlot,
   passDirectionForRound,
   totalMainCardsNeeded,
   validateDraftConfig,
@@ -21,7 +22,7 @@ import {
 } from "../src/lib/draft/config";
 import { applyPick, createDraft } from "../src/lib/draft/engine";
 import {
-  filterMainPool,
+  buildMainPool,
   generatePacks,
   type DraftPools,
   type PoolEntry,
@@ -413,11 +414,164 @@ const typesIn = (packs: { type: string }[][][]) => {
     );
   }
 
-  const filtered = filterMainPool(pools.main);
+  const filtered = buildMainPool(pools, noReserved);
   expect(filtered.removed === 10, `10 stray cards should be removed, got ${filtered.removed}`);
   expect(
-    filtered.pool.every((e) => e.card.type === "Unit"),
+    filtered.pool.every((e: PoolEntry) => e.card.type === "Unit"),
     "nothing of a reserved type may survive the main-pool filter",
+  );
+}
+
+// --- shuffled into the packs --------------------------------------------------
+{
+  const pools: DraftPools = {
+    main: [
+      ...makeEntries("M", 200, "Unit"),
+      ...makeEntries("StrayL", 4, "Legend"),
+    ],
+    legends: makeEntries("L", 30, "Legend"),
+    battlefields: makeEntries("B", 40, "Battlefield"),
+  };
+
+  // Shuffling a type in folds its whole section into the main pile, and stops
+  // strays of that type being dropped — there is no reserved count to protect.
+  const shuffled = buildMainPool(pools, {
+    ...DEFAULT_DRAFT_CONFIG,
+    legendSlots: 0,
+    battlefieldSlots: 0,
+    legendOrBattlefieldSlots: 0,
+    shuffleLegendsIntoPacks: true,
+  });
+  expect(
+    shuffled.removed === 0,
+    `a shuffled type's strays stay put, got ${shuffled.removed} removed`,
+  );
+  expect(
+    shuffled.pool.length === 200 + 4 + 30,
+    `main should gain the legends section, got ${shuffled.pool.length}`,
+  );
+  expect(
+    shuffled.shuffledIn.join(",") === "legends",
+    `what was folded in should be reported, got ${shuffled.shuffledIn.join(",")}`,
+  );
+  // Battlefields are still reserved here, so they stay out of main.
+  expect(
+    shuffled.pool.every((e: PoolEntry) => e.card.type !== "Battlefield"),
+    "a type that is still reserved must not be shuffled in as well",
+  );
+
+  const both = buildMainPool(pools, {
+    ...DEFAULT_DRAFT_CONFIG,
+    legendSlots: 0,
+    battlefieldSlots: 0,
+    legendOrBattlefieldSlots: 0,
+    shuffleLegendsIntoPacks: true,
+    shuffleBattlefieldsIntoPacks: true,
+  });
+  expect(
+    both.pool.length === 200 + 4 + 30 + 40,
+    `both sections should fold in, got ${both.pool.length}`,
+  );
+
+  // Dealt for real: legends turn up in ordinary slots, and never twice.
+  const config: DraftConfig = {
+    ...DEFAULT_DRAFT_CONFIG,
+    seats: 4,
+    packsPerPlayer: 2,
+    packSize: 10,
+    legendSlots: 0,
+    battlefieldSlots: 0,
+    legendOrBattlefieldSlots: 0,
+    shuffleLegendsIntoPacks: true,
+  };
+  const dealt = generatePacks(config, pools, "shuffled");
+  expect(dealt.ok === true, "a shuffled config should deal");
+  if (dealt.ok) {
+    const counts = typesIn(dealt.packs);
+    expect(
+      (counts.get("Legend") ?? 0) > 0,
+      "legends shuffled in should actually appear in packs",
+    );
+    expect(
+      !counts.has("Battlefield"),
+      "battlefields are still reserved with zero slots, so none may appear",
+    );
+    // Without replacement still holds across the merged pile.
+    const ids = dealt.packs.flat().flat().map((c) => c.id);
+    expect(new Set(ids).size === ids.length, "no card may be dealt twice from the merged pool");
+    expect(
+      dealt.warnings.some((w) => w.includes("shuffled into the packs")),
+      "shuffling a section in should be reported",
+    );
+  }
+
+  // The reserved deck is emptied when a type is shuffled, and *that* is what
+  // stops a card being dealt from both piles. `validateDraftConfig` normally
+  // makes the combination unreachable, so the guard is only exercised by
+  // building the incoherent config on purpose — which a future caller of
+  // `generatePacks` could do, since it does not validate.
+  const contradictory: DraftConfig = {
+    ...DEFAULT_DRAFT_CONFIG,
+    seats: 4,
+    packsPerPlayer: 2,
+    packSize: 10,
+    legendSlots: 2,
+    battlefieldSlots: 0,
+    legendOrBattlefieldSlots: 1,
+    shuffleLegendsIntoPacks: true,
+  };
+  expect(
+    validateDraftConfig(contradictory).length > 0,
+    "the contradictory config must be one validation rejects",
+  );
+  const doubled = generatePacks(contradictory, pools, "nodouble");
+  expect(doubled.ok === true, "it should still deal rather than throw");
+  if (doubled.ok) {
+    const ids = doubled.packs.flat().flat().map((c) => c.id);
+    expect(
+      new Set(ids).size === ids.length,
+      `a shuffled type must not also be dealt from its reserved deck — ` +
+        `${ids.length - new Set(ids).size} card(s) appeared twice`,
+    );
+  }
+}
+
+{
+  // Reserved and shuffled are one choice, not two settings.
+  const bad = (patch: Partial<DraftConfig>) =>
+    validateDraftConfig({ ...DEFAULT_DRAFT_CONFIG, ...patch }).length > 0;
+  expect(
+    bad({ shuffleLegendsIntoPacks: true, legendSlots: 1, legendOrBattlefieldSlots: 0 }),
+    "legends cannot be reserved and shuffled at once",
+  );
+  expect(
+    bad({ shuffleBattlefieldsIntoPacks: true, battlefieldSlots: 2, legendOrBattlefieldSlots: 0 }),
+    "battlefields cannot be reserved and shuffled at once",
+  );
+  expect(
+    bad({ shuffleLegendsIntoPacks: true, legendSlots: 0 }),
+    "the default either-slot must be rejected once legends are shuffled in",
+  );
+  expect(
+    bad({ shuffleBattlefieldsIntoPacks: true, battlefieldSlots: 0 }),
+    "and once battlefields are",
+  );
+  expect(
+    !bad({
+      shuffleLegendsIntoPacks: true,
+      legendSlots: 0,
+      legendOrBattlefieldSlots: 0,
+      battlefieldSlots: 1,
+    }),
+    "shuffling one type while reserving the other is legal",
+  );
+  expect(
+    canUseEitherSlot(DEFAULT_DRAFT_CONFIG),
+    "the either-slot is available by default",
+  );
+  expect(
+    !canUseEitherSlot({ ...DEFAULT_DRAFT_CONFIG, shuffleBattlefieldsIntoPacks: true }),
+    "and unavailable as soon as a type is shuffled in",
   );
 }
 

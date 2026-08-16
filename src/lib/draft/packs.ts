@@ -34,7 +34,7 @@ export interface PoolEntry {
 
 export interface DraftPools {
   /** The cube's main section. Legends and battlefields filed here are dropped
-   *  before dealing — see `filterMainPool`. */
+   *  before dealing unless the config shuffles them in — see `buildMainPool`. */
   main: PoolEntry[];
   legends: PoolEntry[];
   battlefields: PoolEntry[];
@@ -63,22 +63,52 @@ export function expandPool(entries: PoolEntry[]): DraftCard[] {
   return copies;
 }
 
-/** Legends and battlefields reach a pack only through a reserved slot. */
+/** Types that reach a pack only through a reserved slot, unless shuffled in. */
 const RESERVED_TYPES = new Set(["Legend", "Battlefield"]);
 
+export interface MainPool {
+  pool: PoolEntry[];
+  /** Strays dropped: the type is reserved, so a copy filed in `main` would make
+   *  the guaranteed count wrong. */
+  removed: number;
+  /** Sections folded in wholesale because the config shuffles that type. */
+  shuffledIn: string[];
+}
+
 /**
- * Strips legends and battlefields out of the main pool.
+ * What the ordinary main slots deal from.
  *
- * A card's *section* is the owner's filing decision, and nothing stops them
- * putting a legend in `main`; a card's *type* is what it is. For dealing, type
- * wins: the reserved slots exist precisely so legends and battlefields turn up
- * a known number of times per pack, and a stray one in the main pool makes that
- * number a lie. What was removed is returned so the caller can say so rather
- * than silently dropping cards someone filed on purpose.
+ * Two opposite jobs, which are the same rule seen from either side. A card's
+ * *section* is the owner's filing decision and nothing stops them putting a
+ * legend in `main`; a card's *type* is what it is. When a type is **reserved**,
+ * type wins and strays are dropped — the reserved slots exist so that type turns
+ * up a known number of times per pack, and a stray makes that number a lie. When
+ * a type is **shuffled**, there is no number to protect, so its whole section
+ * joins the pile and any strays stay where they are.
+ *
+ * What it removed and what it folded in are both returned, so the caller can say
+ * so rather than silently changing what a cube drafts.
  */
-export function filterMainPool(main: PoolEntry[]): { pool: PoolEntry[]; removed: number } {
-  const pool = main.filter((entry) => !RESERVED_TYPES.has(entry.card.type));
-  return { pool, removed: main.length - pool.length };
+export function buildMainPool(pools: DraftPools, config: DraftConfig): MainPool {
+  const shuffledTypes = new Set<string>();
+  const shuffledIn: string[] = [];
+  const extra: PoolEntry[] = [];
+
+  if (config.shuffleLegendsIntoPacks) {
+    shuffledTypes.add("Legend");
+    if (pools.legends.length > 0) shuffledIn.push("legends");
+    extra.push(...pools.legends);
+  }
+  if (config.shuffleBattlefieldsIntoPacks) {
+    shuffledTypes.add("Battlefield");
+    if (pools.battlefields.length > 0) shuffledIn.push("battlefields");
+    extra.push(...pools.battlefields);
+  }
+
+  const kept = pools.main.filter(
+    (entry) => !RESERVED_TYPES.has(entry.card.type) || shuffledTypes.has(entry.card.type),
+  );
+  return { pool: [...kept, ...extra], removed: pools.main.length - kept.length, shuffledIn };
 }
 
 /**
@@ -103,7 +133,13 @@ export function generatePacks(
 ): PackGenerationResult {
   const warnings: string[] = [];
 
-  const { pool: mainPool, removed } = filterMainPool(pools.main);
+  const { pool: mainPool, removed, shuffledIn } = buildMainPool(pools, config);
+  if (shuffledIn.length > 0) {
+    warnings.push(
+      `This cube's ${shuffledIn.join(" and ")} are shuffled into the packs rather than ` +
+        `reserved, so they turn up wherever the shuffle puts them.`,
+    );
+  }
   if (removed > 0) {
     warnings.push(
       `${removed} legend/battlefield ${removed === 1 ? "card is" : "cards are"} filed in ` +
@@ -113,11 +149,14 @@ export function generatePacks(
   }
 
   const mainAvailable = expandPool(mainPool);
-  const legendDeck = shuffle(expandPool(pools.legends), createRng(seed, "legends"));
-  const battlefieldDeck = shuffle(
-    expandPool(pools.battlefields),
-    createRng(seed, "battlefields"),
-  );
+  // A shuffled type has already been folded into main, so its reserved deck is
+  // empty by construction — nothing can be dealt from both.
+  const legendDeck = config.shuffleLegendsIntoPacks
+    ? []
+    : shuffle(expandPool(pools.legends), createRng(seed, "legends"));
+  const battlefieldDeck = config.shuffleBattlefieldsIntoPacks
+    ? []
+    : shuffle(expandPool(pools.battlefields), createRng(seed, "battlefields"));
 
   const mainNeeded = totalMainCardsNeeded(config);
   const legendsNeeded = totalLegendsNeeded(config);
