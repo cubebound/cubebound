@@ -671,10 +671,15 @@ restriction, so a row cannot come to mean two different things depending on
 where you meet it. The listing `queries/cubes.ts` used to own is gone; it
 counted the maybeboard, which nothing else does.
 
-- **Explore shows the top 50 of an ordering and does not page.** The number of
-  cubes in the database is not a visitor's business, and a page count reports it
-  implicitly — so there is no total and no pagination, just the head of whichever
-  sort you asked for. Searching is how you reach past the cap.
+- **Explore goes 60 deep in an ordering, 20 to a page, and never reports a
+  total.** How many cubes exist is not a visitor's business — and a page count
+  reports it: with pages of twenty, "of 2" says there are 21–40. So the pager is
+  Previous / Next plus the current page number, with no "of N" and no count
+  anywhere. Whether there is a next page is the only thing it discloses.
+  The whole capped set comes back in one query and is sliced in memory: sixty
+  rows is trivial to fetch and it keeps the cap in one place, where an offset
+  query per page would need its own bound and could walk past sixty. Searching
+  is how you reach deeper than the cap.
 - **Explore lists public cubes only, and that rule lives in the query.**
   Unlisted means "reachable by link but not advertised", so a search result
   would defeat the setting — including a search for its exact name by its own
