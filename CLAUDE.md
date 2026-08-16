@@ -49,14 +49,26 @@ Open items:
   migrations, so a feature adding tables fails at request time however green the
   build looks. **Check `git log origin/master..master` before assuming what is
   live** — this file describes the code, not the deployment.
-- **Sentry ships wired but switched off.** Set `NEXT_PUBLIC_SENTRY_DSN` in
-  Vercel to turn it on; `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN`
-  additionally get readable stack traces. See "Share previews, crawling and
-  monitoring".
-- Still open before a wide launch, in order: **set a Vercel spend cap** and a
-  **Supabase auth rate limit** (neither is code — see "Security posture"), then
-  a report/takedown path for user-written cube text now that Explore indexes
-  it, then account deletion.
+- **Sentry is on in production.** `NEXT_PUBLIC_SENTRY_DSN` is set in Vercel and
+  verified sending: a page load produces envelopes to the project's ingest host,
+  and a deliberately thrown error produces two more. Client and edge/server
+  capture share the same options; only the client path has been proven
+  end-to-end, because proving the server path means causing a real production
+  error. `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` are still unset,
+  so stack traces are minified — those three additionally get readable ones, and
+  **`SENTRY_AUTH_TOKEN` is a real secret**, unlike the DSN. See "Share previews,
+  crawling and monitoring".
+- **The site runs on free tiers with no payment method on Vercel**, so there is
+  no bill to cap and **"set a spend cap" is not the control** — an earlier
+  version of this file said it was, repeatedly, and it was wrong. Exceeding
+  Hobby limits degrades or pauses the project rather than charging anything, so
+  the goal is staying inside them: keep per-request query counts low (see "Page
+  speed"), keep card images on Riot's CDN, and check Vercel → Usage and
+  Supabase → Usage for actual headroom rather than guessing. Usage was
+  comfortably low as of 16 August 2026.
+- Still open before a wide launch, in order: a **Supabase auth rate limit** (not
+  code — see "Security posture"), then a report/takedown path for user-written
+  cube text now that Explore indexes it, then account deletion.
 - The Riot adapter stays dormant until our API application is approved.
 - Six UNL token rows still come from the retired riftscribe source.
 
@@ -380,6 +392,14 @@ a stale row — but it means a source switch leaves residue worth checking for.
   set appears within five minutes of a sync with nobody doing anything. It is a
   plain module-level memo rather than a framework cache deliberately: no
   revalidation story to get wrong, and a cold instance simply reads once.
+- **The unfiltered first page of `/cards` is memoised the same way and for the
+  same reason** — it is the identical 60 rows for every visitor, on the page
+  people land on, and it counts across all 1,288 rows before returning any of
+  them. **Only the default view is cached**: no filter, sort or page number, so
+  at most two entries (grouped and all printings) and no way for a crafted
+  querystring to grow the map. Anything else reads through. The cached object is
+  shared between requests, so nothing may mutate it — callers render it and
+  nothing more; if that changes, copy on read.
 - **A set's printed name comes from the stored raw payload**
   (`data->'card'->'set'->>'label'`), not a lookup table, so a newly synced set
   names itself like every other filter value. The six retired-source token rows
@@ -785,14 +805,24 @@ a stale row — but it means a source switch leaves residue worth checking for.
   **the PNGs inside must be RGBA** — Next's icon processing fails the build on
   RGB with "The PNG is not in RGBA format!", and a headless-Chrome screenshot is
   RGB unless you override the default background to transparent.
-- **Error monitoring is Sentry, and it is off unless `NEXT_PUBLIC_SENTRY_DSN`
-  is set** (`src/lib/sentry-options.ts`), so dev, CI and forks never report.
-  Turning it on in production is one Vercel variable. A DSN is public by design
-  and grants nothing — the one legitimate exception to the `NEXT_PUBLIC_` rule
-  under "Auth and data access". Session replay is off deliberately: replays
-  record the DOM, which here includes other people's unlisted cube names.
+- **Error monitoring is Sentry. It is on in production and off everywhere
+  else**, because it keys off `NEXT_PUBLIC_SENTRY_DSN`
+  (`src/lib/sentry-options.ts`) and only Vercel sets it — so dev, CI and forks
+  never report and need no account. A DSN is public by design and grants
+  nothing: it identifies a project to send *to*, which is the one legitimate
+  exception to the `NEXT_PUBLIC_` rule under "Auth and data access". An auth
+  token is not, and must never carry that prefix.
+  Session replay is off deliberately: replays record the DOM, which here
+  includes other people's unlisted cube names. Traces sample at 10% to protect
+  the free-tier quota — that rate is the dial to turn down first if quota gets
+  tight, since a plain page load already sends session envelopes.
   `error.tsx` shows the digest Sentry indexes the event under, so a tester
   reading it out is enough to find the trace.
+- **To verify Sentry from outside, watch the network, not `window.Sentry`.**
+  The SDK is bundled as a module and never attached to `window`, so probing for
+  a global reports "not installed" on a working deployment — which it did once
+  here. The signal is requests to the project's `ingest.*.sentry.io` envelope
+  endpoint: some on load, two more when an error is thrown.
 - **Traffic measurement is Vercel Analytics**, mounted in the root layout and
   rendered only when `NODE_ENV === "production"` so local navigation doesn't
   fill the dashboard. It is cookieless, needs no consent banner under its
@@ -1104,7 +1134,7 @@ which is why they can create and delete accounts freely.
 | `check:analytics` | copies not rows, costless cards off the curve, Multi bucketing, keyword normalisation | nothing | **CI** |
 | `check:markdown-edit` | the primer toolbar's transforms: every button toggles, headings replace rather than stack, `diffRange` is minimal | nothing | **CI** |
 | `check:primer-toolbar` | the toolbar is *wired*: a click reaches React state, Ctrl+B matches the button, and the result saves byte-for-byte | Supabase + dev server + Chrome :9222 | manual gate |
-| `check:load` | 40 concurrent card-browser requests do not exhaust the connection pool, and an unrelated route stays up | **freshly started** dev server | manual gate |
+| `check:pool` | the pool is bounded and releases (`max` / `idle_timeout` / `connect_timeout`), the filter options and default card page are memoised, and filtered searches are **not** | DB (3 queries) | manual gate |
 | `check:share-previews` | all three OG routes return real PNGs; cover set and cover falling back; a private cube stays generic; `og:image` is absolute | Supabase + dev server | manual gate |
 
 `check:magic-link` needs the dev server started as `SIGNIN_PROBE=1 npm run
@@ -1191,7 +1221,7 @@ npm run check:printings && npm run check:browse-grid && npm run check:card-filte
 npm run check:copies-and-log && npm run check:public-cube && \
 npm run check:auth-flow && npm run check:cube-ownership && \
 npm run check:magic-link && npm run check:import && npm run check:discovery && \
-npm run check:primer-toolbar && npm run check:load && \
+npm run check:primer-toolbar && npm run check:pool && \
 npm run check:share-previews
 ```
 
@@ -1247,13 +1277,28 @@ Audited before the first wide share. What was checked, and what it turned up.
   domain — a deliverability risk to `cubebound.gg` more than a security one.
   Supabase's own auth rate limit is the only brake; **set it deliberately in
   the dashboard** rather than inheriting a default.
-- **The OG image routes are the most expensive unauthenticated endpoint** — a
-  database read, a CDN fetch and a PNG render each. They are CDN-cached for a
-  day, but the cache key is the full URL, so `?v=1…100000` bypasses it. The
-  real control for this and for every other traffic-shaped cost is a **Vercel
-  spend cap**, not application code.
 - **No report or takedown path** for user-written cube text now that Explore
   indexes it, and no account deletion. Both matter more the wider this goes.
+
+**Also fixed, after measuring rather than assuming:**
+- **The OG image routes are the most expensive unauthenticated endpoint** — a
+  database read, a fetch of the cover art and a PNG render each. This file used
+  to claim the day-long CDN cache was bypassable on all of them via `?v=…`, and
+  half of that was wrong. Measured against production: the site-wide
+  `/opengraph-image` is prerendered and every random query returned a cache
+  **HIT**, while `/cube/…/opengraph-image` returned **MISS** every time at
+  1–2.5s each. So only the dynamic per-cube and per-profile previews were
+  amplifiable. `src/middleware.ts` now 308s any query string on an
+  `/opengraph-image` path to the bare path, collapsing every variant onto one
+  cache entry, and skips session refresh there entirely — scrapers carry no
+  cookies, so that was a Supabase round trip per scrape for a route that could
+  not use the result.
+  **It must be a redirect, not a rewrite**: Vercel keys the CDN on the incoming
+  URL, so a rewrite would change nothing. And **Next appends its own hash** to
+  `og:image` (`?c2531773f482a645`), so legitimate scrapers do go through the
+  redirect — `check:share-previews` follows the advertised URL and compares the
+  bytes against the cube's own preview. Comparing against a *size* instead let a
+  mutation through that sent every cube to the generic site image.
 
 ## Page speed
 
@@ -1287,16 +1332,17 @@ Two things dominate, and neither is the amount of data.
     **The symptom appeared twice in local testing first and was written off as
     "I hammered the dev server"** — it was the same bug both times, and a hang
     under self-inflicted load is a finding, not an artefact.
-  - **`check:load` needs a freshly started dev server.** One that had been up
-    for hours through dozens of hot reloads failed it outright with identical
-    code, and a restart passed immediately and kept passing. The cause was not
-    pinned down: `pg_stat_activity` held steady at 13 across forced reload
-    cycles, but that is measured through the transaction pooler, which
-    multiplexes and cannot see client-side pools. Production is serverless with
-    short-lived processes and no HMR, so the pattern does not obviously exist
-    there — which is not the same as ruled out. If the site ever slows over
-    days rather than under bursts, this is the first thing to suspect, and
-    `connect_timeout` errors in Sentry are how it would show up.
+  - **`check:pool` guards this, and it is deliberately not a load test.** The
+    first attempt fired 40 concurrent requests at `/cards`. It worked, until it
+    drove the shared dev Supabase project into statement timeouts — a standalone
+    `select 1`, one connection with no app involved, failed in 191ms with
+    `canceling statement due to statement timeout`, and `check:browse-grid`
+    failed immediately afterwards. A gate step that breaks the next gate step is
+    worse than none, and it was measuring the free tier's capacity as much as
+    the code. What actually needs guarding is that nobody removes the pool
+    bounds or the memos, and both are checkable in three queries. **If you do
+    want to load-test by hand, check `select 1` before believing a failure**:
+    slow means the environment, fast means the code.
 
 - **Supabase is remote: a query costs ~60ms whatever it asks for.** Returning
   427 cube_cards rows measured 72ms against 59ms for a one-row lookup, so a
