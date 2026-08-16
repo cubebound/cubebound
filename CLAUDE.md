@@ -96,6 +96,15 @@ database only. Local work cannot reach production data. That is what makes the
 manual gate safe to run against a live Supabase: the accounts those checks
 create and delete are dev accounts.
 
+**Never mutate an existing account to get a session.** Every check script
+creates a throwaway `auth.users` row, claims a username, mints a token against
+it, and deletes it in a `finally`. An ad-hoc script that instead `UPDATE`s an
+existing row's email and password to borrow a session **locks the real owner
+out** — a magic link goes to the address in `auth.users`, and overwriting it
+means their own address matches nothing. That happened to the dev admin account
+here. It was recoverable only because `auth.identities.identity_data` still held
+the original address, which is luck rather than design. Create, use, delete.
+
 **`.env.local` is the single switch between the two. Never edit it, never print
 its contents, and never suggest changing it as a fix.** If a task appears to
 require production credentials, stop and say so rather than reaching for them.
