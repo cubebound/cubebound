@@ -114,6 +114,34 @@ try {
       `memo grows without bound on attacker-controlled keys`,
   );
 
+  // ---- a bad read is never cached --------------------------------------
+  // Production once served a rarity filter whose only option was "966" — the
+  // card count, which the count query aliased `value`, exactly the shape the
+  // rarity query returns. Nothing threw, and the five-minute memo then held the
+  // wrong answer. The alias is now `total`, so the two can no longer be
+  // confused; this asserts the second half, that an implausible read is not
+  // cached even if one somehow arrives.
+  const cardsSource = readFileSync("src/db/queries/cards.ts", "utf8");
+  expect(
+    /select\(\{\s*total:/.test(cardsSource),
+    "the count must be aliased `total`, not `value` — sharing a shape with the " +
+      "filter-option queries is what made a crossed result undetectable",
+  );
+  expect(
+    !/select\(\{ value: grouped/.test(cardsSource),
+    "the old ambiguous `value` alias is back on the count query",
+  );
+  expect(
+    cardsSource.includes("looksLikeFilterOptions"),
+    "getFilterOptions must validate before memoising, or one bad read sticks " +
+      "for the whole TTL",
+  );
+  expect(
+    /looksLikeFilterOptions[\s\S]{0,600}captureMessage/.test(cardsSource),
+    "an implausible read must be reported, or the next occurrence is invisible " +
+      "again — that invisibility is the actual bug being fixed",
+  );
+
   console.log(
     `pool: max ${max}, idle and connect timeouts set; ` +
       `filter options ${optionsCold}ms then ${optionsWarm}ms, ` +

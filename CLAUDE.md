@@ -412,6 +412,21 @@ a stale row — but it means a source switch leaves residue worth checking for.
   printings, and without a bucket of their own they would be the fifth of the
   pool no cost filter could reach. `check:card-filters` asserts the buckets
   partition the pool exactly, which is what catches both mistakes.
+- **No two concurrent queries may share a result shape.** Production once
+  rendered a rarity filter whose only option was **"966"** — the card count.
+  `searchCards` aliased its count `value`, which is exactly what the rarity,
+  type and domain queries select, and the page fires all of them together; a
+  crossed result was therefore indistinguishable from a correct one and nothing
+  threw. The count is now `total`. That does not prevent crossing — it makes the
+  next one **fail loudly instead of silently**, which is the difference between
+  a Sentry trace and squinting at a screenshot. The mechanism was never
+  reproduced; what is certain is that it was invisible.
+- **An implausible read is served but never cached, and is reported.**
+  `looksLikeFilterOptions` rejects an all-digits entry where a name belongs. The
+  five-minute memo is what turned that momentary fault into five minutes of
+  wrong data on one instance, so a suspect read now skips the cache and calls
+  `Sentry.captureMessage`. Serving it beats a 500 on the card browser; caching
+  it does not.
 - **`getFilterOptions` is memoised in-process for five minutes**
   (`CARD_POOL_TTL_MS`). Its six queries ran on every card-browser load and
   exhausted the connection pool in production — see "Page speed". The values

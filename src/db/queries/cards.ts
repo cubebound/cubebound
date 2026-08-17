@@ -14,6 +14,8 @@ import {
   type SQLWrapper,
 } from "drizzle-orm";
 
+import * as Sentry from "@sentry/nextjs";
+
 import { db } from "..";
 import { cards } from "../schema";
 import {
@@ -258,8 +260,15 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
   const where = buildWhere(filters);
   const grouped = !filters.allPrintings;
 
-  const [{ value: total }] = await db
-    .select({ value: grouped ? countDistinct(cards.baseId) : count() })
+  // **Aliased `total`, not `value`.** The filter-option queries select
+  // `{ value: … }` from the same table, and this one ran alongside them in a
+  // single `Promise.all`. When production once rendered a rarity filter whose
+  // only option was "966" — the card count — the two results had the identical
+  // shape, so nothing could tell them apart and nothing threw. Distinct names
+  // do not prevent that; they make it fail loudly instead of silently, which is
+  // the difference between a Sentry trace and squinting at one screenshot.
+  const [{ total }] = await db
+    .select({ total: grouped ? countDistinct(cards.baseId) : count() })
     .from(cards)
     .where(where);
 
@@ -421,12 +430,49 @@ let filterOptionsMemo: { at: number; value: FilterOptions } | null = null;
  * shows up without a code change. Ordered by the game's canonical sequences
  * rather than alphabetically.
  */
+/**
+ * Whether a read looks like filter options rather than something else.
+ *
+ * Every value here is a name — a set code, a domain, a type, a rarity — so an
+ * all-digits entry is a count that has landed where a name belongs. That is
+ * exactly what production served once, and the five-minute memo then held the
+ * bad answer for five minutes on that instance, turning a momentary fault into
+ * a sustained one.
+ */
+function looksLikeFilterOptions(options: FilterOptions): boolean {
+  const names = [
+    ...options.sets.map((set) => set.code),
+    ...options.domains,
+    ...options.types,
+    ...options.rarities,
+  ];
+  if (names.length === 0) return false;
+  return !names.some((name) => /^\d+$/.test(String(name)));
+}
+
 export async function getFilterOptions(): Promise<FilterOptions> {
   const now = Date.now();
   if (filterOptionsMemo && now - filterOptionsMemo.at < CARD_POOL_TTL_MS) {
     return filterOptionsMemo.value;
   }
   const value = await readFilterOptions();
+
+  // Served anyway — a slightly wrong filter list beats a 500 on the card
+  // browser — but never cached, so the next request corrects itself, and
+  // reported so the next occurrence is a trace rather than a rumour.
+  if (!looksLikeFilterOptions(value)) {
+    Sentry.captureMessage("getFilterOptions returned implausible values", {
+      level: "error",
+      extra: {
+        sets: value.sets.map((set) => set.code),
+        domains: value.domains,
+        types: value.types,
+        rarities: value.rarities,
+      },
+    });
+    return value;
+  }
+
   filterOptionsMemo = { at: now, value };
   return value;
 }

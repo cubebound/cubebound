@@ -243,11 +243,12 @@ export async function getCubeCardQuantities(
 
 /** Total copies, not distinct rows — a cube running four of a card holds four. */
 export async function countCubeCards(cubeId: string): Promise<number> {
-  const [{ value }] = await db
-    .select({ value: sql<number>`coalesce(sum(${cubeCards.quantity}), 0)::int` })
+  // Named for what it is, not `value` — see the note in `searchCards`.
+  const [{ total }] = await db
+    .select({ total: sql<number>`coalesce(sum(${cubeCards.quantity}), 0)::int` })
     .from(cubeCards)
     .where(eq(cubeCards.cubeId, cubeId));
-  return value;
+  return total;
 }
 
 /**
