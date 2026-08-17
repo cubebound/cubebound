@@ -43,8 +43,11 @@ Open items:
 - Feature work lands on a branch and pushes to
   `github.com/cubebound/cubebound`; `master` is production — see
   "Environments".
-- **Migrations are current: production is migrated through `0011` and nothing
-  newer exists.** Work since then has been code-only, so a deploy needs no
+- **Migrations are current: production is migrated through `0012` and nothing
+  newer exists.** `0012` (moderation) was applied by hand at the moderation
+  deploy on 16 August 2026, and production listings answering at all is the
+  proof — every one of them filters on `hidden_at` and `suspended_at`. Work
+  since then has been code-only, so a deploy needs no
   database step. The rule still stands for the next one: a deploy does not run
   migrations, so a feature adding tables fails at request time however green the
   build looks. **Check `git log origin/master..master` before assuming what is
@@ -66,9 +69,6 @@ Open items:
   speed"), keep card images on Riot's CDN, and check Vercel → Usage and
   Supabase → Usage for actual headroom rather than guessing. Usage was
   comfortably low as of 16 August 2026.
-- **Migration `0012` is not yet applied to production.** It is the moderation
-  one, and the tools fail at request time without it — a deploy does not run
-  migrations.
 - Still open before a wide launch: a **Supabase auth rate limit** (not code —
   see "Security posture"). Moderation now covers hiding and account removal; a
   user-facing *report* path is still absent, so problems have to be noticed
