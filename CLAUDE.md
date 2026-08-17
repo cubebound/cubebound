@@ -1307,6 +1307,18 @@ moderator role beyond it yet.
   otherwise they conclude the site is broken and email about it. Suspension is
   the account being switched off, so it applies to them too. Admins see
   everything, since reviewing what you hid is the job.
+- **Suspension stops the account acting, not only being seen.** `suspensionError`
+  is checked in `requireOwnedCube`, `createCubeAction`, the clone path, the draft
+  gate and the follow gate. It was missing at first: a suspended account could go
+  on creating and editing cubes — invisible to everyone, but still accumulating
+  against the 25-cube ceiling, and a suspension that lets you keep working is not
+  one. Read paths deliberately do **not** use it, because the moderator still has
+  to look at what the account made. `check:moderation` asserts every write gate
+  calls it.
+- **`is_admin` is not writable from the web at all.** No form field, no action,
+  no input reaches it — the only ways to set it are SQL and the dev-only
+  `dev:login --admin`. A moderator therefore cannot be created by a bug in a
+  form, only by someone with database access.
 - **`canUseCube` is separate from `canViewCube`**: readable is not usable.
   Cloning, drafting and following all go through the stricter one, so a hidden
   cube cannot be copied out from under the moderation by its own owner.

@@ -22,6 +22,8 @@
  *
  *   npm run check:moderation
  */
+import { readFileSync } from "node:fs";
+
 import postgres from "postgres";
 
 import { fromEnvFile } from "./lib/env";
@@ -36,7 +38,7 @@ import {
   setUserSuspended,
   summarizeUser,
 } from "../src/db/queries/moderation";
-import { canUseCube, canViewCube } from "../src/lib/cube-access";
+import { canUseCube, canViewCube, suspensionError } from "../src/lib/cube-access";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false, max: 3 });
 const failures: string[] = [];
@@ -140,6 +142,34 @@ try {
 
   await setUserSuspended(owner.id, false);
   expect(await findable(cube.name), "unsuspending must restore the account's cubes");
+
+  // ---- suspension stops the account writing, not just being seen -------
+  // Found by audit rather than by this check: a suspended account could still
+  // create and edit cubes. They were invisible, but still accumulated against
+  // the 25-cube ceiling, and "suspended" that lets you carry on working is not
+  // a suspension. Asserted structurally, because the gates are server actions
+  // and calling them needs a request context.
+  const gateFiles = [
+    "src/app/cube/actions.ts",
+    "src/app/cube/[username]/[slug]/draft/actions.ts",
+    "src/app/explore/actions.ts",
+  ];
+  for (const file of gateFiles) {
+    const body = readFileSync(file, "utf8");
+    expect(
+      body.includes("suspensionError"),
+      `${file} must stop a suspended account writing — suspension has to end ` +
+        `the account's ability to act, not only its visibility`,
+    );
+  }
+  expect(
+    suspensionError({ suspendedAt: new Date() }) !== null,
+    "suspensionError must refuse a suspended profile",
+  );
+  expect(
+    suspensionError({ suspendedAt: null }) === null,
+    "suspensionError must let an ordinary profile through",
+  );
 
   // ---- deleting an account takes its cubes -----------------------------
   const doomed = await createTestAccount(sql, { prefix: "moddel", signIn: false });

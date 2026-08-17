@@ -36,7 +36,7 @@ import {
 } from "@/db/queries/cubes";
 import type { Cube, NewCubeChange, User } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { canEditCube, canUseCube } from "@/lib/cube-access";
+import { canEditCube, canUseCube, suspensionError } from "@/lib/cube-access";
 import {
   mergeImportRows,
   previewImport,
@@ -83,6 +83,10 @@ async function requireOwnedCube(
 ): Promise<{ cube: Cube; profile: User } | { error: string }> {
   const current = await getCurrentUser();
   if (!current?.profile) return { error: "You need to be signed in." };
+  // Every cube mutation funnels through here, so the account-level stop goes
+  // here too rather than being repeated per action.
+  const suspended = suspensionError(current.profile);
+  if (suspended) return suspended;
   if (typeof cubeId !== "string" || cubeId.length === 0) return { error: "Cube not found." };
 
   const cube = await getCubeById(cubeId);
@@ -153,6 +157,8 @@ export async function createCubeAction(
   const current = await getCurrentUser();
   if (!current) return { error: "You need to be signed in." };
   if (!current.profile) return { error: "Claim a username before creating a cube." };
+  const suspended = suspensionError(current.profile);
+  if (suspended) return suspended;
 
   const atLimit = await underCubeLimit(current.profile.id);
   if (atLimit) return atLimit;
@@ -453,6 +459,9 @@ export async function cloneCubeAction(
 
   const atLimit = await underCubeLimit(current.profile.id);
   if (atLimit) return atLimit;
+
+  const suspendedCloner = suspensionError(current.profile);
+  if (suspendedCloner) return suspendedCloner;
 
   const username = String(formData.get("username") ?? "");
   const slug = String(formData.get("slug") ?? "");

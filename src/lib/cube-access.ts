@@ -13,6 +13,25 @@ export function canEditCube<T extends { ownerId: string }>(
 }
 
 /**
+ * Whether a suspended account is trying to write.
+ *
+ * **Suspension has to stop the account acting, not only being seen.** Without
+ * this a suspended owner could go on creating and editing cubes — invisible to
+ * everyone, but still accumulating rows against the 25-cube ceiling, and still
+ * a person who was told to stop carrying on. Read paths deliberately do not use
+ * it: the moderator still needs to look at what they made.
+ *
+ * The message is honest rather than a generic "not found", for the same reason
+ * a hidden cube tells its owner: someone who thinks the site is broken emails
+ * about it, and there is one of you.
+ */
+export function suspensionError(
+  profile: { suspendedAt: Date | null } | null | undefined,
+): { error: string } | null {
+  return profile?.suspendedAt ? { error: "This account is suspended." } : null;
+}
+
+/**
  * Everything the read rule needs.
  *
  * Declared as a type rather than read loosely so **adding a moderation state

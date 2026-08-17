@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getCubeById } from "@/db/queries/cubes";
 import { followCube, unfollowCube } from "@/db/queries/discovery";
 import { getCurrentUser } from "@/lib/auth";
-import { canUseCube } from "@/lib/cube-access";
+import { canUseCube, suspensionError } from "@/lib/cube-access";
 
 export interface FollowState {
   error?: string;
@@ -22,6 +22,8 @@ export interface FollowState {
 async function requireFollowableCube(cubeId: string) {
   const current = await getCurrentUser();
   if (!current?.profile) return { error: "Sign in to follow cubes." } as const;
+  const suspended = suspensionError(current.profile);
+  if (suspended) return { error: suspended.error } as const;
   if (typeof cubeId !== "string" || cubeId.length === 0) {
     return { error: "Cube not found." } as const;
   }
