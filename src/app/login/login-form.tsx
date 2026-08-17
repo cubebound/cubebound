@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 
-import { signInWithEmail, type FormState } from "@/app/auth/actions";
+import { signInWithEmail, signInWithProvider, type FormState } from "@/app/auth/actions";
+import ProviderButtons from "@/components/provider-buttons";
 
 const initial: FormState = {};
 
@@ -17,12 +18,32 @@ export default function LoginForm({ initialError }: { initialError?: string }) {
         <p className="mt-1 text-zinc-600 dark:text-zinc-400">
           We sent you a sign-in link. It expires in an hour.
         </p>
+        {/* Offered here too: this screen is exactly where someone ends up when
+            the mail does not arrive, and a dead end is the worst thing to show
+            them. */}
+        <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+          <p className="mb-2 text-zinc-600 dark:text-zinc-400">
+            Didn&rsquo;t arrive? You can sign in another way:
+          </p>
+          <ProviderButtons action={signInWithProvider} />
+        </div>
       </div>
     );
   }
 
   return (
-    <form action={formAction} className="space-y-3">
+    <div className="space-y-4">
+      {/* Providers first: they are one click, and the email path is the one
+          that can silently fail. */}
+      <ProviderButtons action={signInWithProvider} />
+
+      <div className="flex items-center gap-3 text-xs text-zinc-500">
+        <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+        or
+        <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+      </div>
+
+      <form action={formAction} className="space-y-3">
       <label htmlFor="email" className="block text-sm font-medium">
         Email
       </label>
@@ -47,9 +68,18 @@ export default function LoginForm({ initialError }: { initialError?: string }) {
       >
         {pending ? "Sending…" : "Email me a sign-in link"}
       </button>
+        <p className="text-xs text-zinc-500">
+          No password needed — we email you a one-time link.
+        </p>
+      </form>
+
+      {/* The failure mode worth warning about up front: signing in with a
+          provider whose email differs from the one already on the account
+          creates a *second* account, and the cubes appear to have vanished. */}
       <p className="text-xs text-zinc-500">
-        No password needed — we email you a one-time link.
+        Already have an account? Use the same email address you signed up with,
+        whichever method you pick.
       </p>
-    </form>
+    </div>
   );
 }

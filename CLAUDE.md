@@ -239,10 +239,9 @@ counts appear where you will actually look.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-**`oauth` (Discord and Google sign-in) is the one branch still in flight**, cut
-from `master` and not merged. It carries no migration. Note that it adds
-`check:oauth` and the "Sign-in methods" section to this file, so neither exists
-on `master` — a gate run from `master` is fifteen scripts, not sixteen.
+**There is no branch in flight.** Discord and Google sign-in have merged — see
+"Sign-in methods". A gate run is sixteen scripts, `check:oauth-buttons` being
+the sixteenth; `check:oauth` is pure and runs in CI instead.
 
 **A preview deployment is not automatically a dev environment.** Vercel injects
 whichever environment variables are configured for Preview, and unless those
@@ -1434,6 +1433,8 @@ which is why they can create and delete accounts freely.
 | `check:primer-toolbar` | the toolbar is *wired*: a click reaches React state, Ctrl+B matches the button, and the result saves byte-for-byte | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:deck-export` | drafted decks export as names other builders accept: legends rebuilt as `Champion, Title`, promo variant suffixes stripped, copies aggregated, and the result re-imports here | DB (read-only) | manual gate |
 | `check:draftmancer` | the cube file Draftmancer reads: unique custom-card names, every sheet line resolving to an entry, no slot naming an unemitted sheet and no empty sheet across four configs, the either-slot weighted 50/50, rarity in the accepted set with treatments resolved through `base_id` and a non-zero fallback, costless as `""`, and only the drafted sections | nothing | **CI** |
+| `check:oauth` | the backup rule, `providersOf` order, the provider allowlist, and that both sign-in actions still validate their input and build `redirectTo` through `authCallbackUrl` | nothing | **CI** |
+| `check:oauth-buttons` | `/login` offers both providers as form fields, links to no provider directly, and still carries the same-address warning | dev server | manual gate |
 | `check:moderation` | hide/suspend take effect and drop out of every listing including the owner's own; `canUseCube` refuses even the owner; deleting an account cascades and leaves a surviving log entry | DB | manual gate |
 | `check:pool` | the pool is bounded and releases (`max` / `idle_timeout` / `connect_timeout`), the filter options and default card page are memoised, and filtered searches are **not** | DB (3 queries) | manual gate |
 | `check:share-previews` | all three OG routes return real PNGs; cover set and cover falling back; a private cube stays generic; `og:image` is absolute | Supabase + dev server | manual gate |
@@ -1524,6 +1525,7 @@ npm run check:auth-flow && npm run check:cube-ownership && \
 npm run check:magic-link && npm run check:import && npm run check:discovery && \
 npm run check:primer-toolbar && npm run check:pool && \
 npm run check:moderation && npm run check:deck-export && \
+npm run check:oauth-buttons && \
 npm run check:share-previews
 ```
 
@@ -1536,7 +1538,8 @@ Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" `
   -ArgumentList '--headless=new','--remote-debugging-port=9222',"--user-data-dir=$env:TEMP\cbchrome",'about:blank'
 foreach ($c in @("printings","browse-grid","card-filters","copies-and-log","public-cube",
                  "auth-flow","cube-ownership","magic-link","import","discovery",
-                 "primer-toolbar","pool","moderation","deck-export","share-previews")) {
+                 "primer-toolbar","pool","moderation","deck-export",
+                 "oauth-buttons","share-previews")) {
   npm run "check:$c"; if (-not $?) { "FAILED at check:$c"; break }
 }
 ```
@@ -1567,6 +1570,62 @@ Each creates throwaway accounts and deletes them again, including on failure.
 If these ever need to be automated, the path is the Supabase CLI (`supabase
 start`) in CI, which brings up Postgres and GoTrue per run with no secrets and
 no shared state — not a hosted test project.
+
+## Sign-in methods
+
+Magic link, plus **Discord and Google**. `/settings` is where an account sees
+what it has and adds what it lacks.
+
+- **The callback needed no change.** `signInWithOAuth` returns to the same
+  `/auth/callback`, which already does `exchangeCodeForSession` — the identical
+  PKCE exchange a magic link uses — and already sends a user with no profile to
+  `/welcome`. `redirectTo` goes through `authCallbackUrl` for the same reason
+  the magic links do, and **whatever it produces must be on the Supabase
+  redirect allowlist** or Supabase silently falls back to the dashboard Site URL
+  and sign-in never completes. That failure shipped once already.
+- **The buttons are forms, not links.** The action calls `signInWithOAuth`,
+  which sets the PKCE verifier cookie *before* returning the URL to redirect to.
+  An anchor straight to the provider skips that and the exchange fails on the
+  way back with "code verifier not found in storage". `check:oauth-buttons`
+  asserts no such anchor exists — a link looks correct in review and in a
+  screenshot, which is exactly why it needs a check.
+- **X/Twitter is deliberately not offered.** Its OAuth 2.0 hands over no email
+  without elevated access, so an account made that way cannot be linked to an
+  existing one, cannot be recovered, and cannot be contacted. That is a
+  different kind of account, not a different button.
+- **Linking attaches on a matching verified email.** A provider whose address
+  differs from the one on the account creates a *second* account, and the
+  person's cubes appear to have vanished. `/login` says so up front, because
+  that is the entire support burden this feature otherwise generates.
+- **"Has a backup" is not "has two identities".** Magic link works for any
+  address on the account, including one that arrived from Discord — so a
+  Discord-only account already has two ways in, while an email-only account has
+  one. `hasBackupSignIn` therefore asks whether *any OAuth identity* exists,
+  which is the only thing that removes the mailbox as a single point of failure.
+  A dismissible notice on `/cubes` tells the people who lack one; the dismissal
+  is a cookie, because it is a UI preference and does not warrant a migration.
+- **Two dashboard settings are required and are not code**: the Discord and
+  Google providers themselves, and **manual linking**, without which
+  `linkIdentity` returns an error rather than attaching a second provider.
+- **The checks are split by what they need.** `check:oauth` is pure — the backup
+  rule, the provider allowlist, and that both actions still validate their input
+  and build `redirectTo` through `authCallbackUrl` — so it runs in **CI on every
+  push**. `check:oauth-buttons` needs a server for the `/login` markup and stays
+  in the manual gate. Auth invariants caught a week later at gate time have
+  already been built on.
+- **What no check can cover**: a real consent screen, and `linkIdentity`
+  end-to-end. Both scripts say so in their own output rather than implying more.
+- **Connecting a provider to an existing account must be done from `/settings`,
+  not `/login`.** The two paths differ: `linkIdentity` attaches an identity to
+  *this* account, while `signInWithOAuth` resolves to whichever account matches
+  the provider's address. `public.users` has **no email column** — accounts map
+  by `auth.users.id` alone — so a provider address that Supabase does not link
+  mints a *new* auth row, a new profile, and `is_admin` back to its `false`
+  default. For an ordinary user that reads as "my cubes vanished". **For the
+  admin account it is unrecoverable from the web**: nothing in `src/` writes
+  `is_admin`, and `dev:login --admin` only reaches dev, so the fix is raw SQL
+  against production. Confirm the address on the production `auth.users` row
+  before connecting a provider to it.
 
 ## Moderation
 
@@ -1634,10 +1693,14 @@ Audited before the first wide share. What was checked, and what it turned up.
   see "Auth and data access" for why it exists rather than SELECT policies.
 - **No secret has ever been committed.** `.env*` is gitignored bar the example,
   and a scan of full history turns up only placeholders.
-- **Every mutation is gated.** All 21 server actions call one of
+- **Every mutation is gated.** All 23 server actions call one of
   `requireOwnedCube` / `requireDraftableCube` / `requireOwnDraft` /
   `requireFollowableCube` / `getCurrentUser`; `check:cube-ownership` fails the
-  build if a new one doesn't. CSRF is covered by Next's Server Action origin
+  build if a new one doesn't. **It reads four action files, and
+  `src/app/auth/actions.ts` is not among them** — the sign-in actions there are
+  gated on their own provider allowlist and on `getUser()`, but they sit outside
+  that structural guarantee rather than inside it. That predates OAuth
+  (`claimUsername` has always lived there) and is worth closing separately. CSRF is covered by Next's Server Action origin
   check — a spoofed `x-forwarded-host` without a matching `Origin` is rejected.
 - **The auth callback's `next=` cannot leave the origin.** `${origin}${next}`
   was tested against `//evil`, `/\evil`, `///evil` and an absolute URL: the
@@ -1661,7 +1724,10 @@ Audited before the first wide share. What was checked, and what it turned up.
   link to any address, which spends your Supabase quota and sends from your
   domain — a deliverability risk to `cubebound.gg` more than a security one.
   Supabase's own auth rate limit is the only brake; **set it deliberately in
-  the dashboard** rather than inheriting a default.
+  the dashboard** rather than inheriting a default. **OAuth narrows this
+  without closing it**: `signInWithOAuth` sends no mail and spends no quota, so
+  every visitor who takes a provider button is one who never touches the limit —
+  but the magic-link endpoint is still there and still unthrottled.
 - **No report or takedown path** for user-written cube text now that Explore
   indexes it, and no account deletion. Both matter more the wider this goes.
 

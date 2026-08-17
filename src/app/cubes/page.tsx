@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
+import BackupSignInNotice, { BACKUP_NOTICE_COOKIE } from "@/components/backup-signin-notice";
 import CubeResults from "@/components/cube-results";
 import Pagination from "@/components/pagination";
 import { countCubesForOwner, MAX_CUBES_PER_USER } from "@/db/queries/cubes";
@@ -11,6 +13,7 @@ import {
   type CubeSearchOptions,
 } from "@/db/queries/discovery";
 import { getCurrentUser } from "@/lib/auth";
+import { hasBackupSignIn } from "@/lib/auth-providers";
 
 export const metadata: Metadata = {
   title: "Your cubes",
@@ -38,7 +41,11 @@ export default async function CubesPage({
   if (!current.profile) redirect("/welcome");
   const profile = current.profile;
 
-  const params = await searchParams;
+  // Shown only when email really is the only way in, and only until dismissed.
+  // The cookie read joins the round the params are already awaited in.
+  const [params, cookieStore] = await Promise.all([searchParams, cookies()]);
+  const showBackupNotice =
+    !hasBackupSignIn(current.user) && !cookieStore.get(BACKUP_NOTICE_COOKIE);
   const followed = one(params.tab) === "followed";
   const keywords = one(params.q).slice(0, 100);
 
@@ -86,6 +93,8 @@ export default async function CubesPage({
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
+      {showBackupNotice && <BackupSignInNotice />}
+
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">
           {followed ? "Followed cubes" : "Your cubes"}

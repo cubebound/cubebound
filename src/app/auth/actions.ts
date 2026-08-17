@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { claimUsername } from "@/db/queries/users";
 import { getAuthUser } from "@/lib/auth";
+import { isOAuthProvider } from "@/lib/auth-providers";
 import { authCallbackUrl } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 import { checkUsername } from "@/lib/username";
@@ -48,6 +49,70 @@ export async function signInWithEmail(
 
   if (error) return { error: error.message };
   return { sent: true };
+}
+
+/**
+ * Sends the browser off to Discord or Google.
+ *
+ * The callback needs no change: `signInWithOAuth` returns to the same
+ * `/auth/callback`, which already does `exchangeCodeForSession` — the identical
+ * PKCE exchange a magic link uses — and already routes a user with no profile
+ * to `/welcome`. `redirectTo` goes through `authCallbackUrl` for the same
+ * reason the magic links do: the origin comes from the request, and **whatever
+ * it produces must be on the Supabase redirect allowlist**, or Supabase quietly
+ * falls back to the dashboard Site URL and sign-in never completes. That exact
+ * failure shipped once.
+ *
+ * The provider is validated rather than trusted: it arrives from a form.
+ */
+export async function signInWithProvider(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const provider = String(formData.get("provider") ?? "");
+  if (!isOAuthProvider(provider)) return { error: "Unknown sign-in method." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: authCallbackUrl(await headers()) },
+  });
+
+  if (error) return { error: error.message };
+  if (!data?.url) return { error: "Could not start sign-in. Try again." };
+  redirect(data.url);
+}
+
+/**
+ * Adds a provider to the account already signed in — the backup method.
+ *
+ * Distinct from signing in with it: this attaches a second identity to *this*
+ * account rather than resolving to whichever account matches. It needs **manual
+ * linking enabled** in the Supabase dashboard; without it Supabase returns an
+ * error rather than doing something surprising, which is why the message is
+ * surfaced as-is.
+ */
+export async function linkProvider(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const provider = String(formData.get("provider") ?? "");
+  if (!isOAuthProvider(provider)) return { error: "Unknown sign-in method." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "You need to be signed in." };
+
+  const { data, error } = await supabase.auth.linkIdentity({
+    provider,
+    options: { redirectTo: authCallbackUrl(await headers()) },
+  });
+
+  if (error) return { error: error.message };
+  if (!data?.url) return { error: "Could not start linking. Try again." };
+  redirect(data.url);
 }
 
 export async function signOut(): Promise<void> {

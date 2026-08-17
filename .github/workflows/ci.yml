@@ -89,5 +89,13 @@ jobs:
       - name: Check Draftmancer export
         run: npm run check:draftmancer
 
+      # Auth invariants, and pure: the backup rule, the provider allowlist, and
+      # that both sign-in actions still validate their input and build their
+      # redirect through authCallbackUrl. Catching a broken one at gate time
+      # means someone has already built on it. The /login markup half needs a
+      # server and stays in the manual gate as check:oauth-buttons.
+      - name: Check OAuth rules
+        run: npm run check:oauth
+
       - name: Build
         run: npm run build
