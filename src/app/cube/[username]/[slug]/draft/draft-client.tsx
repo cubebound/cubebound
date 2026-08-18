@@ -101,7 +101,11 @@ export function StartDraft({
   const [state, setState] = useState<DraftActionState>({});
   const [pending, startTransition] = useTransition();
   const [config, setConfig] = useState<DraftConfig>(DEFAULT_DRAFT_CONFIG);
-  const [tab, setTab] = useState<"bots" | "draftmancer">("bots");
+  // Draftmancer leads, and is the default. Drafting a cube with other people is
+  // the thing people want; the bots are what we can offer on our own, and
+  // milestone A calls them deliberately dumb. Whichever tab is first should be
+  // the one that opens, or the highlighted tab is the second one.
+  const [tab, setTab] = useState<"bots" | "draftmancer">("draftmancer");
 
   // The settings panel computes this too, but the button needs its own answer:
   // an incoherent config must not be submittable at all. Pool sufficiency is
@@ -149,9 +153,29 @@ export function StartDraft({
       )}
 
       <div className="flex gap-2">
+        {tabButton("draftmancer", "Export to Draftmancer", "Draft with other people")}
         {tabButton("bots", "Draft against bots", "Solo, here, right now")}
-        {tabButton("draftmancer", "Export to Draftmancer", "Play with other people")}
       </div>
+
+      {/* Above the form rather than below it, because it explains fields you
+          are about to read. Players and packs mean different things per tab and
+          saying so afterwards is saying so too late. */}
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        {tab === "draftmancer" ? (
+          <>
+            These settings become the pack template in the file.{" "}
+            <strong className="font-medium">Players</strong> only checks the cube
+            is big enough — Draftmancer&rsquo;s host sets the real number — and{" "}
+            <strong className="font-medium">packs each</strong> goes in as their
+            default.
+          </>
+        ) : (
+          <>
+            Empty seats are filled by bots, and the draft is saved as you pick —
+            you can leave and come back to it.
+          </>
+        )}
+      </p>
 
       <DraftSettings pools={pools} onChange={setConfig} />
 
@@ -206,11 +230,6 @@ function BotDraftAction({
 }) {
   return (
     <div className="space-y-4">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        Empty seats are filled by bots, and the draft is saved as you pick — you
-        can leave and come back to it.
-      </p>
-
       <button
         type="button"
         disabled={disabled}

@@ -51,19 +51,6 @@ export default function DraftmancerExport({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        Draft this cube with other people on{" "}
-        <a
-          href="https://draftmancer.com"
-          target="_blank"
-          rel="noreferrer noopener"
-          className="font-medium underline underline-offset-2"
-        >
-          Draftmancer
-        </a>
-        . The settings above become the pack template in the file.
-      </p>
-
       <div className="flex flex-wrap items-center gap-3">
         {disabled ? (
           <span className="text-sm text-zinc-500">
@@ -112,10 +99,7 @@ export default function DraftmancerExport({
         </strong>{" "}
         — the same sections our own draft leaves out. Draftmancer bots have never
         seen a Riftbound card, so each one carries a 0–5 rating derived from its
-        rarity to give them something to pick on.{" "}
-        <strong className="font-medium">Players and packs are a starting
-        point</strong>: they size the pool arithmetic above and go into the file
-        as a default, and whoever hosts the session can change them there.
+        rarity to give them something to pick on.
       </p>
     </div>
   );

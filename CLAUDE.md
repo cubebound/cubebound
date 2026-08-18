@@ -335,7 +335,7 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /cube/{username}/{slug}/settings      rename, visibility, delete
 /cube/{username}/{slug}/draft         solo draft against bots — any viewer, not just the owner
                                       ?draft={id} opens a specific one, else the latest
-                                      ?new=1 is the settings screen: bots | Draftmancer export
+                                      ?new=1 is the settings screen: Draftmancer export | bots
 /cube/{username}/{slug}/draftmancer.txt  the cube as a Draftmancer Custom Card List
                                       ?packSize= &legendSlots= &… is the pack template;
                                       a route handler, so it gates itself — see "Exports"
@@ -1163,10 +1163,10 @@ smart; C adds the deck builder.
 - Generic page controls live in `src/components/pagination.tsx`; the card
   browser's `CardPagination` wraps them to carry its filters through the link,
   which is the only part that differs between the two.
-- **The settings screen is two tabs, not one form.** Drafting against bots and
-  exporting to Draftmancer are the same cube dealt the same way in two places,
-  so `DraftSettings` renders once above both and only the action differs. See
-  "Exports".
+- **The settings screen is two tabs, not one form, and the Draftmancer export
+  is the one that opens.** Drafting against bots and exporting to Draftmancer
+  are the same cube dealt the same way in two places, so `DraftSettings` renders
+  once above both and only the action differs. See "Exports".
 - **"Draft" on a cube means "set one up", so both Draft buttons link to
   `?new=1`.** Resuming the latest draft made the settings unreachable from a
   cube for anyone who had drafted it before, which is everyone after the first
@@ -1314,12 +1314,22 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
   unlisted works, and a cube that does not exist is indistinguishable from one
   that is private.
 - **The export lives on the draft screen, as one of two tabs over one settings
-  form.** `/cube/{username}/{slug}/draft?new=1` offers **Draft against bots** and
-  **Export to Draftmancer**; `DraftSettings` renders once above them and each tab
-  carries only its own action. They differ in *where* the draft happens, not in
-  what a legend slot is, so configuring the pack template twice would have meant
-  two copies of that form and eventually two answers. It is deliberately not on
-  the cube page: "Draft" is already the verb that leads here.
+  form, and it is the one that opens.** `/cube/{username}/{slug}/draft?new=1`
+  leads with **Export to Draftmancer** and offers **Draft against bots**
+  second; `DraftSettings` renders once above them and each tab carries only its
+  own action. Drafting a cube with other people is the thing people want, and
+  our own bots are deliberately dumb — whichever tab leads should also be the
+  default, or the highlighted tab is the second one. They differ in *where* the
+  draft happens, not in what a legend slot is, so configuring the pack template
+  twice would have meant two copies of that form and eventually two answers. It
+  is deliberately not on the cube page: "Draft" is already the verb that leads
+  here.
+- **`seats` is not written to the file, and `packsPerPlayer` is.** Players sizes
+  the "is this cube big enough" arithmetic and nothing else; packs becomes
+  `boostersPerPlayer`, the default the Draftmancer host sees and may override.
+  Because one form serves both tabs, the Draftmancer tab says which is which
+  **above** the form rather than in a footnote — the fields mean different
+  things per tab, and explaining that after they have been read is too late.
   **The tab is client state, not a URL parameter**, unlike the cube page's tabs
   — those select what to read and are worth linking to, while this one sits over
   a form you have just filled in, and a round trip to a dynamic route would
