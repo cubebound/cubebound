@@ -21,6 +21,7 @@ import {
 } from "./actions";
 import DraftSettings, { type PoolCounts } from "@/components/draft-settings";
 import DeckExport from "./deck-export";
+import DraftmancerExport from "./draftmancer-export";
 import PoolPiles, { type PoolCard } from "./pool-piles";
 
 export interface DraftTile {
@@ -65,15 +66,32 @@ async function runAction<T extends { error?: string }>(
   }
 }
 
-/** Start screen: what the draft will be, plus anything worth knowing first. */
+/**
+ * Start screen: how this cube gets drafted, either way.
+ *
+ * Two tabs over **one** settings form. Drafting against our bots and exporting
+ * to Draftmancer differ only in where the draft happens — a legend slot means
+ * the same thing in both — so the pack template is configured once above the
+ * tabs and each tab only carries its own action. Two screens would have meant
+ * two copies of that form and, before long, two answers to what a reserved slot
+ * is.
+ *
+ * The tab is **client state, not a URL parameter**, unlike the tabs on the cube
+ * page. Those select what to read and are worth linking to; this one sits over
+ * a form you have just filled in, and a round trip to a dynamic route would
+ * throw the settings away to change a heading.
+ */
 export function StartDraft({
   cubeId,
   returnPath,
+  exportPath,
   pools,
   currentDraftPath,
 }: {
   cubeId: string;
   returnPath: string;
+  /** The cube's `draftmancer.txt` route, for the export tab. */
+  exportPath: string;
   pools: PoolCounts;
   /** Set when a draft of this cube already exists, so the screen can say it
    *  survives. Starting another never destroys one. */
@@ -83,6 +101,7 @@ export function StartDraft({
   const [state, setState] = useState<DraftActionState>({});
   const [pending, startTransition] = useTransition();
   const [config, setConfig] = useState<DraftConfig>(DEFAULT_DRAFT_CONFIG);
+  const [tab, setTab] = useState<"bots" | "draftmancer">("bots");
 
   // The settings panel computes this too, but the button needs its own answer:
   // an incoherent config must not be submittable at all. Pool sufficiency is
@@ -90,6 +109,28 @@ export function StartDraft({
   // warning that falls back to main, and the server re-derives the blocking
   // case with the real pool anyway.
   const problems = validateDraftConfig(config);
+
+  const tabButton = (value: typeof tab, label: string, hint: string) => (
+    <button
+      type="button"
+      onClick={() => setTab(value)}
+      aria-pressed={tab === value}
+      className={`flex-1 rounded-md px-3 py-2 text-left text-sm ${
+        tab === value
+          ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+          : "border border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+      }`}
+    >
+      <span className="block font-medium">{label}</span>
+      <span
+        className={`block text-xs ${
+          tab === value ? "opacity-80" : "text-zinc-500"
+        }`}
+      >
+        {hint}
+      </span>
+    </button>
+  );
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -107,39 +148,81 @@ export function StartDraft({
         </p>
       )}
 
+      <div className="flex gap-2">
+        {tabButton("bots", "Draft against bots", "Solo, here, right now")}
+        {tabButton("draftmancer", "Export to Draftmancer", "Play with other people")}
+      </div>
+
       <DraftSettings pools={pools} onChange={setConfig} />
+
+      {tab === "draftmancer" ? (
+        <DraftmancerExport
+          exportPath={exportPath}
+          config={config}
+          disabled={problems.length > 0}
+        />
+      ) : (
+        <BotDraftAction
+          pending={pending}
+          disabled={pending || problems.length > 0}
+          error={state.error}
+          onStart={() =>
+            startTransition(async () => {
+              setState({});
+              const result = await runAction(
+                () => startDraftAction(cubeId, returnPath, config),
+                (message) => setState({ error: message }),
+              );
+              // Navigate explicitly. This screen used to rely on the action's
+              // revalidate to re-render the page into the pick screen, which
+              // worked only while it rendered on `!draft` alone — with `?new=1`
+              // still in the URL the page just renders these settings again, so
+              // a successful start looked like nothing happening and a second
+              // click dealt a second draft. Opening the new draft by id also
+              // beats trusting "latest".
+              if (result?.draftId) {
+                router.push(`${returnPath}?draft=${result.draftId}`);
+                router.refresh();
+              }
+            })
+          }
+        />
+      )}
+    </div>
+  );
+}
+
+/** The bots tab's action: one button and whatever went wrong. */
+function BotDraftAction({
+  pending,
+  disabled,
+  error,
+  onStart,
+}: {
+  pending: boolean;
+  disabled: boolean;
+  error?: string;
+  onStart: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        Empty seats are filled by bots, and the draft is saved as you pick — you
+        can leave and come back to it.
+      </p>
 
       <button
         type="button"
-        disabled={pending || problems.length > 0}
-        onClick={() =>
-          startTransition(async () => {
-            setState({});
-            const result = await runAction(
-              () => startDraftAction(cubeId, returnPath, config),
-              (message) => setState({ error: message }),
-            );
-            // Navigate explicitly. This screen used to rely on the action's
-            // revalidate to re-render the page into the pick screen, which
-            // worked only while it rendered on `!draft` alone — with `?new=1`
-            // still in the URL the page just renders these settings again, so
-            // a successful start looked like nothing happening and a second
-            // click dealt a second draft. Opening the new draft by id also
-            // beats trusting "latest".
-            if (result?.draftId) {
-              router.push(`${returnPath}?draft=${result.draftId}`);
-              router.refresh();
-            }
-          })
-        }
+        disabled={disabled}
+        onClick={onStart}
         className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
       >
         {pending ? "Dealing…" : "Start draft"}
       </button>
 
-      {state.error && (
+      {error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
+          {error}
         </p>
       )}
     </div>

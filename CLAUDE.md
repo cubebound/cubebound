@@ -335,6 +335,7 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /cube/{username}/{slug}/settings      rename, visibility, delete
 /cube/{username}/{slug}/draft         solo draft against bots — any viewer, not just the owner
                                       ?draft={id} opens a specific one, else the latest
+                                      ?new=1 is the settings screen: bots | Draftmancer export
 /cube/{username}/{slug}/draftmancer.txt  the cube as a Draftmancer Custom Card List
                                       ?packSize= &legendSlots= &… is the pack template;
                                       a route handler, so it gates itself — see "Exports"
@@ -1162,6 +1163,10 @@ smart; C adds the deck builder.
 - Generic page controls live in `src/components/pagination.tsx`; the card
   browser's `CardPagination` wraps them to carry its filters through the link,
   which is the only part that differs between the two.
+- **The settings screen is two tabs, not one form.** Drafting against bots and
+  exporting to Draftmancer are the same cube dealt the same way in two places,
+  so `DraftSettings` renders once above both and only the action differs. See
+  "Exports".
 - **"Draft" on a cube means "set one up", so both Draft buttons link to
   `?new=1`.** Resuming the latest draft made the settings unreachable from a
   cube for anyone who had drafted it before, which is everyone after the first
@@ -1308,15 +1313,22 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
   export even for its own owner. Verified: suspended and hidden both 404,
   unlisted works, and a cube that does not exist is indistinguishable from one
   that is private.
-- **The panel costs no extra query and reuses the draft form.**
-  `src/components/draft-settings.tsx` moved out of the draft route because two
-  surfaces now use it — starting a solo draft, and choosing the pack template
-  for an export — which is the convention for anything shared. One form means
-  the exclusivity rules and the pool arithmetic are only right once, and the
-  panel passes it **three counts**, not the cards, so nothing extra crosses to
-  the client. Only pressing Download runs a query, which is also why the route
-  selects its own columns: `champion` and the base printing's rarity are not in
-  `browseColumns` and no page wants them.
+- **The export lives on the draft screen, as one of two tabs over one settings
+  form.** `/cube/{username}/{slug}/draft?new=1` offers **Draft against bots** and
+  **Export to Draftmancer**; `DraftSettings` renders once above them and each tab
+  carries only its own action. They differ in *where* the draft happens, not in
+  what a legend slot is, so configuring the pack template twice would have meant
+  two copies of that form and eventually two answers. It is deliberately not on
+  the cube page: "Draft" is already the verb that leads here.
+  **The tab is client state, not a URL parameter**, unlike the cube page's tabs
+  — those select what to read and are worth linking to, while this one sits over
+  a form you have just filled in, and a round trip to a dynamic route would
+  throw the settings away to change a heading.
+- **The screen costs no extra query.** `DraftSettings` takes **three counts**,
+  not the cards, so nothing extra crosses to the client, and only pressing
+  Download runs a query. That is also why the route selects its own columns:
+  `champion` and the base printing's rarity are not in `browseColumns` and no
+  page wants them.
 - **`readDraftConfig` lives in `src/lib/draft/config.ts`, not beside the draft
   action**, because the export route needs the same field-by-field rebuild from
   a query string that the start action needs from a form. Its booleans accept

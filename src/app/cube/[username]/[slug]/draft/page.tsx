@@ -128,6 +128,7 @@ export default async function DraftPage({
         <StartDraft
           cubeId={cube.id}
           returnPath={draftPath}
+          exportPath={`${publicPath}/draftmancer.txt`}
           pools={counts}
           currentDraftPath={draft ? `${draftPath}?draft=${draft.id}` : null}
         />
