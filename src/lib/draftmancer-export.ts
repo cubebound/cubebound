@@ -104,23 +104,66 @@ export interface DraftmancerSourceCard {
  * rows sitting in real cubes today. 2 is the middle of the 1–4 range actually in
  * use, so an unmapped card is neither favoured nor buried.
  */
-const RARITY_RATING: Record<string, number> = {
+/**
+ * **Draftmancer validates `rarity` against a fixed set and rejects the whole
+ * file otherwise**, with `Invalid mandatory property 'rarity' in custom card,
+ * must be one of [common, uncommon, rare, mythic, special]`. Its own
+ * documentation says the field is optional and unconstrained; the running
+ * validator disagrees on both counts, so this is written against the validator.
+ * Riftbound's own vocabulary — Epic, Showcase, Promo — is not accepted.
+ */
+export type DraftmancerRarity = "common" | "uncommon" | "rare" | "mythic" | "special";
+
+/** Our four power tiers onto theirs. Epic is the top of our scale, so it maps
+ *  to their top, `mythic`. */
+const RIFTBOUND_RARITY: Record<string, DraftmancerRarity> = {
+  common: "common",
+  uncommon: "uncommon",
+  rare: "rare",
+  epic: "mythic",
+};
+
+/**
+ * Where a card sits on Draftmancer's scale, looking through printing
+ * treatments to the printing that actually carries a power tier.
+ *
+ * `Showcase` and `Promo` are treatments rather than tiers, and `base_id` is the
+ * canonical printing: all 120 showcase rows resolve that way (70 Rare, 42
+ * Epic), so a showcase bomb is rated as the bomb it is. Promo mostly does not —
+ * 73 of 117 are their own base — and those land on `special`, which is exactly
+ * what that value is for.
+ */
+export function draftmancerRarity(
+  card: Pick<DraftmancerSourceCard, "rarity" | "baseRarity">,
+): DraftmancerRarity {
+  return (
+    RIFTBOUND_RARITY[card.rarity?.toLowerCase() ?? ""] ??
+    RIFTBOUND_RARITY[card.baseRarity?.toLowerCase() ?? ""] ??
+    "special"
+  );
+}
+
+/**
+ * Bot rating, derived from the same resolution as the rarity so the two can
+ * never disagree about what a card is.
+ *
+ * **`special` rates 2, not 0.** Zero is the bottom of Draftmancer's scale
+ * rather than an absence, so an unresolvable card would be picked dead last —
+ * and there are 339 Promo rows sitting in real cubes. 2 is the middle of the
+ * 1–4 range actually in use, so it is neither favoured nor buried.
+ */
+const RARITY_RATING: Record<DraftmancerRarity, number> = {
   common: 1,
   uncommon: 2,
   rare: 3,
-  epic: 4,
+  mythic: 4,
+  special: 2,
 };
-
-const NEUTRAL_RATING = 2;
 
 export function draftmancerRating(
   card: Pick<DraftmancerSourceCard, "rarity" | "baseRarity">,
 ): number {
-  return (
-    RARITY_RATING[card.rarity?.toLowerCase() ?? ""] ??
-    RARITY_RATING[card.baseRarity?.toLowerCase() ?? ""] ??
-    NEUTRAL_RATING
-  );
+  return RARITY_RATING[draftmancerRarity(card)];
 }
 
 /**
@@ -217,7 +260,9 @@ interface DraftmancerCustomCard {
   image?: string;
   set: string;
   collector_number: string;
-  rarity: string;
+  /** Typed to the accepted set so an unmapped value is a compile error rather
+   *  than a file Draftmancer rejects on upload. */
+  rarity: DraftmancerRarity;
   subtypes?: string[];
   rating: number;
   oracle_text?: string;
@@ -237,7 +282,7 @@ function customCard(
     ...(image ? { image } : {}),
     set: card.setCode,
     collector_number: card.collectorNo,
-    rarity: card.rarity.toLowerCase(),
+    rarity: draftmancerRarity(card),
     ...(card.domains.length > 0 ? { subtypes: card.domains.map(titleCase) } : {}),
     rating: draftmancerRating(card),
     ...(oracle ? { oracle_text: oracle } : {}),

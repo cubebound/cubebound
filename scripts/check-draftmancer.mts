@@ -16,6 +16,7 @@
 import {
   draftmancerName,
   draftmancerPlan,
+  draftmancerRarity,
   draftmancerRating,
   toDraftmancerCubeFile,
   type DraftmancerSourceCard,
@@ -79,29 +80,40 @@ function parse(text: string) {
   return { customCards, sheets };
 }
 
-// --- rating: the four real tiers ---------------------------------------------
+// --- rarity + rating: the four real tiers ------------------------------------
 {
   scenario();
-  const tiers: [string, number][] = [
-    ["Common", 1],
-    ["Uncommon", 2],
-    ["Rare", 3],
-    ["Epic", 4],
+  const tiers: [string, string, number][] = [
+    ["Common", "common", 1],
+    ["Uncommon", "uncommon", 2],
+    ["Rare", "rare", 3],
+    // Epic is the top of our scale, so it maps to the top of theirs.
+    ["Epic", "mythic", 4],
   ];
-  for (const [rarity, want] of tiers) {
-    const got = draftmancerRating({ rarity, baseRarity: rarity });
-    expect(got === want, `${rarity} should rate ${want}, got ${got}`);
+  for (const [rarity, wantRarity, wantRating] of tiers) {
+    const gotRarity = draftmancerRarity({ rarity, baseRarity: rarity });
+    const gotRating = draftmancerRating({ rarity, baseRarity: rarity });
+    expect(gotRarity === wantRarity, `${rarity} should map to ${wantRarity}, got ${gotRarity}`);
+    expect(gotRating === wantRating, `${rarity} should rate ${wantRating}, got ${gotRating}`);
   }
 }
 
-// --- rating: treatments look through to the canonical printing ---------------
+// --- rarity: treatments look through to the canonical printing ---------------
 {
   scenario();
   // 120 Showcase rows all resolve through base_id — 70 to Rare, 42 to Epic.
+  expect(
+    draftmancerRarity({ rarity: "Showcase", baseRarity: "Epic" }) === "mythic",
+    "a showcase Epic resolves through its base printing",
+  );
   const showcaseEpic = draftmancerRating({ rarity: "Showcase", baseRarity: "Epic" });
   expect(showcaseEpic === 4, `a showcase Epic should rate 4, got ${showcaseEpic}`);
 
   // 73 of 117 Promo rows are their own base, so there is nothing to look through.
+  expect(
+    draftmancerRarity({ rarity: "Promo", baseRarity: "Promo" }) === "special",
+    "an unresolvable Promo is 'special', the value that exists for exactly this",
+  );
   const promo = draftmancerRating({ rarity: "Promo", baseRarity: "Promo" });
   expect(promo === 2, `an unresolvable Promo should rate the neutral 2, got ${promo}`);
 
@@ -109,8 +121,30 @@ function parse(text: string) {
   // absence, and 339 Promo rows sit in real cubes today.
   expect(promo !== 0, "an unrated card must not be rated 0 — bots would take it last");
 
-  const unknown = draftmancerRating({ rarity: "SomeFutureRarity", baseRarity: null });
-  expect(unknown === 2, `an unknown rarity should rate the neutral 2, got ${unknown}`);
+  expect(
+    draftmancerRarity({ rarity: "SomeFutureRarity", baseRarity: null }) === "special",
+    "a rarity from a future set must not produce a value Draftmancer rejects",
+  );
+}
+
+// --- every emitted rarity is one Draftmancer accepts --------------------------
+{
+  scenario();
+  // Draftmancer rejects the *whole file* on an unknown rarity, so this is the
+  // assertion that stands between a working export and an upload error:
+  // "Invalid mandatory property 'rarity' ... must be one of [...]".
+  const ACCEPTED = new Set(["common", "uncommon", "rare", "mythic", "special"]);
+  const file = toDraftmancerCubeFile(
+    ["Common", "Uncommon", "Rare", "Epic", "Showcase", "Promo", "Mythic Whatever"].map(
+      (rarity, i) => card({ id: `c${i}`, name: `Card ${i}`, rarity, baseRarity: rarity }),
+    ),
+  );
+  for (const entry of parse(file.text).customCards) {
+    expect(
+      ACCEPTED.has(entry.rarity as string),
+      `rarity "${entry.rarity}" would be rejected on upload`,
+    );
+  }
 }
 
 // --- names: legends get their champion back ----------------------------------

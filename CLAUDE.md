@@ -1229,18 +1229,31 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
   make about names. They ride in `subtypes`, where they show on the type line.
   The cost is that Draftmancer's bots have no colour signal, which is what
   `rating` is for.
-- **`rating` is derived from rarity, and that is a deliberate exception.**
-  "Rarity plays no part in pack construction" still holds for *dealing packs*.
-  This is bot pick order: Draftmancer's bots have never seen a Riftbound card
-  and have no colour to read either, so an unrated pool makes them pick at
-  random. Printed rarity is a weak proxy, but it is the only signal we have
-  until pick data exists. Common/Uncommon/Rare/Epic map to 1–4; **Showcase and
-  Promo are printing treatments, not power tiers**, so the rating looks through
-  `base_id` to the canonical printing — all 120 showcase rows resolve that way
-  (70 Rare, 42 Epic). Promo mostly does not (73 of 117 are their own base) and
-  falls to a neutral **2, never 0**: zero is the bottom of the scale rather than
-  an absence, and 339 Promo rows sit in real cubes, so bots would take every one
-  of them last.
+- **`rarity` is a closed set, and Draftmancer rejects the entire file over
+  it.** `Invalid mandatory property 'rarity' in custom card, must be one of
+  [common, uncommon, rare, mythic, special]`. **Its published format
+  documentation says the field is optional and lists no allowed values, and is
+  wrong on both counts** — write against the validator, not the docs, and
+  confirm by actually uploading. Riftbound's vocabulary is not accepted, so
+  Common/Uncommon/Rare map across and **Epic becomes `mythic`**, the top of our
+  scale onto the top of theirs. `DraftmancerRarity` is a union type so an
+  unmapped value is a compile error rather than an upload failure, and
+  `check:draftmancer` asserts every emitted value is in the set.
+- **`rating` is derived from that same resolution, and it is a deliberate
+  exception.** "Rarity plays no part in pack construction" still holds for
+  *dealing packs*. This is bot pick order: Draftmancer's bots have never seen a
+  Riftbound card and have no colour to read either, so an unrated pool makes
+  them pick at random. Printed rarity is a weak proxy, but it is the only signal
+  we have until pick data exists. One function resolves the tier and both the
+  rarity and the rating come from it, so the two cannot disagree.
+  **Showcase and Promo are printing treatments, not power tiers**, so the
+  resolution looks through `base_id` to the canonical printing — all 120
+  showcase rows resolve that way (70 Rare, 42 Epic). Promo mostly does not (73
+  of 117 are their own base) and lands on `special`, rated a neutral **2, never
+  0**: zero is the bottom of the scale rather than an absence, and 339 Promo
+  rows sit in real cubes, so bots would take every one of them last. A real
+  export of the 426-card dev cube comes out 123 rare, 119 uncommon, 82 common,
+  80 mythic, 22 special.
 - **Costless is an empty `mana_cost`, not `{0}`** — legends, runes and
   battlefields have no energy cost at all, the same distinction that keeps them
   off the analytics curve instead of bucketing them at zero. Power cost and
