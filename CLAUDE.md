@@ -47,18 +47,19 @@ Open items:
 - Feature work lands on a branch and pushes to
   `github.com/cubebound/cubebound`; `master` is production — see
   "Environments".
-- **⚠️ `0013` is written and applied to dev, and production has NOT run it.**
-  Production is migrated through `0012`; `0013` adds
-  `cube_cards_cube_id_section_idx` and ships on the `draftmancer-export` branch.
-  It is an index, so unlike a missing table nothing 500s without it — the cube
-  listings simply keep their current plan — which makes it exactly the kind of
-  migration that gets forgotten. **Apply it when that branch merges.**
-  `0012` (moderation) was applied by hand at the moderation deploy on 16 August
-  2026, and production listings answering at all is the proof — every one of
-  them filters on `hidden_at` and `suspended_at`. The rule stands: a deploy does
-  not run migrations, so a feature adding tables fails at request time however
-  green the build looks. **Check `git log origin/master..master` before assuming
-  what is live** — this file describes the code, not the deployment.
+- **Migrations are current: production is migrated through `0013` and nothing
+  newer exists.** `0013` (`cube_cards_cube_id_section_idx`) was applied by hand
+  at the Draftmancer export deploy on 17 August 2026; `0012` (moderation) the
+  same way on 16 August. Confirm either with
+  `select indexname from pg_indexes where tablename = 'cube_cards'` rather than
+  by reading this file. Note that a hand-applied migration writes no row to
+  production's `drizzle.__drizzle_migrations`, so that ledger and this repo's
+  journal are already out of step — which is survivable only because `0013` is
+  `CREATE INDEX IF NOT EXISTS` and re-running it is a no-op. The rule stands: a
+  deploy does not run migrations, so a feature adding tables fails at request
+  time however green the build looks. **Check `git log origin/master..master`
+  before assuming what is live** — this file describes the code, not the
+  deployment.
 - **Sentry is on in production.** `NEXT_PUBLIC_SENTRY_DSN` is set in Vercel and
   verified sending: a page load produces envelopes to the project's ingest host,
   and a deliberately thrown error produces two more. Client and edge/server
@@ -238,11 +239,10 @@ counts appear where you will actually look.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-Two branches are in flight, neither merged and both cut from `master`:
-`oauth` (Discord and Google sign-in) and `draftmancer-export` (the Draftmancer
-cube export, the import write-batching fix, and migration `0013`). They do not
-touch the same files. **`draftmancer-export` carries a migration**, so merging
-it means running `db:migrate` against production — see "Current status".
+**`oauth` (Discord and Google sign-in) is the one branch still in flight**, cut
+from `master` and not merged. It carries no migration. Note that it adds
+`check:oauth` and the "Sign-in methods" section to this file, so neither exists
+on `master` — a gate run from `master` is fifteen scripts, not sixteen.
 
 **A preview deployment is not automatically a dev environment.** Vercel injects
 whichever environment variables are configured for Preview, and unless those
@@ -1464,6 +1464,34 @@ npm run check:primer-toolbar && npm run check:pool && \
 npm run check:moderation && npm run check:deck-export && \
 npm run check:share-previews
 ```
+
+**That block is bash, and this is a Windows machine.** PowerShell 5.1 has no
+`&&`, `chrome` is not on the path and `/tmp` does not exist, so it has to be
+driven as a loop with the real Chrome path and `$env:TEMP`:
+
+```powershell
+Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" `
+  -ArgumentList '--headless=new','--remote-debugging-port=9222',"--user-data-dir=$env:TEMP\cbchrome",'about:blank'
+foreach ($c in @("printings","browse-grid","card-filters","copies-and-log","public-cube",
+                 "auth-flow","cube-ownership","magic-link","import","discovery",
+                 "primer-toolbar","pool","moderation","deck-export","share-previews")) {
+  npm run "check:$c"; if (-not $?) { "FAILED at check:$c"; break }
+}
+```
+
+**Two of these fail transiently and pass on a re-run** — `check:browse-grid` and
+`check:deck-export` both did so in one sitting, aborting with an undici
+`TypeError: terminated` rather than an assertion. Both drive the shared free-tier
+dev Supabase. Before believing such a failure, check the page it fetches answers
+at all (`/cards` in ~600ms is healthy); a socket abort against a responsive
+server is the environment, not the code.
+
+**`draftmancer.txt` is covered by no check script.** It was verified by hand
+against `npm run build && npx next start` — 200 with the right headers and
+filename, a custom pack template, 400 on an incoherent config, and 404 for
+hidden, suspended and unknown cubes. Anything that touches it needs the same
+treatment until a check exists, which is the rule below applied to the one route
+that currently needs it.
 
 **The checks run against `npm run dev`, which is not what ships.** A cube's
 share preview 500'd in production while every page and every check passed
