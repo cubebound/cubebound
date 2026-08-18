@@ -52,10 +52,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         Cube construction and drafting for Riftbound
       </h1>
       <p className="mt-4 text-zinc-600 dark:text-zinc-400">
-        Build a cube from the full card pool, organize it by domain, cost and
-        type, and write a primer explaining how it drafts. Every cube gets a
-        public page you can share — and anyone can clone one into their own
-        account to make it theirs.
+        Welcome to cubebound.gg! Build a cube from the full card pool, organize
+        it by domain, cost and type, and write a primer explaining how it
+        drafts.
+      </p>
+      <p className="mt-4 text-zinc-600 dark:text-zinc-400">
+        Share your cube far and wide with shareable links. Do a test draft
+        against bots or export your cube to Draftmancer and draft it with
+        friends.
       </p>
       {/* Above the Cube Cobra credit and below the pitch: someone who has never
           drafted a cube needs this before they need a Create button, and it is
@@ -66,10 +70,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           href="/guides/riftbound-cube-drafting"
           className="font-medium underline underline-offset-2 hover:text-zinc-900 dark:hover:text-zinc-100"
         >
-          Read how to build and draft a Riftbound cube
-        </Link>{" "}
-        — what a cube is, how legends and battlefields change drafting, and how
-        to size your pool.
+          Read about them here
+        </Link>
+        ! What a cube is, how legends and battlefields change drafting, and how
+        many cards to include are all covered.
       </p>
 
       <p className="mt-4 text-sm text-zinc-500">
