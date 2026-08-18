@@ -129,6 +129,15 @@ export default async function CubePage({
   }
   const sectionCounts = CUBE_LIST_SECTIONS.filter((section) => bySection.has(section));
 
+  // Copies per drafted section, the shape `DraftSettings` reports against. Read
+  // from the same map the section chips use, so the export panel and the header
+  // can never quote different numbers for the same cube.
+  const draftPools = {
+    main: bySection.get("main") ?? 0,
+    legends: bySection.get("legends") ?? 0,
+    battlefields: bySection.get("battlefields") ?? 0,
+  };
+
   // The owner sees the count in the byline rather than a Follow button —
   // following your own cube is noise, but knowing who's watching it isn't.
   const { followers, following } = follows;
@@ -306,8 +315,15 @@ export default async function CubePage({
         <>
           {/* Above the list rather than below it: a cube is a long page, and an
               export nobody can find is one nobody uses. Collapsed, so it costs
-              a single line to everyone who came to read the cube. */}
-          <DraftmancerExport cards={cards} href={`${basePath}/draftmancer.txt`} />
+              a single line to everyone who came to read the cube. It takes
+              three counts rather than the cards themselves — the settings form
+              only ever needed the sizes, so nothing extra crosses to the
+              client. */}
+          <DraftmancerExport
+            basePath={basePath}
+            pools={draftPools}
+            missingArt={cards.filter((card) => !card.imageFull).length}
+          />
           <CubeSections
             cards={cards}
             view={view}

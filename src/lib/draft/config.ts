@@ -76,6 +76,44 @@ export const DEFAULT_DRAFT_CONFIG: DraftConfig = {
 };
 
 /**
+ * Rebuilds a config from untrusted input.
+ *
+ * Field by field rather than a spread, so a caller cannot smuggle in extra keys
+ * that would be snapshotted into `drafts.config` and read back later — most
+ * pointedly `passDirections`, which would let them pin the passing order.
+ *
+ * Lives here rather than beside the draft action because two callers need it:
+ * the start action, reading a form, and the Draftmancer export route, reading a
+ * query string. That is also why the booleans accept `"true"` and `"1"` — a URL
+ * has no booleans, and the alternative is a second parser that could disagree
+ * with this one about what a config is.
+ */
+export function readDraftConfig(input: unknown): DraftConfig {
+  const source = (input ?? {}) as Record<string, unknown>;
+  const num = (key: keyof DraftConfig, fallback: number) => {
+    const value = Number(source[key]);
+    return Number.isFinite(value) ? Math.floor(value) : fallback;
+  };
+  const flag = (key: keyof DraftConfig) => {
+    const value = source[key];
+    return value === true || value === "true" || value === "1";
+  };
+  return {
+    seats: num("seats", DEFAULT_DRAFT_CONFIG.seats),
+    packsPerPlayer: num("packsPerPlayer", DEFAULT_DRAFT_CONFIG.packsPerPlayer),
+    packSize: num("packSize", DEFAULT_DRAFT_CONFIG.packSize),
+    legendSlots: num("legendSlots", DEFAULT_DRAFT_CONFIG.legendSlots),
+    battlefieldSlots: num("battlefieldSlots", DEFAULT_DRAFT_CONFIG.battlefieldSlots),
+    legendOrBattlefieldSlots: num(
+      "legendOrBattlefieldSlots",
+      DEFAULT_DRAFT_CONFIG.legendOrBattlefieldSlots,
+    ),
+    shuffleLegendsIntoPacks: flag("shuffleLegendsIntoPacks"),
+    shuffleBattlefieldsIntoPacks: flag("shuffleBattlefieldsIntoPacks"),
+  };
+}
+
+/**
  * How a type reaches a pack. The UI offers this as one choice per type, which
  * is what makes the exclusivity structural rather than a rule the form has to
  * police; the config stores it flat so an older snapshot still reads.

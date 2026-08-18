@@ -9,21 +9,34 @@
  * against deliberately dumb bots, this is how a cube gets drafted by eight
  * actual people today.
  *
- * The file has three parts and the order is fixed — `[CustomCards]` must come
- * first:
+ * The file has four parts and the order matters — `[CustomCards]` must come
+ * first, and `[Settings]` before the sheets:
  *
  * ```
  * [CustomCards]
- * [ { "name": ..., "mana_cost": ..., "type": ... }, ... ]
- * [Main(11)]
+ * [ { "name": ..., "mana_cost": ..., "type": ..., "rarity": ... }, ... ]
+ * [Settings]
+ * { "layouts": { "Default": { "weight": 1, "slots": [ ... ] } } }
+ * [Main]
  * 1 Card Name
- * [Identity(1)]
+ * [Legends]
  * 1 Legend Name
  * ```
  *
  * **Sheet lines reference cards by name, so names must be unique**, and that
  * is the one thing in here that can produce a file Draftmancer rejects rather
  * than a file that merely reads oddly. See `draftmancerName`.
+ *
+ * ## The pack template is ours; the session is Draftmancer's
+ *
+ * Pack composition comes from the cube's own `DraftConfig` — the same object
+ * the solo draft screen produces and `validateDraftConfig` polices — so the two
+ * ways of drafting a cube cannot drift into meaning different things. What we
+ * deliberately do *not* own is the session: how many people turn up, the pick
+ * timer, who is hosting. `boostersPerPlayer` is emitted as a **default** the
+ * host can override, and `seats` is used only to work out whether the cube is
+ * big enough, never written into the file. Baking in eight seats becomes a lie
+ * the moment six people show up.
  *
  * ## What is deliberately not mapped
  *
@@ -35,6 +48,9 @@
  * on the card's type line and cost nothing if a reader ignores them. The
  * consequence is that Draftmancer's bots have no colour signal to read, which
  * is what `rating` is for and why it is the field this export cares most about.
+ * It is also why `colorBalance` is switched **off**: it defaults on and tries to
+ * put one card of each colour in the largest slot, which here would be
+ * balancing against a field no card has.
  *
  * **Power cost does not become mana symbols.** `mana_cost` carries the generic
  * energy cost only (`{3}`); the domain pips have no faithful MTG symbol, so
@@ -48,8 +64,9 @@ import { cardFull } from "./card-images";
 import { displayType } from "./cube-analytics";
 import { withChampionPrefix } from "./deck-export";
 import {
-  DEFAULT_LEGEND_OR_BATTLEFIELD_SLOTS,
-  DEFAULT_PACK_SIZE,
+  canUseEitherSlot,
+  DEFAULT_DRAFT_CONFIG,
+  type DraftConfig,
 } from "./draft/config";
 import { titleCase } from "./riftbound";
 import { rulesTextToPlain } from "./rules-text";
@@ -66,7 +83,7 @@ export interface DraftmancerSourceCard {
   /**
    * Rarity of this card's *canonical* printing (`cards.base_id`). Showcase and
    * Promo are printing treatments rather than power tiers, so the rating has to
-   * look through them — see `draftmancerRating`.
+   * look through them — see `draftmancerRarity`.
    */
   baseRarity: string | null;
   domains: string[];
@@ -81,29 +98,6 @@ export interface DraftmancerSourceCard {
   quantity: number;
 }
 
-/**
- * Rarity → Draftmancer's 0–5 bot rating.
- *
- * **This is a deliberate exception to a rule stated elsewhere.** "Rarity plays
- * no part in pack construction" — a cube is a curated pool and re-imposing
- * Riot's rarity spread would put their choices above the owner's. That still
- * holds for *dealing packs*. This is a different question: Draftmancer's bots
- * have never seen a Riftbound card and, with no colour signal to read either,
- * an unrated pool makes them pick at random. Printed rarity is a weak proxy for
- * power, but it is the only signal we have until pick data exists, and a weak
- * ordering beats none for the humans drafting against them.
- *
- * Only the four real power tiers are mapped. `Showcase` and `Promo` are
- * *treatments*: 120 showcase rows all resolve through `base_id` to a genuine
- * tier (70 Rare, 42 Epic, 6 Common), so looking through the printing rates a
- * showcase bomb as the bomb it is. Promo mostly does not resolve — 73 of 117
- * are their own base — and those fall to `NEUTRAL_RATING`.
- *
- * **The fallback is not 0.** Zero is the bottom of Draftmancer's scale, not an
- * absence, so unrated cards would be picked dead last — and there are 339 Promo
- * rows sitting in real cubes today. 2 is the middle of the 1–4 range actually in
- * use, so an unmapped card is neither favoured nor buried.
- */
 /**
  * **Draftmancer validates `rarity` against a fixed set and rejects the whole
  * file otherwise**, with `Invalid mandatory property 'rarity' in custom card,
@@ -291,45 +285,62 @@ function customCard(
 
 /**
  * Sheet names. Single words with no punctuation, because the header syntax is
- * `[Name(CardsPerBooster)]` and a name containing brackets or parens has no
- * documented escape.
+ * `[Name]` / `[Name(CardsPerBooster)]` and a name containing brackets or parens
+ * has no documented escape.
  */
 const MAIN_SHEET = "Main";
-const IDENTITY_SHEET = "Identity";
+const LEGEND_SHEET = "Legends";
+const BATTLEFIELD_SHEET = "Battlefields";
+/** The either-slot names no sheet of its own: it declares its sources inline. */
+const EITHER_SLOT = "LegendOrBattlefield";
 
 /**
- * Which sections are drafted, and where they land.
+ * Sections that are drafted at all.
  *
- * The same rule the engine's `buildMainPool` applies: only `main` is the body
- * of the draft, legends and battlefields are the guaranteed slot, and runes,
- * sideboard and maybeboard are not drafted at all — runes are a resource
- * supplied outside the draft, the sideboard is cards the owner deliberately
- * took out, and the maybeboard is not part of the cube.
+ * The same rule the engine's `buildMainPool` applies: runes, sideboard and
+ * maybeboard are never dealt — runes are a resource supplied outside the draft,
+ * the sideboard is cards the owner deliberately took out, and the maybeboard is
+ * not part of the cube.
  */
-const IDENTITY_SECTIONS: CubeSection[] = ["legends", "battlefields"];
+const DRAFTED_SECTIONS: CubeSection[] = ["main", "legends", "battlefields"];
 
 /** The minimum a caller needs to describe an export without building one. */
-export type PlannableCard = Pick<
-  DraftmancerSourceCard,
-  "section" | "quantity" | "imageFull"
->;
+export type PlannableCard = Pick<DraftmancerSourceCard, "section" | "quantity">;
+
+/** One entry in a layout's `slots` array. */
+interface LayoutSlot {
+  name: string;
+  count: number;
+  /** Present only on the either-slot, which picks a sheet before it picks a
+   *  card — this is what reproduces our 50/50 rather than drawing in
+   *  proportion to how many of each type the cube happens to hold. */
+  sheets?: { name: string; weight: number }[];
+}
 
 export interface DraftmancerPlan {
   /** Copies exported, not rows. */
   cardCount: number;
   mainCount: number;
-  identityCount: number;
+  legendCount: number;
+  battlefieldCount: number;
   /** Cards per booster the file declares. */
   packSize: number;
   mainPerPack: number;
-  /** Zero when the cube has no legends or battlefields to reserve a slot for. */
-  identityPerPack: number;
+  legendPerPack: number;
+  battlefieldPerPack: number;
+  eitherPerPack: number;
+  /** Emitted as `boostersPerPlayer`, a default the host may override. */
+  packsPerPlayer: number;
+  /** Used only to size the sufficiency warnings; never written to the file. */
+  seats: number;
+  /** The layout the file will declare. */
+  slots: LayoutSlot[];
   /** Things the user should know before uploading. Never silent. */
   warnings: string[];
 }
 
 /**
- * What an export of these cards would contain.
+ * What an export of these cards under this config would contain.
  *
  * Split out from `toDraftmancerCubeFile` so the cube page can describe the
  * export — the counts, the pack arithmetic, the warnings — from the cards it
@@ -337,18 +348,187 @@ export interface DraftmancerPlan {
  * has asked for yet. Supabase is remote and a query costs ~60ms whatever it
  * returns, so a panel that costs a trip on every cube view is a panel that
  * taxes everyone who never clicks it.
+ *
+ * **Grouping is by section, not by card type**, matching `getDraftPools` and
+ * therefore matching the counts the settings form shows as "(26 in this cube)".
+ * The engine layers a type-beats-section rule on top of those pools inside
+ * `buildMainPool`; reimplementing half of it here would mean the panel and the
+ * file disagreed about how big a section is, which is a worse failure than the
+ * rare stray legend filed under main that it would catch.
  */
-export function draftmancerPlan(cards: PlannableCard[]): DraftmancerPlan {
-  const drafted = cards.filter(
-    (card) => card.section === "main" || IDENTITY_SECTIONS.includes(card.section),
+export function draftmancerPlan(
+  cards: PlannableCard[],
+  config: DraftConfig = DEFAULT_DRAFT_CONFIG,
+): DraftmancerPlan {
+  const drafted = cards.filter((card) => DRAFTED_SECTIONS.includes(card.section));
+  const warnings: string[] = [];
+
+  const legendsReserved = !config.shuffleLegendsIntoPacks;
+  const battlefieldsReserved = !config.shuffleBattlefieldsIntoPacks;
+
+  const legends = legendsReserved
+    ? drafted.filter((card) => card.section === "legends")
+    : [];
+  const battlefields = battlefieldsReserved
+    ? drafted.filter((card) => card.section === "battlefields")
+    : [];
+  // A shuffled section is part of the main pile rather than a reserved one, so
+  // it grows what main draws from — exactly what the settings form computes.
+  const main = drafted.filter(
+    (card) =>
+      !(legendsReserved && card.section === "legends") &&
+      !(battlefieldsReserved && card.section === "battlefields"),
   );
-  const main = drafted.filter((card) => card.section === "main");
-  const identity = drafted.filter((card) => IDENTITY_SECTIONS.includes(card.section));
 
   const copies = (group: PlannableCard[]) =>
     group.reduce((sum, card) => sum + card.quantity, 0);
 
-  const warnings: string[] = [];
+  // A shuffled type has no slots by definition, and `validateDraftConfig`
+  // rejects the combination — this is belt and braces so a hand-built config
+  // cannot produce a slot pointing at a sheet that was folded into main.
+  let legendPerPack = legendsReserved ? config.legendSlots : 0;
+  let battlefieldPerPack = battlefieldsReserved ? config.battlefieldSlots : 0;
+  let eitherPerPack = canUseEitherSlot(config) ? config.legendOrBattlefieldSlots : 0;
+
+  // An empty sheet is a file Draftmancer cannot build a booster from, so a slot
+  // with nothing behind it gives its cards back to main — the same "fall back
+  // and warn" the engine does for a short reserved section.
+  if (legendPerPack > 0 && legends.length === 0) {
+    warnings.push(
+      `This cube has no legends, so ${legendPerPack} reserved ${
+        legendPerPack === 1 ? "slot" : "slots"
+      } per pack went back to the main section.`,
+    );
+    legendPerPack = 0;
+  }
+  if (battlefieldPerPack > 0 && battlefields.length === 0) {
+    warnings.push(
+      `This cube has no battlefields, so ${battlefieldPerPack} reserved ${
+        battlefieldPerPack === 1 ? "slot" : "slots"
+      } per pack went back to the main section.`,
+    );
+    battlefieldPerPack = 0;
+  }
+
+  const eitherSources = [
+    ...(legends.length > 0 ? [LEGEND_SHEET] : []),
+    ...(battlefields.length > 0 ? [BATTLEFIELD_SHEET] : []),
+  ];
+  if (eitherPerPack > 0 && eitherSources.length === 0) {
+    warnings.push(
+      "This cube has no legends or battlefields, so the legend-or-battlefield slot went back to the main section.",
+    );
+    eitherPerPack = 0;
+  } else if (eitherPerPack > 0 && eitherSources.length === 1) {
+    warnings.push(
+      `The legend-or-battlefield slot can only draw ${
+        eitherSources[0] === LEGEND_SHEET ? "legends" : "battlefields"
+      }, because the cube holds none of the other.`,
+    );
+  }
+
+  const reserved = legendPerPack + battlefieldPerPack + eitherPerPack;
+  const mainPerPack = Math.max(0, config.packSize - reserved);
+
+  const slots: LayoutSlot[] = [];
+  if (mainPerPack > 0) slots.push({ name: MAIN_SHEET, count: mainPerPack });
+  if (legendPerPack > 0) slots.push({ name: LEGEND_SHEET, count: legendPerPack });
+  if (battlefieldPerPack > 0) {
+    slots.push({ name: BATTLEFIELD_SHEET, count: battlefieldPerPack });
+  }
+  if (eitherPerPack > 0) {
+    slots.push({
+      name: EITHER_SLOT,
+      count: eitherPerPack,
+      // Equal weights, which is the whole point: a single mixed sheet would
+      // draw in proportion to the cube's own split (26 legends against 56
+      // battlefields on the dev cube — about 68% battlefield), where our
+      // engine chooses the type 50/50 per slot.
+      sheets: eitherSources.map((name) => ({ name, weight: 1 })),
+    });
+  }
+
+  // Draftmancer deals without replacement and errors when a sheet runs dry, so
+  // "is this cube big enough" is worth answering before the upload rather than
+  // mid-draft. Seats are the host's to change, so this is phrased as the
+  // assumption it is.
+  const shortfall = (label: string, have: number, perPack: number) => {
+    const need = config.seats * config.packsPerPlayer * perPack;
+    if (perPack > 0 && have < need) {
+      warnings.push(
+        `${label}: ${config.seats} players × ${config.packsPerPlayer} packs needs ${need}, and this cube has ${have}. Draftmancer will stop when the sheet runs out — use fewer players or packs.`,
+      );
+    }
+  };
+  shortfall("Main section", copies(main), mainPerPack);
+  shortfall("Legends", copies(legends), legendPerPack);
+  shortfall("Battlefields", copies(battlefields), battlefieldPerPack);
+  shortfall(
+    "Legends and battlefields together",
+    copies(legends) + copies(battlefields),
+    eitherPerPack,
+  );
+
+  return {
+    cardCount: copies(drafted),
+    mainCount: copies(main),
+    legendCount: copies(legends),
+    battlefieldCount: copies(battlefields),
+    packSize: config.packSize,
+    mainPerPack,
+    legendPerPack,
+    battlefieldPerPack,
+    eitherPerPack,
+    packsPerPlayer: config.packsPerPlayer,
+    seats: config.seats,
+    slots,
+    warnings,
+  };
+}
+
+export interface DraftmancerCubeFile extends DraftmancerPlan {
+  /** The file itself, ready to download. */
+  text: string;
+}
+
+export interface DraftmancerExportOptions {
+  config?: DraftConfig;
+  /** Written to `[Settings].name`, so the cube is identifiable in Draftmancer. */
+  cubeName?: string;
+}
+
+/**
+ * Builds the file.
+ *
+ * Every setting that affects how the cube drafts is written explicitly rather
+ * than left to a default, so a change to Draftmancer's defaults cannot quietly
+ * alter what a cube plays like:
+ *
+ * - `colorBalance` **off**, because we emit no `colors` and it would otherwise
+ *   try to balance the largest slot against a field no card has.
+ * - `withReplacement` **off**, matching our own rule that a card the cube holds
+ *   twice appears in at most two packs.
+ * - `refillWhenEmpty` **off**, so a cube too small for the session fails loudly
+ *   instead of silently dealing the same cards again. `draftmancerPlan` warns
+ *   about that case before the upload.
+ * - `duplicateProtection` **on**, so one pack cannot show the same card twice.
+ */
+export function toDraftmancerCubeFile(
+  cards: DraftmancerSourceCard[],
+  { config = DEFAULT_DRAFT_CONFIG, cubeName }: DraftmancerExportOptions = {},
+): DraftmancerCubeFile {
+  const plan = draftmancerPlan(cards, config);
+
+  const drafted = cards.filter((card) => DRAFTED_SECTIONS.includes(card.section));
+  const legendsReserved = !config.shuffleLegendsIntoPacks;
+  const battlefieldsReserved = !config.shuffleBattlefieldsIntoPacks;
+  const inLegends = (card: DraftmancerSourceCard) =>
+    legendsReserved && card.section === "legends";
+  const inBattlefields = (card: DraftmancerSourceCard) =>
+    battlefieldsReserved && card.section === "battlefields";
+
+  const names = uniqueNames(drafted);
+  const warnings = [...plan.warnings];
 
   const missingArt = drafted.filter((card) => !card.imageFull).length;
   if (missingArt > 0) {
@@ -359,59 +539,7 @@ export function draftmancerPlan(cards: PlannableCard[]): DraftmancerPlan {
     );
   }
 
-  const useIdentitySheet = identity.length > 0;
-  if (!useIdentitySheet) {
-    warnings.push(
-      "This cube has no legends or battlefields, so every pack is main-section cards only.",
-    );
-  }
-
-  const identityPerPack = useIdentitySheet ? DEFAULT_LEGEND_OR_BATTLEFIELD_SLOTS : 0;
-
-  return {
-    cardCount: copies(drafted),
-    mainCount: copies(main),
-    identityCount: copies(identity),
-    packSize: DEFAULT_PACK_SIZE,
-    mainPerPack: DEFAULT_PACK_SIZE - identityPerPack,
-    identityPerPack,
-    warnings,
-  };
-}
-
-export interface DraftmancerCubeFile extends DraftmancerPlan {
-  /** The file itself, ready to download. */
-  text: string;
-}
-
-/**
- * Builds the file.
- *
- * The booster template mirrors our own: `DEFAULT_PACK_SIZE` cards, of which
- * `DEFAULT_LEGEND_OR_BATTLEFIELD_SLOTS` come from the identity sheet and the
- * rest from main — the Legacy booster, and the same arithmetic the draft
- * settings screen shows. Constants rather than literals so the two cannot
- * drift.
- *
- * A cube with no legends or battlefields exports as a **single** sheet of the
- * full pack size. An `[Identity(1)]` header over an empty list is a file
- * Draftmancer cannot build a booster from, and plenty of cubes legitimately
- * hold neither.
- */
-export function toDraftmancerCubeFile(
-  cards: DraftmancerSourceCard[],
-): DraftmancerCubeFile {
-  const drafted = cards.filter(
-    (card) => card.section === "main" || IDENTITY_SECTIONS.includes(card.section),
-  );
-  const main = drafted.filter((card) => card.section === "main");
-  const identity = drafted.filter((card) => IDENTITY_SECTIONS.includes(card.section));
-
-  const plan = draftmancerPlan(drafted);
-  const names = uniqueNames(drafted);
-
   const renamed = drafted.filter((card) => names.get(card.id) !== draftmancerName(card));
-  const warnings = [...plan.warnings];
   if (renamed.length > 0) {
     warnings.push(
       `${renamed.length} ${
@@ -420,8 +548,33 @@ export function toDraftmancerCubeFile(
     );
   }
 
-  const sheetLines = (group: DraftmancerSourceCard[]) =>
-    group.map((card) => `${card.quantity} ${names.get(card.id)!}`).sort();
+  // A slot whose sheet ended up unused must not be declared, and a sheet no
+  // slot draws from must not be emitted — either one is a file that errors.
+  const declared = new Set(
+    plan.slots.flatMap((slot) => slot.sheets?.map((s) => s.name) ?? [slot.name]),
+  );
+
+  const sheets: [string, DraftmancerSourceCard[]][] = [];
+  if (declared.has(MAIN_SHEET)) {
+    sheets.push([
+      MAIN_SHEET,
+      drafted.filter((card) => !inLegends(card) && !inBattlefields(card)),
+    ]);
+  }
+  if (declared.has(LEGEND_SHEET)) sheets.push([LEGEND_SHEET, drafted.filter(inLegends)]);
+  if (declared.has(BATTLEFIELD_SHEET)) {
+    sheets.push([BATTLEFIELD_SHEET, drafted.filter(inBattlefields)]);
+  }
+
+  const settings = {
+    ...(cubeName ? { name: cubeName } : {}),
+    boostersPerPlayer: config.packsPerPlayer,
+    colorBalance: false,
+    withReplacement: false,
+    refillWhenEmpty: false,
+    duplicateProtection: true,
+    layouts: { Default: { weight: 1, slots: plan.slots } },
+  };
 
   const sections = [
     "[CustomCards]",
@@ -430,14 +583,16 @@ export function toDraftmancerCubeFile(
       null,
       2,
     ),
-    `[${MAIN_SHEET}(${plan.mainPerPack})]`,
-    ...sheetLines(main),
+    "[Settings]",
+    JSON.stringify(settings, null, 2),
   ];
 
-  if (plan.identityPerPack > 0) {
+  for (const [name, group] of sheets) {
+    // Bare header: the counts live in the layout, which is how Draftmancer's
+    // own multi-layout example writes them.
+    sections.push(`[${name}]`);
     sections.push(
-      `[${IDENTITY_SHEET}(${plan.identityPerPack})]`,
-      ...sheetLines(identity),
+      ...group.map((card) => `${card.quantity} ${names.get(card.id)!}`).sort(),
     );
   }
 

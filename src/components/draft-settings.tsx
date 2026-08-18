@@ -26,6 +26,12 @@ export interface PoolCounts {
 /**
  * The draft settings, with the pool arithmetic shown live.
  *
+ * Lives in `src/components/` rather than under the draft route because two
+ * surfaces use it: starting a solo draft, and choosing the pack template for a
+ * Draftmancer export. One form means the two ways of drafting a cube cannot
+ * come to disagree about what a legend slot is, and the exclusivity rules only
+ * have to be right once.
+ *
  * The arithmetic is the point. An 8-seat, 3-pack draft with one legend slot
  * needs 24 legends, and most cubes hold far fewer — so it is very easy to pick
  * settings this cube cannot fill. The server still validates and

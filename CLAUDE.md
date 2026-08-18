@@ -336,7 +336,8 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /cube/{username}/{slug}/draft         solo draft against bots — any viewer, not just the owner
                                       ?draft={id} opens a specific one, else the latest
 /cube/{username}/{slug}/draftmancer.txt  the cube as a Draftmancer Custom Card List
-                                      route handler, so it gates itself — see "Exports"
+                                      ?packSize= &legendSlots= &… is the pack template;
+                                      a route handler, so it gates itself — see "Exports"
 /drafts                               every draft the signed-in user has sat in
 /robots.txt  /sitemap.xml             crawl rules; static pages + public cubes and profiles
 /opengraph-image                      share previews — also under /cube/… and /u/…
@@ -1207,13 +1208,51 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
   never heard of: `[CustomCards]` defines cards by name, type and image URL, and
   the sheets below reference them. Cubecana runs Lorcana cubes through it the
   same way. So the export substitutes for the expensive feature.
-- **The file is three parts in a fixed order** — `[CustomCards]` first, then
-  `[Main(11)]`, then `[Identity(1)]`. The booster mirrors our own Legacy
-  template and reads its numbers from `DEFAULT_PACK_SIZE` and
-  `DEFAULT_LEGEND_OR_BATTLEFIELD_SLOTS` rather than literals, so the two cannot
-  drift. Sections follow `buildMainPool`: main is the body, legends and
-  battlefields are the reserved slot, and **runes, sideboard and maybeboard are
-  not exported** for the same reasons the engine does not deal them.
+- **The file is four parts in a fixed order** — `[CustomCards]`, `[Settings]`,
+  then one bare-headed sheet per section (`[Main]`, `[Legends]`,
+  `[Battlefields]`). Counts live in the layout rather than in `[Name(N)]`
+  headers, which is how Draftmancer's own multi-layout example writes them.
+  **Runes, sideboard and maybeboard are not exported**, for the same reasons the
+  engine does not deal them.
+- **The pack template is ours; the session is Draftmancer's.** Composition comes
+  from the cube's own `DraftConfig` — the same object the solo draft screen
+  produces and `validateDraftConfig` polices — so the two ways of drafting a
+  cube cannot drift into meaning different things. What we deliberately do not
+  own is the session: `boostersPerPlayer` is written as a **default** the host
+  may override, and `seats` is used only to size the "is this cube big enough"
+  warnings and is never written to the file. Baking in eight seats becomes a lie
+  the moment six people turn up. The route reads the config from its **query
+  string** through `readDraftConfig` and rejects an incoherent one with a 400
+  carrying the validator's own message, so a config that could never work cannot
+  produce a file that fails on upload instead.
+- **The either-slot is a weighted slot, not a mixed sheet.** A slot may name
+  several sheets with weights, picking a sheet before it picks a card:
+  `{ "name": "LegendOrBattlefield", "count": 1, "sheets": [{"name":"Legends","weight":1},
+  {"name":"Battlefields","weight":1}] }`. One combined sheet was the first
+  version and it was subtly wrong — it draws in proportion to what the cube
+  holds, which on the dev cube is 26 legends against 56 battlefields, about 68%
+  battlefield, where the engine chooses the type 50/50 per slot. Reserved
+  legend and battlefield slots are ordinary slots against their own sheets, and
+  a shuffled type has no slot and no sheet because it is part of the main pile.
+- **A slot may never name a sheet that was not emitted, and no sheet may be
+  empty** — either one is a file that errors. A reserved type the cube has none
+  of gives its slots back to main and says so, which is the same "fall back and
+  warn" the engine does for a short reserved section; an either-slot with only
+  one type available narrows to that type and says so too. `check:draftmancer`
+  asserts the slots and sheets agree across four different configs.
+- **Grouping is by section, not by card type**, matching `getDraftPools` and so
+  matching the counts `DraftSettings` shows as "(26 in this cube)". The engine
+  layers a type-beats-section rule on top of those pools inside `buildMainPool`;
+  reimplementing half of it here would let the panel and the file disagree about
+  how big a section is, which is worse than the rare stray legend filed under
+  main that it would catch.
+- **Everything that affects how the cube drafts is written explicitly**, so a
+  change to Draftmancer's defaults cannot quietly alter what a cube plays like.
+  `colorBalance` **off** — it defaults on and would balance the largest slot
+  against a `colors` field we deliberately never emit; `withReplacement` **off**,
+  matching our own rule that a card held twice appears in at most two packs;
+  `refillWhenEmpty` **off**, so a cube too small fails loudly rather than
+  silently dealing the same cards again; `duplicateProtection` **on**.
 - **Sheet lines reference cards by name, so names must be unique — and a
   duplicate does not error.** Draftmancer binds both lines to whichever entry it
   read last, and the cube drafts with one card missing and another doubled,
@@ -1269,11 +1308,21 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
   export even for its own owner. Verified: suspended and hidden both 404,
   unlisted works, and a cube that does not exist is indistinguishable from one
   that is private.
-- **The panel costs no extra query.** `draftmancerPlan` is split out of the file
-  builder so the cube page can describe the export — counts, pack arithmetic,
-  warnings — from the cards it has already loaded. Only pressing Download runs
-  the query, which is also why the route selects its own columns: `champion` and
-  the base printing's rarity are not in `browseColumns` and no page wants them.
+- **The panel costs no extra query and reuses the draft form.**
+  `src/components/draft-settings.tsx` moved out of the draft route because two
+  surfaces now use it — starting a solo draft, and choosing the pack template
+  for an export — which is the convention for anything shared. One form means
+  the exclusivity rules and the pool arithmetic are only right once, and the
+  panel passes it **three counts**, not the cards, so nothing extra crosses to
+  the client. Only pressing Download runs a query, which is also why the route
+  selects its own columns: `champion` and the base printing's rarity are not in
+  `browseColumns` and no page wants them.
+- **`readDraftConfig` lives in `src/lib/draft/config.ts`, not beside the draft
+  action**, because the export route needs the same field-by-field rebuild from
+  a query string that the start action needs from a form. Its booleans accept
+  `"true"` and `"1"` for exactly that reason — a URL has no booleans, and the
+  alternative is a second parser that could disagree with this one about what a
+  config is.
 
 ## Checks
 
@@ -1300,7 +1349,7 @@ which is why they can create and delete accounts freely.
 | `check:markdown-edit` | the primer toolbar's transforms: every button toggles, headings replace rather than stack, `diffRange` is minimal | nothing | **CI** |
 | `check:primer-toolbar` | the toolbar is *wired*: a click reaches React state, Ctrl+B matches the button, and the result saves byte-for-byte | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:deck-export` | drafted decks export as names other builders accept: legends rebuilt as `Champion, Title`, promo variant suffixes stripped, copies aggregated, and the result re-imports here | DB (read-only) | manual gate |
-| `check:draftmancer` | the cube file Draftmancer reads: unique custom-card names, every sheet line resolving to an entry, rarity→rating with treatments resolved through `base_id` and a non-zero fallback, costless as `""`, and only the drafted sections | nothing | **CI** |
+| `check:draftmancer` | the cube file Draftmancer reads: unique custom-card names, every sheet line resolving to an entry, no slot naming an unemitted sheet and no empty sheet across four configs, the either-slot weighted 50/50, rarity in the accepted set with treatments resolved through `base_id` and a non-zero fallback, costless as `""`, and only the drafted sections | nothing | **CI** |
 | `check:moderation` | hide/suspend take effect and drop out of every listing including the owner's own; `canUseCube` refuses even the owner; deleting an account cascades and leaves a surviving log entry | DB | manual gate |
 | `check:pool` | the pool is bounded and releases (`max` / `idle_timeout` / `connect_timeout`), the filter options and default card page are memoised, and filtered searches are **not** | DB (3 queries) | manual gate |
 | `check:share-previews` | all three OG routes return real PNGs; cover set and cover falling back; a private cube stays generic; `og:image` is absolute | Supabase + dev server | manual gate |

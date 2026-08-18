@@ -5,14 +5,18 @@
  * `check:analytics`. Every assertion is on a hand-built cube where the right
  * answer is obvious by inspection.
  *
- * The load-bearing one is the last block. Draftmancer resolves sheet lines
- * against `[CustomCards]` **by name**, so a duplicate name does not error — it
- * silently binds both lines to one entry, and the cube drafts with a card
- * missing and another doubled. That failure is invisible in the file and
- * invisible in Draftmancer until somebody notices they never saw a card.
+ * Two of these stand between a working export and a broken one, and neither
+ * fails loudly on its own. Draftmancer resolves sheet lines against
+ * `[CustomCards]` **by name**, so a duplicate name silently binds both lines to
+ * one entry and the cube drafts with a card missing and another doubled. And it
+ * validates `rarity` against a closed set, rejecting the whole file on anything
+ * else — its documentation says the field is optional and unconstrained, and is
+ * wrong on both counts.
  *
  *   npm run check:draftmancer
  */
+import { DEFAULT_DRAFT_CONFIG, type DraftConfig } from "../src/lib/draft/config";
+import { deckListName } from "../src/lib/deck-export";
 import {
   draftmancerName,
   draftmancerPlan,
@@ -21,7 +25,6 @@ import {
   toDraftmancerCubeFile,
   type DraftmancerSourceCard,
 } from "../src/lib/draftmancer-export";
-import { deckListName } from "../src/lib/deck-export";
 
 const failures: string[] = [];
 const expect = (ok: boolean, message: string) => {
@@ -56,29 +59,51 @@ function card(over: Partial<DraftmancerSourceCard> = {}): DraftmancerSourceCard 
   };
 }
 
+const config = (over: Partial<DraftConfig> = {}): DraftConfig => ({
+  ...DEFAULT_DRAFT_CONFIG,
+  ...over,
+});
+
+interface LayoutSlot {
+  name: string;
+  count: number;
+  sheets?: { name: string; weight: number }[];
+}
+
 /** Parses a built file back into its parts, the way Draftmancer would. */
 function parse(text: string) {
   const lines = text.split("\n");
-  const customStart = lines.indexOf("[CustomCards]");
+  const settingsAt = lines.indexOf("[Settings]");
+  const isSheetHeader = (line: string, i: number) =>
+    i > settingsAt && /^\[[^\]()]+\]$/.test(line);
   const sheetIndexes = lines
     .map((line, i) => ({ line, i }))
-    .filter(({ line, i }) => i > customStart && /^\[[^\]]+\(\d+\)\]$/.test(line));
+    .filter(({ line, i }) => isSheetHeader(line, i));
 
-  const json = lines.slice(customStart + 1, sheetIndexes[0]?.i).join("\n");
-  const customCards = JSON.parse(json) as { name: string; [k: string]: unknown }[];
+  const customCards = JSON.parse(
+    lines.slice(lines.indexOf("[CustomCards]") + 1, settingsAt).join("\n"),
+  ) as Record<string, unknown>[];
 
-  const sheets = sheetIndexes.map(({ line, i }, n) => {
-    const end = sheetIndexes[n + 1]?.i ?? lines.length;
-    const [, name, perBooster] = line.match(/^\[([^(]+)\((\d+)\)\]$/)!;
-    return {
-      name,
-      perBooster: Number(perBooster),
-      lines: lines.slice(i + 1, end).filter((l) => l.trim() !== ""),
-    };
-  });
+  const settings = JSON.parse(
+    lines.slice(settingsAt + 1, sheetIndexes[0]?.i ?? lines.length).join("\n"),
+  ) as Record<string, unknown> & {
+    layouts: { Default: { weight: number; slots: LayoutSlot[] } };
+  };
 
-  return { customCards, sheets };
+  const sheets = sheetIndexes.map(({ line, i }, n) => ({
+    name: line.slice(1, -1),
+    lines: lines
+      .slice(i + 1, sheetIndexes[n + 1]?.i ?? lines.length)
+      .filter((l) => l.trim() !== ""),
+  }));
+
+  return { customCards, settings, sheets, slots: settings.layouts.Default.slots };
 }
+
+const slotNamed = (slots: LayoutSlot[], name: string) =>
+  slots.find((s) => s.name === name);
+const sheetNamed = (sheets: { name: string; lines: string[] }[], name: string) =>
+  sheets.find((s) => s.name === name);
 
 // --- rarity + rating: the four real tiers ------------------------------------
 {
@@ -130,9 +155,6 @@ function parse(text: string) {
 // --- every emitted rarity is one Draftmancer accepts --------------------------
 {
   scenario();
-  // Draftmancer rejects the *whole file* on an unknown rarity, so this is the
-  // assertion that stands between a working export and an upload error:
-  // "Invalid mandatory property 'rarity' ... must be one of [...]".
   const ACCEPTED = new Set(["common", "uncommon", "rare", "mythic", "special"]);
   const file = toDraftmancerCubeFile(
     ["Common", "Uncommon", "Rare", "Epic", "Showcase", "Promo", "Mythic Whatever"].map(
@@ -160,8 +182,6 @@ function parse(text: string) {
     `a legend should be rebuilt, got ${draftmancerName(legend)}`,
   );
 
-  // Champion units already carry it; applying the rule twice would give
-  // "Darius, Darius, Trifarian".
   const unit = card({ name: "Darius, Trifarian", champion: "Darius", type: "Unit" });
   expect(
     draftmancerName(unit) === "Darius, Trifarian",
@@ -177,7 +197,6 @@ function parse(text: string) {
     draftmancerName(metal) === "Battle Mistress (Metal)",
     `Draftmancer keeps the printing's suffix, got ${draftmancerName(metal)}`,
   );
-  // The other export deliberately strips it, so the two must not be confused.
   expect(
     deckListName(metal) === "Battle Mistress",
     "deckListName still strips the suffix for other builders",
@@ -192,7 +211,7 @@ function parse(text: string) {
     card({ id: "UNL-220", name: "Twin Name" }),
   ]);
   const { customCards, sheets } = parse(file.text);
-  const names = customCards.map((c) => c.name);
+  const names = customCards.map((c) => c.name as string);
   expect(
     new Set(names).size === names.length,
     `custom card names must be unique, got ${JSON.stringify(names)}`,
@@ -205,7 +224,7 @@ function parse(text: string) {
     file.warnings.some((w) => w.includes("printing id")),
     "a rename must be reported, never silent",
   );
-  expect(sheets[0].lines.length === 2, "both copies still appear in the sheet");
+  expect(sheetNamed(sheets, "Main")!.lines.length === 2, "both copies still appear");
 }
 
 // --- sections: only what our own draft deals --------------------------------
@@ -220,53 +239,186 @@ function parse(text: string) {
     card({ id: "f", name: "Maybe Card", section: "maybeboard" }),
   ]);
   const { customCards, sheets } = parse(file.text);
-  const names = customCards.map((c) => c.name);
+  const names = customCards.map((c) => c.name as string);
 
   for (const excluded of ["A Rune", "Cut Card", "Maybe Card"]) {
     expect(!names.includes(excluded), `${excluded} must not be exported`);
   }
   expect(names.includes("Main Card"), "main section is exported");
   expect(file.cardCount === 3, `three drafted copies, got ${file.cardCount}`);
-
-  expect(sheets.length === 2, `expected a main and an identity sheet, got ${sheets.length}`);
-  expect(sheets[0].lines.length === 1, "one main card in the main sheet");
+  expect(sheetNamed(sheets, "Legends")!.lines.length === 1, "legends get their own sheet");
   expect(
-    sheets[1].lines.length === 2,
-    "legends and battlefields share the identity sheet",
+    sheetNamed(sheets, "Battlefields")!.lines.length === 1,
+    "battlefields get their own sheet",
   );
 }
 
-// --- the pack arithmetic matches our own Legacy booster ----------------------
+// --- the default layout is our Legacy booster, and the either-slot is 50/50 ---
 {
   scenario();
   const file = toDraftmancerCubeFile([
     card({ id: "a", section: "main" }),
     card({ id: "b", section: "legends", type: "Legend" }),
+    card({ id: "c", section: "battlefields", type: "Battlefield" }),
   ]);
-  const { sheets } = parse(file.text);
+  const { slots, settings } = parse(file.text);
+
+  const main = slotNamed(slots, "Main")!;
+  const either = slots.find((s) => s.sheets)!;
+  expect(main.count === 11, `11 main cards a pack, got ${main.count}`);
+  expect(either.count === 1, `one legend-or-battlefield a pack, got ${either.count}`);
   expect(
-    sheets[0].perBooster + sheets[1].perBooster === file.packSize,
-    `the sheets must sum to the pack size (${file.packSize}), got ${sheets
-      .map((s) => s.perBooster)
-      .join(" + ")}`,
+    main.count + either.count === file.packSize,
+    `the slots must sum to the pack size (${file.packSize})`,
   );
-  expect(sheets[1].perBooster === 1, "one legend-or-battlefield a pack");
+
+  // The whole reason this is a weighted slot rather than one mixed sheet: a
+  // mixed sheet draws in proportion to the cube's own split (26 legends against
+  // 56 battlefields on the dev cube — about 68% battlefield).
+  const weights = either.sheets!.map((s) => s.weight);
+  expect(
+    either.sheets!.length === 2 && weights[0] === weights[1],
+    `the either-slot must weight both types equally, got ${JSON.stringify(either.sheets)}`,
+  );
+  expect(
+    either.sheets!.map((s) => s.name).join(",") === "Legends,Battlefields",
+    "it draws from both type sheets",
+  );
+
+  expect(settings.boostersPerPlayer === 3, "packs per player is a default for the host");
 }
 
-// --- a cube with no legends or battlefields exports one full sheet -----------
+// --- settings that must not be left to Draftmancer's defaults ----------------
 {
   scenario();
-  const file = toDraftmancerCubeFile([card({ id: "a", section: "main" })]);
-  const { sheets } = parse(file.text);
-  expect(sheets.length === 1, `expected a single sheet, got ${sheets.length}`);
+  const { settings } = parse(toDraftmancerCubeFile([card()]).text);
+  // colorBalance defaults ON and would balance the largest slot against a
+  // `colors` field we deliberately never emit.
+  expect(settings.colorBalance === false, "colorBalance must be off");
+  expect(settings.withReplacement === false, "a card held once appears once");
+  expect(settings.refillWhenEmpty === false, "an exhausted sheet must fail loudly");
+  expect(settings.duplicateProtection === true, "no pack shows the same card twice");
   expect(
-    sheets[0].perBooster === file.packSize,
-    `the one sheet must fill the pack, got ${sheets[0].perBooster}`,
+    settings.name === undefined,
+    "no cube name was given, so none is written",
   );
+  const named = parse(
+    toDraftmancerCubeFile([card()], { cubeName: "My Cube" }).text,
+  ).settings;
+  expect(named.name === "My Cube", `the cube name is carried, got ${named.name}`);
+}
+
+// --- separate reserved slots get their own slots and sheets ------------------
+{
+  scenario();
+  const file = toDraftmancerCubeFile(
+    [
+      card({ id: "a", section: "main" }),
+      card({ id: "b", section: "legends", type: "Legend" }),
+      card({ id: "c", section: "battlefields", type: "Battlefield" }),
+    ],
+    { config: config({ legendSlots: 2, battlefieldSlots: 1, legendOrBattlefieldSlots: 0 }) },
+  );
+  const { slots } = parse(file.text);
+  expect(slotNamed(slots, "Legends")?.count === 2, "two legend slots");
+  expect(slotNamed(slots, "Battlefields")?.count === 1, "one battlefield slot");
+  expect(slotNamed(slots, "Main")?.count === 9, "main takes what is left of 12");
+  expect(!slots.some((s) => s.sheets), "no weighted slot without an either-slot");
+}
+
+// --- a shuffled type folds into main and emits no sheet ----------------------
+{
+  scenario();
+  const file = toDraftmancerCubeFile(
+    [
+      card({ id: "a", section: "main" }),
+      card({ id: "b", section: "legends", type: "Legend" }),
+      card({ id: "c", section: "battlefields", type: "Battlefield" }),
+    ],
+    {
+      config: config({
+        shuffleLegendsIntoPacks: true,
+        legendOrBattlefieldSlots: 0,
+        battlefieldSlots: 1,
+      }),
+    },
+  );
+  const { slots, sheets } = parse(file.text);
+  expect(!slotNamed(slots, "Legends"), "a shuffled type has no slot");
+  expect(!sheetNamed(sheets, "Legends"), "and no sheet — it is part of main");
+  expect(
+    sheetNamed(sheets, "Main")!.lines.length === 2,
+    "the legend is dealt from the main pile",
+  );
+  expect(file.legendCount === 0, "and is not counted as a reserved legend");
+}
+
+// --- a reserved type the cube hasn't got falls back to main, and says so -----
+{
+  scenario();
+  const file = toDraftmancerCubeFile([card({ id: "a", section: "main" })], {
+    config: config({ legendOrBattlefieldSlots: 1 }),
+  });
+  const { slots, sheets } = parse(file.text);
+  expect(slots.length === 1, `only a main slot survives, got ${slots.length}`);
+  expect(slotNamed(slots, "Main")!.count === 12, "the freed slot goes back to main");
+  expect(sheets.length === 1, "and no empty sheet is emitted");
   expect(
     file.warnings.some((w) => w.includes("no legends or battlefields")),
-    "the user is told why every pack is main-only",
+    "the user is told why",
   );
+}
+
+// --- the either-slot with only one type available ----------------------------
+{
+  scenario();
+  const file = toDraftmancerCubeFile(
+    [
+      card({ id: "a", section: "main" }),
+      card({ id: "b", section: "legends", type: "Legend" }),
+    ],
+    { config: config({ legendOrBattlefieldSlots: 1 }) },
+  );
+  const { slots, sheets } = parse(file.text);
+  const either = slots.find((s) => s.sheets)!;
+  expect(either.sheets!.length === 1, "it draws only from the type that exists");
+  expect(either.sheets![0].name === "Legends", "which is Legends here");
+  expect(!sheetNamed(sheets, "Battlefields"), "no empty battlefield sheet");
+  expect(
+    file.warnings.some((w) => w.includes("can only draw legends")),
+    "and that is reported rather than silently narrowing the slot",
+  );
+}
+
+// --- no slot may reference a sheet that was not emitted ----------------------
+{
+  scenario();
+  for (const cfg of [
+    config(),
+    config({ legendSlots: 1, battlefieldSlots: 1, legendOrBattlefieldSlots: 0 }),
+    config({ shuffleLegendsIntoPacks: true, legendOrBattlefieldSlots: 0 }),
+    config({ shuffleBattlefieldsIntoPacks: true, legendOrBattlefieldSlots: 0 }),
+  ]) {
+    const { slots, sheets } = parse(
+      toDraftmancerCubeFile(
+        [
+          card({ id: "a", section: "main" }),
+          card({ id: "b", section: "legends", type: "Legend" }),
+          card({ id: "c", section: "battlefields", type: "Battlefield" }),
+        ],
+        { config: cfg },
+      ).text,
+    );
+    const emitted = new Set(sheets.map((s) => s.name));
+    for (const slot of slots) {
+      for (const name of slot.sheets?.map((s) => s.name) ?? [slot.name]) {
+        expect(emitted.has(name), `slot references sheet "${name}", which is not emitted`);
+      }
+    }
+    for (const sheet of sheets) {
+      expect(sheet.lines.length > 0, `sheet "${sheet.name}" is empty`);
+    }
+  }
 }
 
 // --- costless is empty, not {0} ----------------------------------------------
@@ -300,8 +452,7 @@ function parse(text: string) {
       might: 3,
     }),
   ]);
-  const { customCards } = parse(file.text);
-  const oracle = customCards[0].oracle_text as string;
+  const oracle = parse(file.text).customCards[0].oracle_text as string;
 
   expect(
     !oracle.includes("&gt;"),
@@ -323,18 +474,19 @@ function parse(text: string) {
     card({ id: "a", name: "Triple", quantity: 3 }),
     card({ id: "b", name: "Single", quantity: 1 }),
     card({ id: "c", name: "Legendary", section: "legends", type: "Legend" }),
+    card({ id: "d", name: "Fieldy", section: "battlefields", type: "Battlefield" }),
   ]);
   const { customCards, sheets } = parse(file.text);
 
-  expect(file.cardCount === 5, `copies, not rows: expected 5, got ${file.cardCount}`);
+  expect(file.cardCount === 6, `copies, not rows: expected 6, got ${file.cardCount}`);
   expect(
-    sheets[0].lines.includes("3 Triple"),
-    `quantity must lead the line, got ${JSON.stringify(sheets[0].lines)}`,
+    sheetNamed(sheets, "Main")!.lines.includes("3 Triple"),
+    `quantity must lead the line, got ${JSON.stringify(sheetNamed(sheets, "Main")!.lines)}`,
   );
 
   // The property the whole format rests on: Draftmancer looks sheet lines up in
   // [CustomCards] by name, and an unresolved one is a card that never appears.
-  const defined = new Set(customCards.map((c) => c.name));
+  const defined = new Set(customCards.map((c) => c.name as string));
   for (const sheet of sheets) {
     for (const line of sheet.lines) {
       const name = line.replace(/^\d+\s+/, "");
@@ -346,6 +498,21 @@ function parse(text: string) {
   }
 }
 
+// --- a cube too small for the session is warned about, not silently dealt ----
+{
+  scenario();
+  // 8 players × 3 packs × 11 main = 264, and this cube has one.
+  const file = toDraftmancerCubeFile([
+    card({ id: "a", section: "main" }),
+    card({ id: "b", section: "legends", type: "Legend" }),
+    card({ id: "c", section: "battlefields", type: "Battlefield" }),
+  ]);
+  expect(
+    file.warnings.some((w) => w.includes("264")),
+    `the shortfall should be stated in cards, got ${JSON.stringify(file.warnings)}`,
+  );
+}
+
 // --- the plan matches the file it describes ----------------------------------
 {
   scenario();
@@ -354,16 +521,18 @@ function parse(text: string) {
     card({ id: "b", section: "legends", type: "Legend" }),
     card({ id: "c", section: "runes", type: "Rune" }),
   ];
-  const plan = draftmancerPlan(cards);
-  const file = toDraftmancerCubeFile(cards);
+  const cfg = config({ legendSlots: 1, legendOrBattlefieldSlots: 0 });
+  const plan = draftmancerPlan(cards, cfg);
+  const file = toDraftmancerCubeFile(cards, { config: cfg });
   expect(
     plan.cardCount === file.cardCount &&
       plan.mainCount === file.mainCount &&
-      plan.identityCount === file.identityCount &&
+      plan.legendCount === file.legendCount &&
       plan.mainPerPack === file.mainPerPack,
     "the panel's summary must agree with the file it offers",
   );
   expect(plan.mainCount === 2, `main copies should be 2, got ${plan.mainCount}`);
+  expect(plan.legendPerPack === 1, "the legend slot survives into the plan");
 }
 
 // --- an empty cube must not throw --------------------------------------------

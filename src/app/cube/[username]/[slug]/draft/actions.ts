@@ -17,11 +17,7 @@ import {
 import type { Cube, Draft, User } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { canUseCube, suspensionError } from "@/lib/cube-access";
-import {
-  DEFAULT_DRAFT_CONFIG,
-  validateDraftConfig,
-  type DraftConfig,
-} from "@/lib/draft/config";
+import { readDraftConfig, validateDraftConfig } from "@/lib/draft/config";
 import { applyPick } from "@/lib/draft/engine";
 import { generatePacks } from "@/lib/draft/packs";
 
@@ -113,35 +109,6 @@ export async function startDraftAction(
   return { draftId: draft.id };
 }
 
-/**
- * Rebuilds a config from untrusted input.
- *
- * Field by field rather than a spread, so a client cannot smuggle in extra keys
- * that would be snapshotted into `drafts.config` and read back later — most
- * pointedly `passDirections`, which would let a caller pin the passing order
- * for a draft the engine derives it for.
- */
-function readDraftConfig(input: unknown): DraftConfig {
-  const source = (input ?? {}) as Record<string, unknown>;
-  const num = (key: keyof DraftConfig, fallback: number) => {
-    const value = Number(source[key]);
-    return Number.isFinite(value) ? Math.floor(value) : fallback;
-  };
-  const flag = (key: keyof DraftConfig) => source[key] === true;
-  return {
-    seats: num("seats", DEFAULT_DRAFT_CONFIG.seats),
-    packsPerPlayer: num("packsPerPlayer", DEFAULT_DRAFT_CONFIG.packsPerPlayer),
-    packSize: num("packSize", DEFAULT_DRAFT_CONFIG.packSize),
-    legendSlots: num("legendSlots", DEFAULT_DRAFT_CONFIG.legendSlots),
-    battlefieldSlots: num("battlefieldSlots", DEFAULT_DRAFT_CONFIG.battlefieldSlots),
-    legendOrBattlefieldSlots: num(
-      "legendOrBattlefieldSlots",
-      DEFAULT_DRAFT_CONFIG.legendOrBattlefieldSlots,
-    ),
-    shuffleLegendsIntoPacks: flag("shuffleLegendsIntoPacks"),
-    shuffleBattlefieldsIntoPacks: flag("shuffleBattlefieldsIntoPacks"),
-  };
-}
 
 /** Takes one card for the human seat, then resolves every bot and passes. */
 export async function makePickAction(

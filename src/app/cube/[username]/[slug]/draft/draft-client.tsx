@@ -19,7 +19,7 @@ import {
   startDraftAction,
   type DraftActionState,
 } from "./actions";
-import DraftSettings, { type PoolCounts } from "./draft-settings";
+import DraftSettings, { type PoolCounts } from "@/components/draft-settings";
 import DeckExport from "./deck-export";
 import PoolPiles, { type PoolCard } from "./pool-piles";
 

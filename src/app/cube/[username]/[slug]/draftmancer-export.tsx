@@ -1,4 +1,13 @@
-import { draftmancerPlan, type PlannableCard } from "@/lib/draftmancer-export";
+"use client";
+
+import { useState } from "react";
+
+import DraftSettings, { type PoolCounts } from "@/components/draft-settings";
+import {
+  DEFAULT_DRAFT_CONFIG,
+  validateDraftConfig,
+  type DraftConfig,
+} from "@/lib/draft/config";
 
 /**
  * Offers the cube as a Draftmancer Custom Card List.
@@ -9,20 +18,49 @@ import { draftmancerPlan, type PlannableCard } from "@/lib/draftmancer-export";
  * cube to a real draft pod, and it is why the panel says what it is *for* and
  * not merely what it does.
  *
- * A **server** component: the whole interaction is a link to a route handler,
- * so there is nothing to hydrate, and the summary comes from the cards the page
- * has already loaded rather than a second query. Collapsed by default — it is a
- * power-user path, and the cube itself is what the page is for.
+ * **The pack template is chosen here, not in Draftmancer.** Draftmancer has no
+ * concept of a legend or a battlefield, so expressing "one legend-or-battlefield
+ * per pack" in its own UI would mean hand-writing layout JSON. It reuses the
+ * *same* `DraftSettings` form the solo draft uses, so the two ways of drafting a
+ * cube cannot drift, and the pool arithmetic — which is the part people get
+ * wrong — is already live in that component.
+ *
+ * What it deliberately does **not** decide is the session: the pick timer, and
+ * who actually turns up. Players and packs are still asked for, because they
+ * size the "is this cube big enough" arithmetic, and packs go into the file as
+ * `boostersPerPlayer`; the Draftmancer host can override both.
+ *
+ * Collapsed by default — it is a power-user path, and the cube itself is what
+ * the page is for.
  */
 export default function DraftmancerExport({
-  cards,
-  href,
+  basePath,
+  pools,
+  missingArt,
 }: {
-  cards: PlannableCard[];
-  href: string;
+  basePath: string;
+  pools: PoolCounts;
+  /** Cards with no art stored, counted server-side from rows already loaded. */
+  missingArt: number;
 }) {
-  const plan = draftmancerPlan(cards);
-  if (plan.cardCount === 0) return null;
+  const [config, setConfig] = useState<DraftConfig>(DEFAULT_DRAFT_CONFIG);
+
+  const total = pools.main + pools.legends + pools.battlefields;
+  if (total === 0) return null;
+
+  // The route re-reads and re-validates every one of these, so this only
+  // decides whether to offer the link at all.
+  const problems = validateDraftConfig(config);
+  const href = `${basePath}/draftmancer.txt?${new URLSearchParams({
+    seats: String(config.seats),
+    packsPerPlayer: String(config.packsPerPlayer),
+    packSize: String(config.packSize),
+    legendSlots: String(config.legendSlots),
+    battlefieldSlots: String(config.battlefieldSlots),
+    legendOrBattlefieldSlots: String(config.legendOrBattlefieldSlots),
+    shuffleLegendsIntoPacks: config.shuffleLegendsIntoPacks ? "1" : "0",
+    shuffleBattlefieldsIntoPacks: config.shuffleBattlefieldsIntoPacks ? "1" : "0",
+  })}`;
 
   return (
     <details className="mb-5 rounded-md border border-zinc-200 dark:border-zinc-800">
@@ -33,28 +71,26 @@ export default function DraftmancerExport({
         </span>
       </summary>
 
-      <div className="space-y-3 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <div className="space-y-4 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+        <DraftSettings pools={pools} onChange={setConfig} />
+
         <div className="flex flex-wrap items-center gap-3">
-          <a
-            href={href}
-            download
-            className="inline-flex h-9 items-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
-          >
-            Download cube file
-          </a>
+          {problems.length > 0 ? (
+            <span className="text-sm text-zinc-500">
+              Fix the settings above to download.
+            </span>
+          ) : (
+            <a
+              href={href}
+              download
+              className="inline-flex h-9 items-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            >
+              Download cube file
+            </a>
+          )}
           <span className="text-sm text-zinc-500">
-            <span className="tabular-nums">{plan.cardCount}</span>{" "}
-            {plan.cardCount === 1 ? "card" : "cards"}
-            {plan.identityPerPack > 0 && (
-              <>
-                {" · packs of "}
-                <span className="tabular-nums">{plan.packSize}</span>
-                {": "}
-                <span className="tabular-nums">{plan.mainPerPack}</span> main +{" "}
-                <span className="tabular-nums">{plan.identityPerPack}</span> legend
-                or battlefield
-              </>
-            )}
+            <span className="tabular-nums">{total}</span>{" "}
+            {total === 1 ? "card" : "cards"}
           </span>
         </div>
 
@@ -79,12 +115,12 @@ export default function DraftmancerExport({
           </li>
         </ol>
 
-        {plan.warnings.length > 0 && (
-          <ul className="space-y-1 text-sm text-amber-700 dark:text-amber-500">
-            {plan.warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
+        {missingArt > 0 && (
+          <p className="text-sm text-amber-700 dark:text-amber-500">
+            {missingArt} {missingArt === 1 ? "card has" : "cards have"} no art
+            stored, so {missingArt === 1 ? "it" : "they"} will show as a blank
+            frame in Draftmancer.
+          </p>
         )}
 
         <p className="text-xs text-zinc-500">
@@ -92,7 +128,9 @@ export default function DraftmancerExport({
           <strong className="font-medium">Runes, sideboard and maybeboard are
           not</strong> — the same sections our own draft leaves out. Draftmancer
           bots have never seen a Riftbound card, so each one carries a 0–5 rating
-          derived from its rarity to give them something to pick on.
+          derived from its rarity to give them something to pick on. Players and
+          packs are only a starting point; whoever hosts the session can change
+          them there.
         </p>
       </div>
     </details>

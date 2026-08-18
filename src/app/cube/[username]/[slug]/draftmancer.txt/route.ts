@@ -21,6 +21,7 @@
 import { getCubeCardsForExport } from "@/db/queries/cubes";
 import { canUseCube } from "@/lib/cube-access";
 import { loadCube, loadViewer } from "@/lib/cube-request";
+import { readDraftConfig, validateDraftConfig } from "@/lib/draft/config";
 import { toDraftmancerCubeFile } from "@/lib/draftmancer-export";
 
 // Reads the session cookie, so it could never be static anyway; stated rather
@@ -28,7 +29,7 @@ import { toDraftmancerCubeFile } from "@/lib/draftmancer-export";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ username: string; slug: string }> },
 ) {
   const { username, slug } = await params;
@@ -43,8 +44,19 @@ export async function GET(
     return new Response("Not found", { status: 404 });
   }
 
+  // The pack template arrives in the query string, through the same reader and
+  // the same validator the solo draft uses — so a config that could never work
+  // is refused here too rather than producing a file that errors on upload.
+  // A bare URL with no parameters is the default Legacy booster.
+  const query = new URL(request.url).searchParams;
+  const config = readDraftConfig(Object.fromEntries(query));
+  const problems = validateDraftConfig(config);
+  if (problems.length > 0) {
+    return new Response(problems[0].message, { status: 400 });
+  }
+
   const cards = await getCubeCardsForExport(cube.id);
-  const file = toDraftmancerCubeFile(cards);
+  const file = toDraftmancerCubeFile(cards, { config, cubeName: cube.name });
 
   return new Response(file.text, {
     headers: {
