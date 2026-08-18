@@ -1,0 +1,26 @@
+-- Speeds up the correlated subqueries every cube listing runs per row.
+--
+-- `searchCubes` selects, for each cube it returns, a card-count sum and a cover
+-- image; both filter `cube_cards` by `(cube_id, section)`. Measured in
+-- production, the three listing variants were 3,082ms of 3,790ms total time
+-- across every query touching `cubes` — 81% of it, from 1.7% of the calls — at
+-- 10–29ms each while every other statement ran in about 0.05ms.
+--
+-- The primary key is `(cube_id, card_id, section)`, so `cube_id` alone is
+-- already indexed; what this adds is filtering `section` in the index instead of
+-- fetching every one of a cube's rows from the heap to discard most of them.
+--
+-- **This is a mitigation, not the fix.** The listing's cost is the *shape* of
+-- the cover-art subquery: it sorts a cube's whole card list to choose one image,
+-- once per cube shown, so the work grows as cubes × cards-per-cube whatever is
+-- indexed. The real fix is resolving the cover at write time into a column on
+-- `cubes` and maintaining `card_count` / `follow_count` as counters. That is a
+-- schema and maintenance commitment, and at 15 cubes and 3,985 cube_cards rows
+-- it would be premature — revisit it when either number grows an order of
+-- magnitude.
+--
+-- Deliberately not CONCURRENTLY: drizzle-kit runs each migration inside a
+-- transaction and CREATE INDEX CONCURRENTLY cannot run in one. The table is
+-- small enough that the brief write lock is not worth a bespoke migration path.
+CREATE INDEX IF NOT EXISTS "cube_cards_cube_id_section_idx"
+  ON "cube_cards" ("cube_id", "section");

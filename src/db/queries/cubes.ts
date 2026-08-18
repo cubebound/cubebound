@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { db } from "..";
 import {
@@ -12,6 +13,7 @@ import {
   type NewCubeChange,
 } from "../schema";
 import { browseColumns, type BrowseCard } from "./cards";
+import type { DraftmancerSourceCard } from "@/lib/draftmancer-export";
 import type { CubeSection } from "@/lib/riftbound";
 import { slugify, uniqueSlug } from "@/lib/slug";
 
@@ -252,6 +254,50 @@ export async function countCubeCards(cubeId: string): Promise<number> {
 }
 
 /**
+ * Every card in a cube, with the columns the Draftmancer export needs.
+ *
+ * Its own query rather than `getCubeCards`, for two columns that page never
+ * wants. `champion` rebuilds a legend's full name — the sync stores only the
+ * title — which is the same reason `getDraftCards` selects it. And the base
+ * printing's rarity is joined because Showcase and Promo are printing
+ * treatments rather than power tiers, so the bot rating has to look through
+ * them; see `draftmancerRating`.
+ *
+ * A left join on purpose: `base_id` always points at a real row today, so a
+ * missing one would mean a data fault, and degrading the rating beats dropping
+ * the card out of the cube someone is trying to export.
+ */
+export async function getCubeCardsForExport(
+  cubeId: string,
+): Promise<DraftmancerSourceCard[]> {
+  const base = alias(cards, "base");
+  return db
+    .select({
+      id: cards.id,
+      name: cards.name,
+      champion: cards.champion,
+      type: cards.type,
+      supertype: cards.supertype,
+      rarity: cards.rarity,
+      baseRarity: base.rarity,
+      domains: cards.domains,
+      energyCost: cards.energyCost,
+      powerCost: cards.powerCost,
+      might: cards.might,
+      rulesText: cards.rulesText,
+      setCode: cards.setCode,
+      collectorNo: cards.collectorNo,
+      imageFull: cards.imageFull,
+      section: cubeCards.section,
+      quantity: cubeCards.quantity,
+    })
+    .from(cubeCards)
+    .innerJoin(cards, eq(cards.id, cubeCards.cardId))
+    .leftJoin(base, eq(base.id, cards.baseId))
+    .where(eq(cubeCards.cubeId, cubeId));
+}
+
+/**
  * Appends to a cube's change log. Never throws into the caller's path: a
  * failure to record history must not undo or block the edit itself.
  */
@@ -339,12 +385,38 @@ export async function addCubeCard(
   section: CubeSection,
   quantity = 1,
 ): Promise<void> {
+  await addCubeCards(cubeId, [{ cardId, section, quantity }]);
+}
+
+/**
+ * Adds many printings in **one** round trip and **one** `updated_at` bump.
+ *
+ * Calling `addCubeCard` in a loop is the obvious way to write an import and it
+ * is wrong twice over. Supabase is remote, so a 426-line buylist paid 426
+ * inserts plus 426 updates in sequence at ~60ms each — and every one of those
+ * updates hit the *same* `cubes` row, leaving 852 dead tuples for autovacuum
+ * behind a cube that changed once. Production bore this out: `update cubes set
+ * updated_at` was 5,001 calls against 144 cube creations and 42 edits, by far
+ * the most-executed statement on the table.
+ *
+ * Callers must pass rows already collapsed to one per (card, section) — see
+ * `mergeImportRows`. Postgres refuses to let a single `ON CONFLICT DO UPDATE`
+ * touch one row twice, so a duplicate is an error rather than a silent merge.
+ */
+export async function addCubeCards(
+  cubeId: string,
+  entries: { cardId: string; section: CubeSection; quantity: number }[],
+): Promise<void> {
+  if (entries.length === 0) return;
+
   await db
     .insert(cubeCards)
-    .values({ cubeId, cardId, section, quantity })
+    .values(entries.map((entry) => ({ cubeId, ...entry })))
     .onConflictDoUpdate({
       target: [cubeCards.cubeId, cubeCards.cardId, cubeCards.section],
-      set: { quantity: sql`${cubeCards.quantity} + ${quantity}` },
+      // `excluded` is the row this statement tried to insert, which is how one
+      // statement adds a different quantity per conflicting row.
+      set: { quantity: sql`${cubeCards.quantity} + excluded.quantity` },
     });
   await touchCube(cubeId);
 }

@@ -39,13 +39,6 @@ function typeRank(type: string): number {
 }
 
 /**
- * The card's name as a deck builder expects to read it.
- *
- * The `startsWith` guard matters: champion *units* already carry the champion
- * (`Darius, Trifarian`), so applying the rule blindly would produce
- * `Darius, Darius, Trifarian`.
- */
-/**
  * Drops a promo variant's suffix: `Battle Mistress (Metal)` → `Battle Mistress`.
  *
  * Thirty-five cards carry one — `(Metal)` on 24, plus `(Starter)`,
@@ -63,15 +56,31 @@ function withoutVariantSuffix(name: string): string {
   return name.replace(/\s*\([^)]*\)\s*$/, "");
 }
 
-export function deckListName(card: ExportableCard): string {
-  const name = withoutVariantSuffix(card.name);
+/**
+ * Puts a legend's champion back on the front of its title.
+ *
+ * The sync stores a legend as its title alone with the champion in its own
+ * column — `Daughter of the Void` / `Kai'Sa` — so anything showing a legend to
+ * a person or another tool has to rebuild it. Shared with the Draftmancer
+ * export, which needs this half of the rule but not the suffix stripping.
+ *
+ * The `startsWith` guard matters: champion *units* already carry the champion
+ * (`Darius, Trifarian`), so applying the rule blindly would produce
+ * `Darius, Darius, Trifarian`.
+ */
+export function withChampionPrefix(name: string, card: ExportableCard): string {
   const champion = card.champion?.trim();
   if (!champion) return name;
-  // Stripping first, so a variant legend still gets its champion: the stored
-  // `Battle Mistress (Metal)` has to become `Sivir, Battle Mistress`.
   if (name.toLowerCase().startsWith(`${champion.toLowerCase()},`)) return name;
   if (card.type !== "Legend") return name;
   return `${champion}, ${name}`;
+}
+
+/** The card's name as another Riftbound builder expects to read it. */
+export function deckListName(card: ExportableCard): string {
+  // Stripping first, so a variant legend still gets its champion: the stored
+  // `Battle Mistress (Metal)` has to become `Sivir, Battle Mistress`.
+  return withChampionPrefix(withoutVariantSuffix(card.name), card);
 }
 
 export interface DeckList {

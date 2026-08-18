@@ -26,6 +26,10 @@ seats, packs, pack size and reserved legend/battlefield slots, then draft
 against bots. Milestone B makes the bots smart; milestone C adds the post-draft
 deck builder. See "Draft".
 
+**Export to Draftmancer has shipped** — any cube downloads as a Draftmancer
+Custom Card List, so eight people can draft it in a browser today rather than
+waiting on multiplayer lobbies. See "Exports".
+
 Then the rest of phase 2 in the order under "Product vision".
 
 Open items:
@@ -43,15 +47,18 @@ Open items:
 - Feature work lands on a branch and pushes to
   `github.com/cubebound/cubebound`; `master` is production — see
   "Environments".
-- **Migrations are current: production is migrated through `0012` and nothing
-  newer exists.** `0012` (moderation) was applied by hand at the moderation
-  deploy on 16 August 2026, and production listings answering at all is the
-  proof — every one of them filters on `hidden_at` and `suspended_at`. Work
-  since then has been code-only, so a deploy needs no
-  database step. The rule still stands for the next one: a deploy does not run
-  migrations, so a feature adding tables fails at request time however green the
-  build looks. **Check `git log origin/master..master` before assuming what is
-  live** — this file describes the code, not the deployment.
+- **⚠️ `0013` is written and applied to dev, and production has NOT run it.**
+  Production is migrated through `0012`; `0013` adds
+  `cube_cards_cube_id_section_idx` and ships on the `draftmancer-export` branch.
+  It is an index, so unlike a missing table nothing 500s without it — the cube
+  listings simply keep their current plan — which makes it exactly the kind of
+  migration that gets forgotten. **Apply it when that branch merges.**
+  `0012` (moderation) was applied by hand at the moderation deploy on 16 August
+  2026, and production listings answering at all is the proof — every one of
+  them filters on `hidden_at` and `suspended_at`. The rule stands: a deploy does
+  not run migrations, so a feature adding tables fails at request time however
+  green the build looks. **Check `git log origin/master..master` before assuming
+  what is live** — this file describes the code, not the deployment.
 - **Sentry is on in production.** `NEXT_PUBLIC_SENTRY_DSN` is set in Vercel and
   verified sending: a page load produces envelopes to the project's ingest host,
   and a deliberately thrown error produces two more. Client and edge/server
@@ -86,9 +93,16 @@ Later phases, in priority order:
 3. Solo bot drafting — **milestone A is done, ahead of 1 and 2 by request**
 4. Multiplayer draft lobbies (websockets)
 5. Community features (clone, changelogs, card pick data)
-6. Exports (proxy sheets, deck lists compatible with other Riftbound tools)
+6. Exports (proxy sheets, deck lists compatible with other Riftbound tools) —
+   **the Draftmancer cube export landed early, by request**, like solo drafting
+   did before it. The reasoning was that it substitutes for item 4 at a fraction
+   of the cost: Draftmancer already runs multiplayer drafts in a browser, so a
+   cube file gets people drafting together without us writing a websocket
+   server. Proxy sheets and the rest of item 6 are still unbuilt.
 
-The MVP loop is shipped and live. Do NOT build ahead of the current phase.
+The MVP loop is shipped and live. Do NOT build ahead of the current phase —
+reordering is the owner's call, made explicitly, not a judgement to make while
+implementing something else.
 
 ## Stack
 
@@ -222,8 +236,13 @@ counts appear where you will actually look.
 
 `master` is production: pushing to it deploys the live site. Feature work
 happens on branches; pushing a branch produces a Vercel preview deployment and
-does not touch production *code*. No feature branch is currently in flight;
-`master` holds everything that is live.
+does not touch production *code*. `master` holds everything that is live.
+
+Two branches are in flight, neither merged and both cut from `master`:
+`oauth` (Discord and Google sign-in) and `draftmancer-export` (the Draftmancer
+cube export, the import write-batching fix, and migration `0013`). They do not
+touch the same files. **`draftmancer-export` carries a migration**, so merging
+it means running `db:migrate` against production — see "Current status".
 
 **A preview deployment is not automatically a dev environment.** Vercel injects
 whichever environment variables are configured for Preview, and unless those
@@ -289,7 +308,8 @@ Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0008` `draft_picks.board` · `0009` the `maybeboard` section ·
 `0010` `cube_follows` (+ RLS) · `0011` `cubes.cover_card_id` ·
 `0012` moderation: `users.is_admin` / `users.suspended_at`, `cubes.hidden_at` /
-`hidden_reason`, `moderation_log` (+ RLS).
+`hidden_reason`, `moderation_log` (+ RLS) · `0013` `cube_cards_cube_id_section_idx`
+(**dev only so far — see "Current status"**).
 
 Migrations are applied **per environment and by hand** — see "Environments".
 A migration in a merged branch is not live until production is migrated.
@@ -315,6 +335,8 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /cube/{username}/{slug}/settings      rename, visibility, delete
 /cube/{username}/{slug}/draft         solo draft against bots — any viewer, not just the owner
                                       ?draft={id} opens a specific one, else the latest
+/cube/{username}/{slug}/draftmancer.txt  the cube as a Draftmancer Custom Card List
+                                      route handler, so it gates itself — see "Exports"
 /drafts                               every draft the signed-in user has sat in
 /robots.txt  /sitemap.xml             crawl rules; static pages + public cubes and profiles
 /opengraph-image                      share previews — also under /cube/… and /u/…
@@ -1171,6 +1193,75 @@ deck. Written down now so the builder does not have to re-derive them:
   restriction.
 - **No legend or champion is required.** A legal deck need contain neither.
 
+## Exports
+
+Two different things are called "export" and they are not interchangeable.
+`src/lib/deck-export.ts` turns a **finished draft's deck** into a text decklist
+for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
+**whole cube** into a Draftmancer Custom Card List so other people can draft it.
+
+- **Why Draftmancer at all.** Our own drafting is one person against
+  deliberately dumb bots, and multiplayer lobbies are item 4 of phase 2 —
+  a websocket server we have not written. Draftmancer already runs multiplayer
+  drafts in a browser, and its **custom card** support lets it run a game it has
+  never heard of: `[CustomCards]` defines cards by name, type and image URL, and
+  the sheets below reference them. Cubecana runs Lorcana cubes through it the
+  same way. So the export substitutes for the expensive feature.
+- **The file is three parts in a fixed order** — `[CustomCards]` first, then
+  `[Main(11)]`, then `[Identity(1)]`. The booster mirrors our own Legacy
+  template and reads its numbers from `DEFAULT_PACK_SIZE` and
+  `DEFAULT_LEGEND_OR_BATTLEFIELD_SLOTS` rather than literals, so the two cannot
+  drift. Sections follow `buildMainPool`: main is the body, legends and
+  battlefields are the reserved slot, and **runes, sideboard and maybeboard are
+  not exported** for the same reasons the engine does not deal them.
+- **Sheet lines reference cards by name, so names must be unique — and a
+  duplicate does not error.** Draftmancer binds both lines to whichever entry it
+  read last, and the cube drafts with one card missing and another doubled,
+  invisibly. `uniqueNames` appends the printing id when two collide and the
+  panel says it did. This is why the export **keeps** promo variant suffixes
+  where `deckListName` strips them: stripping `(Metal)` is right for a text
+  decklist another builder has to match, and here it would manufacture exactly
+  that collision. The champion-rebuilding half of the rule *is* shared —
+  `withChampionPrefix` — because a legend stores only its title either way.
+- **Domains are deliberately not mapped to MTG colors.** Draftmancer's `colors`
+  takes W/U/B/R/G and Riftbound has six domains; five slots do not hold six, and
+  choosing one to drop would be the silent guess `import-list.ts` refuses to
+  make about names. They ride in `subtypes`, where they show on the type line.
+  The cost is that Draftmancer's bots have no colour signal, which is what
+  `rating` is for.
+- **`rating` is derived from rarity, and that is a deliberate exception.**
+  "Rarity plays no part in pack construction" still holds for *dealing packs*.
+  This is bot pick order: Draftmancer's bots have never seen a Riftbound card
+  and have no colour to read either, so an unrated pool makes them pick at
+  random. Printed rarity is a weak proxy, but it is the only signal we have
+  until pick data exists. Common/Uncommon/Rare/Epic map to 1–4; **Showcase and
+  Promo are printing treatments, not power tiers**, so the rating looks through
+  `base_id` to the canonical printing — all 120 showcase rows resolve that way
+  (70 Rare, 42 Epic). Promo mostly does not (73 of 117 are their own base) and
+  falls to a neutral **2, never 0**: zero is the bottom of the scale rather than
+  an absence, and 339 Promo rows sit in real cubes, so bots would take every one
+  of them last.
+- **Costless is an empty `mana_cost`, not `{0}`** — legends, runes and
+  battlefields have no energy cost at all, the same distinction that keeps them
+  off the analytics curve instead of bucketing them at zero. Power cost and
+  might have no MTG equivalent and go in `oracle_text`, which is also where the
+  source's HTML-escaped `&gt;` separator has to be decoded: on our own pages
+  that text goes into JSX, but here it lands in a plain-text field Draftmancer
+  shows verbatim.
+- **It is a route handler, and route handlers do not run the layout above
+  them.** `cube/[username]/[slug]/layout.tsx` gates the pages; the export
+  repeats the check itself or it has none. It uses **`canUseCube`, not
+  `canViewCube`** — taking a cube away to draft elsewhere is *using* it, like
+  cloning and drafting, so a hidden cube or a suspended owner's cube must not
+  export even for its own owner. Verified: suspended and hidden both 404,
+  unlisted works, and a cube that does not exist is indistinguishable from one
+  that is private.
+- **The panel costs no extra query.** `draftmancerPlan` is split out of the file
+  builder so the cube page can describe the export — counts, pack arithmetic,
+  warnings — from the cards it has already loaded. Only pressing Download runs
+  the query, which is also why the route selects its own columns: `champion` and
+  the base printing's rarity are not in `browseColumns` and no page wants them.
+
 ## Checks
 
 Each check guards a regression that already happened once. Run the ones
@@ -1196,6 +1287,7 @@ which is why they can create and delete accounts freely.
 | `check:markdown-edit` | the primer toolbar's transforms: every button toggles, headings replace rather than stack, `diffRange` is minimal | nothing | **CI** |
 | `check:primer-toolbar` | the toolbar is *wired*: a click reaches React state, Ctrl+B matches the button, and the result saves byte-for-byte | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:deck-export` | drafted decks export as names other builders accept: legends rebuilt as `Champion, Title`, promo variant suffixes stripped, copies aggregated, and the result re-imports here | DB (read-only) | manual gate |
+| `check:draftmancer` | the cube file Draftmancer reads: unique custom-card names, every sheet line resolving to an entry, rarity→rating with treatments resolved through `base_id` and a non-zero fallback, costless as `""`, and only the drafted sections | nothing | **CI** |
 | `check:moderation` | hide/suspend take effect and drop out of every listing including the owner's own; `canUseCube` refuses even the owner; deleting an account cascades and leaves a surviving log entry | DB | manual gate |
 | `check:pool` | the pool is bounded and releases (`max` / `idle_timeout` / `connect_timeout`), the filter options and default card page are memoised, and filtered searches are **not** | DB (3 queries) | manual gate |
 | `check:share-previews` | all three OG routes return real PNGs; cover set and cover falling back; a private cube stays generic; `og:image` is absolute | Supabase + dev server | manual gate |
@@ -1230,7 +1322,7 @@ exemption.
 
 `.github/workflows/ci.yml`, on every push and pull request: typecheck, lint,
 `check:primer-safety`, `check:draft`, `check:analytics`, `check:markdown-edit`,
-and a production build. It uses **placeholder** Supabase
+`check:draftmancer`, and a production build. It uses **placeholder** Supabase
 values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**
@@ -1472,6 +1564,36 @@ Two things dominate, and neither is the amount of data.
   another network call (GoTrue), and it does not depend on looking up the cube.
   `searchCubesPage` and `getFollowState` exist to collapse pairs of queries
   that always travel together.
+- **The same rule applies to writes, and a loop of them is the easy way to
+  forget it.** `commitImportAction` called `addCubeCard` once per line, and each
+  call was an insert *plus* a `touchCube` — so a 426-line buylist paid 852
+  sequential round trips, and 426 of those updated the **same** `cubes` row,
+  leaving that many dead tuples behind a cube that changed once. Production bore
+  it out: `update cubes set updated_at` was 5,001 calls against 144 cube
+  creations and 42 edits, by far the most-executed statement on the table, and
+  `cubes` was 104kB of bloat for 15 rows. `addCubeCards` now does the whole
+  import as one multi-row upsert and one bump. **A per-row helper called in a
+  loop is a fan-out**, and the number that matters is round trips in sequence.
+  Callers must pass rows already collapsed to one per (card, section) —
+  `mergeImportRows` does that — because Postgres refuses to let a single
+  `ON CONFLICT DO UPDATE` touch one row twice.
+- **The cube listings are where the remaining time goes.** Measured in
+  production, the three variants of `searchCubes` were 3,082ms of 3,790ms across
+  every query touching `cubes` — 81% of the time from 1.7% of the calls, at
+  10–29ms each against ~0.05ms for everything else. The cost is the shape of
+  `cubeCoverImageSql`: it sorts a cube's whole card list to pick one image, once
+  per cube shown, so it grows as cubes × cards-per-cube. `0013` indexes
+  `(cube_id, section)`, which helps the filter but not the shape. **The actual
+  fix is to resolve the cover at write time into a column on `cubes` and keep
+  `card_count` / `follow_count` as counters** — deliberately not done yet,
+  because at 15 cubes and 3,985 `cube_cards` rows it would be premature. Revisit
+  when either number grows an order of magnitude.
+- **Seq scans on `cubes` are not a bug and no index will remove them.** The
+  table is 15 rows in one page, so the planner correctly ignores the primary key
+  even for `where id = $1`; that is why 11,500 queries produced 18,000 scans.
+  Supabase's advisor flags every unindexed foreign key regardless of table size,
+  and at this scale those warnings are noise — `cubes_owner_slug_idx` and
+  `cube_follows_cube_id_idx` already cover the lookups that matter.
 - **Every route is dynamic, so `<Link>` prefetch can only fetch a loading
   boundary.** With no `loading.tsx`, clicking a cube left the previous page on
   screen, unchanged, for the whole server render — which reads as a hang, and

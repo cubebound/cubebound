@@ -35,7 +35,8 @@
     "check:primer-toolbar": "tsx --env-file-if-exists=.env.local scripts/check-primer-toolbar.mts",
     "check:pool": "tsx --env-file-if-exists=.env.local scripts/check-pool.mts",
     "check:deck-export": "tsx --env-file-if-exists=.env.local scripts/check-deck-export.mts",
-    "check:moderation": "tsx --env-file-if-exists=.env.local scripts/check-moderation.mts"
+    "check:moderation": "tsx --env-file-if-exists=.env.local scripts/check-moderation.mts",
+    "check:draftmancer": "tsx scripts/check-draftmancer.mts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.70.0",

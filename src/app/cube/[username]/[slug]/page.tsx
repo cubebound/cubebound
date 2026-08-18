@@ -24,6 +24,7 @@ import {
 import { resolveSiteUrl } from "@/lib/site-url";
 
 import CloneButton from "./clone-button";
+import DraftmancerExport from "./draftmancer-export";
 import ShareButton from "./share-button";
 
 interface RouteParams {
@@ -302,11 +303,17 @@ export default async function CubePage({
           emptyMessage="Nothing on the maybeboard."
         />
       ) : (
-        <CubeSections
-          cards={cards}
-          view={view}
-          emptyMessage="This cube doesn't have any cards yet."
-        />
+        <>
+          {/* Above the list rather than below it: a cube is a long page, and an
+              export nobody can find is one nobody uses. Collapsed, so it costs
+              a single line to everyone who came to read the cube. */}
+          <DraftmancerExport cards={cards} href={`${basePath}/draftmancer.txt`} />
+          <CubeSections
+            cards={cards}
+            view={view}
+            emptyMessage="This cube doesn't have any cards yet."
+          />
+        </>
       )}
     </div>
   );

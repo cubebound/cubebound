@@ -150,6 +150,11 @@ export const cubeCards = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.cubeId, table.cardId, table.section] }),
+    // The primary key already leads with `cube_id`; this exists so the cube
+    // listings' per-row subqueries — the card-count sum and the cover-art
+    // lookup — filter `section` in the index rather than fetching every one of
+    // a cube's rows to discard most of them. See `drizzle/0013`.
+    index("cube_cards_cube_id_section_idx").on(table.cubeId, table.section),
   ],
 );
 

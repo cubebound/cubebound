@@ -83,5 +83,11 @@ jobs:
       - name: Markdown editor transforms
         run: npm run check:markdown-edit
 
+      # The Draftmancer file builder is pure, and its worst failure is silent:
+      # duplicate custom-card names make Draftmancer bind two sheet lines to one
+      # card, so a cube drafts with one card missing and another doubled.
+      - name: Check Draftmancer export
+        run: npm run check:draftmancer
+
       - name: Build
         run: npm run build

@@ -13,6 +13,7 @@ import {
 } from "@/db/queries/cards";
 import {
   addCubeCard,
+  addCubeCards,
   adjustCubeCardQuantity,
   cloneCube,
   createCube,
@@ -599,11 +600,11 @@ export async function commitImportAction(
   const unknown = entries.find((e) => !namesById.has(e.cardId));
   if (unknown) return { error: `That card no longer exists: ${unknown.cardId}` };
 
-  let copies = 0;
-  for (const entry of entries) {
-    await addCubeCard(owned.cube.id, entry.cardId, entry.section, entry.quantity);
-    copies += entry.quantity;
-  }
+  // One statement, not one per line: `mergeImportRows` has already collapsed
+  // duplicates, so the whole import is a single upsert and a single
+  // `updated_at` bump. See `addCubeCards`.
+  await addCubeCards(owned.cube.id, entries);
+  const copies = entries.reduce((sum, entry) => sum + entry.quantity, 0);
 
   // One batch entry, not one per card — see the enum comment in the schema.
   await logChange(owned, {
