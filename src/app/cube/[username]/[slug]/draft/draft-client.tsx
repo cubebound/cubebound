@@ -87,6 +87,7 @@ export function StartDraft({
   exportPath,
   pools,
   currentDraftPath,
+  signedIn,
 }: {
   cubeId: string;
   returnPath: string;
@@ -96,6 +97,10 @@ export function StartDraft({
   /** Set when a draft of this cube already exists, so the screen can say it
    *  survives. Starting another never destroys one. */
   currentDraftPath?: string | null;
+  /** Signed out, the export tab works as it does for anyone and the bots tab
+   *  says why it cannot: a solo draft is persisted, so it needs an owner. The
+   *  server action refuses regardless — this only decides what is offered. */
+  signedIn: boolean;
 }) {
   const router = useRouter();
   const [state, setState] = useState<DraftActionState>({});
@@ -185,6 +190,8 @@ export function StartDraft({
           config={config}
           disabled={problems.length > 0}
         />
+      ) : !signedIn ? (
+        <SignInToDraft />
       ) : (
         <BotDraftAction
           pending={pending}
@@ -213,6 +220,27 @@ export function StartDraft({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * The bots tab for a signed-out visitor.
+ *
+ * It sits where the button would be rather than replacing the screen, so the
+ * export tab beside it stays usable — the point of the change is that a
+ * stranger can leave with a cube file without an account. The reason is stated
+ * plainly because "saves your progress" is *why* this one needs an account
+ * while the export does not.
+ */
+function SignInToDraft() {
+  return (
+    <p className="text-sm text-zinc-700 dark:text-zinc-300">
+      Solo drafting saves your progress as you go, so it needs an account.{" "}
+      <a href="/login" className="font-medium underline underline-offset-2">
+        Sign in
+      </a>{" "}
+      to draft this cube — you don&rsquo;t need to own it.
+    </p>
   );
 }
 

@@ -1092,10 +1092,23 @@ smart; C adds the deck builder.
   bug distinguishable from a bot opinion. A one-domain first pick commits to
   one domain; there is nothing principled to invent for the second.
 - **Drafting is gated on viewing, not owning** — the point of sharing a cube.
-  Sign-in is still required because the draft is persisted to survive a
-  refresh and a row has to belong to someone; signed-out visitors get a prompt.
+  Sign-in is still required *for the bots*, because that draft is persisted to
+  survive a refresh and a row has to belong to someone.
   `requireDraftableCube` gates starting, `requireOwnDraft` gates picking and
   saving: a public cube does not make someone else's draft yours to pick in.
+- **The draft screen renders signed out, and the Draftmancer tab works there.**
+  Only the bots tab asks for an account, and it says so in place of the button
+  rather than replacing the screen — so the export beside it stays usable. The
+  whole screen used to be a single sign-in prompt, which hid the tab that
+  *leads* behind an account and put a magic-link email in front of anyone sent
+  a cube to go draft. That reaches past the UI: sign-in email is metered and
+  capped upstream of us (see "Security posture"), so the cheapest way to
+  protect it is not to need it. Nothing about the download itself changed —
+  `draftmancer.txt` never read a session, only `canUseCube` with a
+  possibly-absent viewer — the page simply stopped hiding it. The header's
+  "Your drafts" link is hidden signed out, being a link to a sign-in prompt.
+  `StartDraft` takes `signedIn` and decides what to *offer*; the server action
+  refuses a signed-out caller either way, as always.
 - **Config and the dealt cards are snapshotted at draft start**, so editing the
   cube mid-draft cannot change packs already dealt. `drafts.packs` stores card
   *ids*; details come from `cards`, which cube edits don't touch. A card
@@ -1213,6 +1226,10 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
   never heard of: `[CustomCards]` defines cards by name, type and image URL, and
   the sheets below reference them. Cubecana runs Lorcana cubes through it the
   same way. So the export substitutes for the expensive feature.
+- **Exporting needs no account.** The route has always been `canUseCube` with
+  whatever viewer there was, signed out included; the draft screen now renders
+  signed out too, so the tab is actually reachable — see "Draft". A cube you
+  send someone should not cost them a sign-in email before they can draft it.
 - **The file is four parts in a fixed order** — `[CustomCards]`, `[Settings]`,
   then one bare-headed sheet per section (`[Main]`, `[Legends]`,
   `[Battlefields]`). Counts live in the layout rather than in `[Name(N)]`

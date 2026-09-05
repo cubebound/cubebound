@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import type { PoolCounts } from "@/components/draft-settings";
 import { getCubeByOwnerAndSlug } from "@/db/queries/cubes";
 import {
   getDraft,
@@ -28,6 +29,22 @@ function toTile(card: DetailedCard): DraftTile {
     domains: card.domains,
     imageThumb: card.imageThumb,
     energyCost: card.energyCost,
+  };
+}
+
+/**
+ * The section totals the settings panel does its arithmetic from.
+ *
+ * Both ways into `StartDraft` need them — signed out, where the export tab is
+ * the whole screen, and signed in before a first draft exists — so the counting
+ * rule is written once rather than once per caller.
+ */
+async function poolCounts(cubeId: string): Promise<PoolCounts> {
+  const pools = await getDraftPools(cubeId);
+  return {
+    main: pools.main.reduce((n, e) => n + e.quantity, 0),
+    legends: pools.legends.reduce((n, e) => n + e.quantity, 0),
+    battlefields: pools.battlefields.reduce((n, e) => n + e.quantity, 0),
   };
 }
 
@@ -70,31 +87,41 @@ export default async function DraftPage({
         <h1 className="text-2xl font-semibold tracking-tight">Draft</h1>
         <span className="ml-auto flex flex-wrap items-center gap-2">
           {extra}
-          <Link
-            href="/drafts"
-            className="inline-flex h-9 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-          >
-            Your drafts
-          </Link>
+          {/* Signed out this links to a page that only asks you to sign in, so
+              the header would be offering a dead end beside a tab that works. */}
+          {current?.profile && (
+            <Link
+              href="/drafts"
+              className="inline-flex h-9 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              Your drafts
+            </Link>
+          )}
         </span>
       </div>
       {others}
     </header>
   );
 
-  // Signed-out visitors can read a public cube but cannot hold a draft, which
-  // is persisted so it survives a refresh and therefore needs an owner.
+  // Signed-out visitors get the screen, with the bots tab explaining itself.
+  //
+  // A solo draft is persisted so it survives a refresh, so it genuinely needs an
+  // owner — but the export does not: it reads a public cube and hands back a
+  // file. Gating the whole screen on an account hid the one thing a stranger
+  // could have used, on the tab that leads, and made sending someone a cube to
+  // draft cost them a magic-link email first. `startDraftAction` refuses a
+  // signed-out caller on its own; this only stops offering them the button.
   if (!current?.profile) {
     return (
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
         {header()}
-        <p className="max-w-2xl text-sm text-zinc-700 dark:text-zinc-300">
-          Solo drafting saves your progress as you go, so it needs an account.{" "}
-          <Link href="/login" className="font-medium underline underline-offset-2">
-            Sign in
-          </Link>{" "}
-          to draft this cube — you don&rsquo;t need to own it.
-        </p>
+        <StartDraft
+          cubeId={cube.id}
+          returnPath={draftPath}
+          exportPath={`${publicPath}/draftmancer.txt`}
+          pools={await poolCounts(cube.id)}
+          signedIn={false}
+        />
       </div>
     );
   }
@@ -115,13 +142,6 @@ export default async function DraftPage({
     // The settings panel does its own arithmetic from these counts, live as
     // you type — see draft-settings.tsx for why that matters more than a good
     // error message after the click.
-    const pools = await getDraftPools(cube.id);
-    const counts = {
-      main: pools.main.reduce((n, e) => n + e.quantity, 0),
-      legends: pools.legends.reduce((n, e) => n + e.quantity, 0),
-      battlefields: pools.battlefields.reduce((n, e) => n + e.quantity, 0),
-    };
-
     return (
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
         {header()}
@@ -129,8 +149,9 @@ export default async function DraftPage({
           cubeId={cube.id}
           returnPath={draftPath}
           exportPath={`${publicPath}/draftmancer.txt`}
-          pools={counts}
+          pools={await poolCounts(cube.id)}
           currentDraftPath={draft ? `${draftPath}?draft=${draft.id}` : null}
+          signedIn
         />
       </div>
     );
