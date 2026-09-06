@@ -213,7 +213,7 @@ function CostCell({
               {/* Outside the name button, so the button's accessible name stays
                   the card name, and `shrink-0` so the indicator never
                   compresses — the name absorbs the width through `truncate`. */}
-              <PowerCost powerCost={row.card.powerCost} />
+              <PowerCost powerCost={row.card.powerCost} domains={row.card.domains} />
               {onRemove && (
                 <button
                   type="button"

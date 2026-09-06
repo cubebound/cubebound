@@ -85,29 +85,37 @@ export function PowerPips({ powerCost }: { powerCost: Record<string, number> | n
  * A card with no power cost renders nothing rather than a 0: costless is not
  * zero, and `totalPips` returns 0 for both.
  */
-export function PowerCost({ powerCost }: { powerCost: Record<string, number> | null }) {
+export function PowerCost({
+  powerCost,
+  domains,
+}: {
+  powerCost: Record<string, number> | null;
+  /** The card's own domains, for the `{"any": n}` case below. */
+  domains: string[];
+}) {
   const total = totalPips(powerCost);
   if (total === 0) return null;
 
   // Sources cannot say which domain the pips belong to on a multi-domain card,
-  // so those arrive as `{"any": n}` and there is no colour to show. That reads
-  // as a hollow ring rather than as Colorless, which is a real domain a card
-  // could actually be.
+  // so those arrive as `{"any": n}`. Fall back to the card's own domains, which
+  // is the same split `domainDot` draws in the column header above — the pips
+  // certainly belong to those domains even though the breakdown is unknown, and
+  // a hard-banded dot claims no more than the header's does. A named domain
+  // still wins when a source ever provides one.
   const known = Object.keys(powerCost ?? {})
     .map(titleCase)
     .filter((domain) => DOMAIN_COLORS[domain]);
+  const tint = known.length > 0 ? known : domains;
 
   return (
     <span
-      aria-label={
-        known.length > 0 ? `Power ${total} ${known.join(" ")}` : `Power ${total}, any domain`
-      }
+      aria-label={`Power ${total}${tint.length > 0 ? ` ${tint.join("/")}` : ""}`}
       className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-zinc-600 dark:text-zinc-400"
     >
       {total}
       <span
         className="size-2.5 rounded-full ring-1 ring-black/15 dark:ring-white/20"
-        style={known.length > 0 ? { background: domainDot(known) } : undefined}
+        style={{ background: domainDot(tint) }}
       />
     </span>
   );

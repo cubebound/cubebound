@@ -625,15 +625,19 @@ a stale row — but it means a source switch leaves residue worth checking for.
   `title`; an `aria-label` says the same words without drawing anything. Grouping
   and sorting are untouched: cells still bucket on `energyCost`, so a
   power-cost-only card still sits under `—` and shows its pips there.
-- **Multi-domain cards show a domain-less power dot**, a hollow ring rather than
-  a colour. Every source reports power as one integer and cannot say which
-  domain the pips belong to, so `buildPowerCost` stores that case as
-  `{"any": n}` rather than inventing a split — the total is right, only the
-  breakdown is unknown. The ring is deliberately not Colorless grey: Colorless
-  is a real domain a card could be. Fixing this needs a source with per-domain
-  pips, not a schema or display change; the raw stats are kept in `cards.data`
-  for exactly that. `totalPips` in `src/lib/riftbound.ts` is the one definition
-  of "how much power", shared by this indicator and by `displayCost`.
+- **A multi-domain card's power dot takes the card's own domains**, the same
+  hard-banded split `domainDot` draws in the column header above it. Every
+  source reports power as one integer and cannot say which domain the pips
+  belong to, so `buildPowerCost` stores that case as `{"any": n}` rather than
+  inventing a split. Showing the card's domains claims no more than the header
+  already does — the pips certainly belong to those domains — and it beat the
+  first version, a hollow ring, which read as an empty gap at 10px. A *named*
+  domain in `power_cost` still wins over the fallback, so a source that ever
+  provides per-domain pips needs no change here. Fixing the underlying
+  imprecision needs that source, not a schema or display change; the raw stats
+  are kept in `cards.data` for exactly that. `totalPips` in
+  `src/lib/riftbound.ts` is the one definition of "how much power", shared by
+  this indicator and by `displayCost`.
 - **Multi-domain cards get a column per pair** (Fury/Chaos, Fury/Order, ...),
   not one shared "Multi" bucket — nearly every legend has two domains, so a
   single bucket would swallow most of them and say nothing. Columns sort as:
