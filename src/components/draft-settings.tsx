@@ -102,9 +102,9 @@ export default function DraftSettings({
         max={limits.max}
         value={value}
         onChange={(event) => onSet(Number(event.target.value))}
-        className="h-9 w-full rounded-md border border-zinc-300 bg-white px-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+        className="h-9 w-full rounded-md border border-line bg-sunken px-2 text-sm"
       />
-      {hint && <span className="text-xs text-zinc-500">{hint}</span>}
+      {hint && <span className="text-xs text-subtle">{hint}</span>}
     </label>
   );
 
@@ -122,10 +122,10 @@ export default function DraftSettings({
     setShuffled: (on: boolean) => void,
     available: number,
   ) => (
-    <fieldset className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
+    <fieldset className="rounded-md border border-line p-3">
       <legend className="px-1 text-sm font-medium">
         {label}{" "}
-        <span className="font-normal text-zinc-500">({available} in this cube)</span>
+        <span className="font-normal text-subtle">({available} in this cube)</span>
       </legend>
 
       <label className="flex items-center gap-2 text-sm">
@@ -133,7 +133,7 @@ export default function DraftSettings({
           type="radio"
           checked={!shuffled}
           onChange={() => setShuffled(false)}
-          className="size-4 accent-zinc-900 dark:accent-zinc-100"
+          className="size-4 accent-accent-strong"
         />
         <span>Reserved slots</span>
         <input
@@ -145,9 +145,9 @@ export default function DraftSettings({
           disabled={shuffled}
           onChange={(event) => setSlots(Number(event.target.value))}
           aria-label={`${label} slots per pack`}
-          className="h-8 w-16 rounded-md border border-zinc-300 bg-white px-2 text-sm disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900"
+          className="h-8 w-16 rounded-md border border-line bg-sunken px-2 text-sm disabled:opacity-40"
         />
-        <span className="text-zinc-500">per pack</span>
+        <span className="text-subtle">per pack</span>
       </label>
 
       <label className="mt-1.5 flex items-center gap-2 text-sm">
@@ -155,7 +155,7 @@ export default function DraftSettings({
           type="radio"
           checked={shuffled}
           onChange={() => setShuffled(true)}
-          className="size-4 accent-zinc-900 dark:accent-zinc-100"
+          className="size-4 accent-accent-strong"
         />
         <span>Shuffled into the packs</span>
       </label>
@@ -167,7 +167,7 @@ export default function DraftSettings({
     const short = Math.max(0, need - have);
     return (
       <li className="flex items-baseline gap-2">
-        <span className="w-36 shrink-0 text-zinc-600 dark:text-zinc-400">{label}</span>
+        <span className="w-36 shrink-0 text-muted">{label}</span>
         <span className="tabular-nums">
           needs {need}, cube has {have}
         </span>
@@ -241,9 +241,9 @@ export default function DraftSettings({
           value={config.legendOrBattlefieldSlots}
           disabled={!canUseEitherSlot(config)}
           onChange={(event) => set({ legendOrBattlefieldSlots: Number(event.target.value) })}
-          className="h-9 w-full rounded-md border border-zinc-300 bg-white px-2 text-sm disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900"
+          className="h-9 w-full rounded-md border border-line bg-sunken px-2 text-sm disabled:opacity-40"
         />
-        <span className="text-xs text-zinc-500">
+        <span className="text-xs text-subtle">
           {canUseEitherSlot(config)
             ? "One of the two per slot, at random."
             : "Needs both legends and battlefields reserved — it draws from each."}
@@ -257,12 +257,12 @@ export default function DraftSettings({
           ))}
         </ul>
       ) : (
-        <div className="rounded-md border border-zinc-200 p-3 text-sm dark:border-zinc-800">
+        <div className="rounded-md border border-line p-3 text-sm">
           <p className="font-medium">
             {config.seats} seats · {config.packsPerPlayer} packs each ·{" "}
             {config.packSize} cards per pack
           </p>
-          <p className="mt-0.5 text-zinc-600 dark:text-zinc-400">
+          <p className="mt-0.5 text-muted">
             {mainPerPack} main {mainPerPack === 1 ? "slot" : "slots"}
             {reserved > 0 && ` plus ${reserved} reserved`}. You&rsquo;ll finish with{" "}
             {finalPoolSize(config)} cards.
@@ -270,7 +270,7 @@ export default function DraftSettings({
 
           <ul className="mt-2 space-y-0.5 text-xs">
             <li className="flex items-baseline gap-2">
-              <span className="w-36 shrink-0 text-zinc-600 dark:text-zinc-400">
+              <span className="w-36 shrink-0 text-muted">
                 Main pool
               </span>
               <span className="tabular-nums">
@@ -286,7 +286,7 @@ export default function DraftSettings({
             {row("Battlefield slots", needs.battlefields, pools.battlefields)}
             {needs.flexible > 0 && (
               <li className="flex items-baseline gap-2">
-                <span className="w-36 shrink-0 text-zinc-600 dark:text-zinc-400">
+                <span className="w-36 shrink-0 text-muted">
                   Either slots
                 </span>
                 <span className="tabular-nums">

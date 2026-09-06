@@ -4,13 +4,9 @@ import { useActionState } from "react";
 
 import type { ActionState } from "@/app/cube/actions";
 import type { Cube } from "@/db/schema";
+import { btn, check, errorText, input, label as labelClass, textarea } from "@/lib/ui";
 
 const initial: ActionState = {};
-
-const inputClass =
-  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 " +
-  "placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none " +
-  "dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 
 const VISIBILITY_HELP: Record<string, string> = {
   public: "Anyone can find and view this cube.",
@@ -35,7 +31,7 @@ export default function CubeForm({
       {cube && <input type="hidden" name="cubeId" value={cube.id} />}
 
       <div>
-        <label htmlFor="name" className="mb-1 block text-sm font-medium">
+        <label htmlFor="name" className={`mb-1 ${labelClass}`}>
           Name
         </label>
         <input
@@ -45,13 +41,13 @@ export default function CubeForm({
           maxLength={100}
           defaultValue={cube?.name ?? ""}
           placeholder="Fury Aggro Cube"
-          className={inputClass}
+          className={input}
         />
       </div>
 
       <div>
-        <label htmlFor="description" className="mb-1 block text-sm font-medium">
-          Description <span className="font-normal text-zinc-500">(optional)</span>
+        <label htmlFor="description" className={`mb-1 ${labelClass}`}>
+          Description <span className="font-normal text-subtle">(optional)</span>
         </label>
         <textarea
           id="description"
@@ -60,12 +56,12 @@ export default function CubeForm({
           maxLength={2000}
           defaultValue={cube?.description ?? ""}
           placeholder="What's the idea behind this cube?"
-          className={inputClass}
+          className={textarea}
         />
       </div>
 
       <fieldset>
-        <legend className="mb-1 text-sm font-medium">Visibility</legend>
+        <legend className={`mb-1 ${labelClass}`}>Visibility</legend>
         <div className="space-y-1.5">
           {(["public", "unlisted", "private"] as const).map((value) => (
             <label key={value} className="flex items-start gap-2 text-sm">
@@ -74,11 +70,11 @@ export default function CubeForm({
                 name="visibility"
                 value={value}
                 defaultChecked={(cube?.visibility ?? "public") === value}
-                className="mt-0.5 accent-zinc-900 dark:accent-zinc-100"
+                className={`mt-0.5 ${check}`}
               />
               <span>
                 <span className="capitalize">{value}</span>
-                <span className="ml-2 text-zinc-500">{VISIBILITY_HELP[value]}</span>
+                <span className="ml-2 text-subtle">{VISIBILITY_HELP[value]}</span>
               </span>
             </label>
           ))}
@@ -86,7 +82,7 @@ export default function CubeForm({
       </fieldset>
 
       {state.error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className={errorText}>
           {state.error}
         </p>
       )}
@@ -94,7 +90,7 @@ export default function CubeForm({
       <button
         type="submit"
         disabled={pending}
-        className="h-10 rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+        className={btn.primary}
       >
         {pending ? "Saving…" : submitLabel}
       </button>

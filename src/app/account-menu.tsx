@@ -45,7 +45,7 @@ export default function AccountMenu({ username }: { username: string }) {
   const initial = username.trim().charAt(0).toUpperCase() || "?";
 
   const itemClass =
-    "block w-full rounded px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800";
+    "block w-full rounded px-3 py-2 text-left text-sm hover:bg-hover";
 
   return (
     <div ref={container} className="relative">
@@ -56,7 +56,7 @@ export default function AccountMenu({ username }: { username: string }) {
         aria-expanded={open}
         aria-label={`Account menu for ${username}`}
         title={username}
-        className="flex size-8 items-center justify-center rounded-full bg-zinc-900 text-sm font-medium text-white transition hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+        className="flex size-8 items-center justify-center rounded-full bg-ink text-sm font-medium text-surface transition hover:bg-ink-hover"
       >
         {initial}
       </button>
@@ -65,12 +65,12 @@ export default function AccountMenu({ username }: { username: string }) {
         <div
           role="menu"
           aria-label="Account"
-          className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-800 dark:bg-zinc-950"
+          className="absolute right-0 top-full z-50 mt-2 w-48 rounded-lg border border-line bg-raised p-1 shadow-lg"
         >
-          <p className="truncate px-3 py-2 text-xs text-zinc-500" title={username}>
+          <p className="truncate px-3 py-2 text-xs text-subtle" title={username}>
             Signed in as <span className="font-medium">{username}</span>
           </p>
-          <div className="my-1 border-t border-zinc-200 dark:border-zinc-800" />
+          <div className="my-1 border-t border-line" />
 
           <Link href="/profile" role="menuitem" className={itemClass} onClick={() => setOpen(false)}>
             Profile
@@ -79,7 +79,7 @@ export default function AccountMenu({ username }: { username: string }) {
             Settings
           </Link>
 
-          <div className="my-1 border-t border-zinc-200 dark:border-zinc-800" />
+          <div className="my-1 border-t border-line" />
           <form action={signOut}>
             <button type="submit" role="menuitem" className={itemClass}>
               Log out

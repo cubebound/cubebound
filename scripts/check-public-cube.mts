@@ -32,6 +32,7 @@ import {
 } from "../src/db/queries/cubes";
 import { canEditCube, canViewCube } from "../src/lib/cube-access";
 import { defaultSectionForType } from "../src/lib/riftbound";
+import { btn } from "../src/lib/ui";
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
 
@@ -151,11 +152,17 @@ try {
   );
   // A visitor's primary action is cloning; the owner's is editing. Prominence
   // is the filled button style, so exactly one of them should carry it.
-  const filled = /bg-zinc-900 px-3 text-sm font-medium text-white/;
+  //
+  // Matched against `btn.primarySm` itself rather than a palette string. The
+  // old literal (`bg-zinc-900 px-3 text-sm font-medium text-white`) broke the
+  // moment the design tokens landed, while the guarantee it protects did not
+  // change at all — so ask the question of whatever "filled" currently means,
+  // and this can never drift from the styling again.
+  const filled = btn.primarySm;
   const clonePosition = visitorHtml.indexOf(">Clone<");
   expect(clonePosition !== -1, "a visitor should see Clone");
   expect(
-    filled.test(visitorHtml.slice(Math.max(0, clonePosition - 600), clonePosition)),
+    visitorHtml.slice(Math.max(0, clonePosition - 900), clonePosition).includes(filled),
     "Clone should be the prominent button for a visitor",
   );
 
@@ -187,7 +194,7 @@ try {
   const editPosition = ownerHtml.indexOf(">Edit<");
   expect(editPosition !== -1, "the owner should see Edit");
   expect(
-    filled.test(ownerHtml.slice(Math.max(0, editPosition - 600), editPosition)),
+    ownerHtml.slice(Math.max(0, editPosition - 900), editPosition).includes(filled),
     "Edit should be the prominent button for the owner",
   );
 

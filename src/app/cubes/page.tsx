@@ -15,6 +15,7 @@ import {
 import { getCurrentUser } from "@/lib/auth";
 import { hasBackupSignIn } from "@/lib/auth-providers";
 import { BACKUP_NOTICE_COOKIE } from "@/lib/backup-notice";
+import { underlineTab } from "@/lib/ui";
 
 export const metadata: Metadata = {
   title: "Your cubes",
@@ -82,11 +83,7 @@ export default async function CubesPage({
     <Link
       href={href({ tab: value, page: 1 })}
       aria-current={active ? "page" : undefined}
-      className={`-mb-px border-b-2 px-1 pb-2 text-sm font-medium ${
-        active
-          ? "border-zinc-900 text-zinc-900 dark:border-zinc-100 dark:text-zinc-100"
-          : "border-transparent text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-      }`}
+      className={active ? underlineTab.active : underlineTab.inactive}
     >
       {label}
     </Link>
@@ -97,13 +94,13 @@ export default async function CubesPage({
       {showBackupNotice && <BackupSignInNotice />}
 
       <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-2xl font-semibold">
           {followed ? "Followed cubes" : "Your cubes"}
         </h1>
         <div className="flex shrink-0 items-center gap-3">
           {!followed && owned >= MAX_CUBES_PER_USER - 5 && (
             <span
-              className={`text-sm tabular-nums ${atLimit ? "text-amber-600 dark:text-amber-400" : "text-zinc-500"}`}
+              className={`text-sm tabular-nums ${atLimit ? "text-amber-600 dark:text-amber-400" : "text-subtle"}`}
             >
               {owned} / {MAX_CUBES_PER_USER}
             </span>
@@ -111,14 +108,14 @@ export default async function CubesPage({
           {atLimit ? (
             <span
               title={`You can hold ${MAX_CUBES_PER_USER} cubes. Delete one to make room.`}
-              className="h-9 cursor-not-allowed rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white opacity-40 dark:bg-zinc-100 dark:text-zinc-900"
+              className="h-9 cursor-not-allowed rounded-md bg-ink px-3 py-2 text-sm font-medium text-surface opacity-40"
             >
               New cube
             </span>
           ) : (
             <Link
               href="/cubes/new"
-              className="h-9 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+              className="h-9 rounded-md bg-ink px-3 py-2 text-sm font-medium text-surface hover:bg-ink-hover"
             >
               New cube
             </Link>
@@ -126,7 +123,7 @@ export default async function CubesPage({
         </div>
       </div>
 
-      <div className="flex gap-5 border-b border-zinc-200 dark:border-zinc-800">
+      <div className="flex gap-5 border-b border-line">
         {tab("Your cubes", "own", !followed)}
         {tab("Followed", "followed", followed)}
       </div>
@@ -140,11 +137,11 @@ export default async function CubesPage({
           defaultValue={keywords}
           placeholder={followed ? "Search followed cubes…" : "Search your cubes…"}
           aria-label="Search cube names, descriptions and primers"
-          className="h-10 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="h-10 min-w-0 flex-1 rounded-md border border-line bg-sunken px-3 text-sm"
         />
         <button
           type="submit"
-          className="inline-flex h-10 shrink-0 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          className="inline-flex h-10 shrink-0 items-center rounded-md border border-line px-4 text-sm font-medium hover:bg-hover"
         >
           Search
         </button>

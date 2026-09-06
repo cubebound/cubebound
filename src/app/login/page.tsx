@@ -22,8 +22,8 @@ export default async function LoginPage({
 
   return (
     <div className="mx-auto w-full max-w-sm px-4 py-20 sm:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-      <p className="mt-2 mb-6 text-sm text-zinc-600 dark:text-zinc-400">
+      <h1 className="text-2xl font-semibold">Sign in</h1>
+      <p className="mt-2 mb-6 text-sm text-muted">
         Sign in to build and share cubes.
       </p>
       <LoginForm initialError={error} />

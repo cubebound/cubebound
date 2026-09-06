@@ -22,6 +22,7 @@ import {
   type CubeSection,
 } from "@/lib/riftbound";
 import { resolveSiteUrl } from "@/lib/site-url";
+import { btn, tab as tabStyle } from "@/lib/ui";
 
 import CloneButton from "./clone-button";
 import ShareButton from "./share-button";
@@ -171,11 +172,7 @@ export default async function CubePage({
       href={href}
       scroll={false}
       aria-current={active ? "page" : undefined}
-      className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-        active
-          ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-          : "border border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-      }`}
+      className={active ? tabStyle.active : tabStyle.inactive}
     >
       {label}
     </Link>
@@ -206,9 +203,9 @@ export default async function CubePage({
 
       <header className="mb-5">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{cube.name}</h1>
+          <h1 className="text-2xl font-semibold">{cube.name}</h1>
           {cube.visibility !== "public" && (
-            <span className="rounded bg-zinc-200 px-2 py-0.5 text-xs font-medium capitalize text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
+            <span className="rounded bg-sunken px-2 py-0.5 text-xs font-medium capitalize text-muted">
               {cube.visibility}
             </span>
           )}
@@ -234,14 +231,14 @@ export default async function CubePage({
                  and silently resuming made the settings unreachable from here
                  for anyone who had drafted this cube before. */
               href={`${basePath}/draft?new=1`}
-              className="inline-flex h-9 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className={btn.secondarySm}
             >
               Draft
             </Link>
             {isOwner && (
               <Link
                 href={`${basePath}/edit`}
-                className="inline-flex h-9 items-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                className={btn.primarySm}
               >
                 Edit
               </Link>
@@ -255,7 +252,7 @@ export default async function CubePage({
           </div>
         </div>
 
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-muted">
           by{" "}
           <Link
             href={`/u/${cube.ownerUsername}`}
@@ -280,17 +277,17 @@ export default async function CubePage({
         </p>
 
         {cube.description && (
-          <p className="mt-2 max-w-3xl text-sm text-zinc-700 dark:text-zinc-300">
+          <p className="mt-2 max-w-3xl text-sm text-muted">
             {cube.description}
           </p>
         )}
 
         {sectionCounts.length > 0 && (
-          <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+          <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
             {sectionCounts.map((section) => (
               <li key={section}>
                 {CUBE_SECTION_LABELS[section]}{" "}
-                <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+                <span className="font-medium tabular-nums text-ink">
                   {bySection.get(section)}
                 </span>
               </li>

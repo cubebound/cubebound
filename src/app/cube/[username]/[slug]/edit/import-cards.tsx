@@ -11,6 +11,7 @@ import {
 import type { CatalogCard, ImportPreview, PreviewRow } from "@/lib/import-list";
 import { MAX_IMPORT_LINES } from "@/lib/import-list";
 import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
+import { btn } from "@/lib/ui";
 
 const PLACEHOLDER = `# Paste a card list — one per line
 2 Fury Rune
@@ -128,7 +129,7 @@ export default function ImportCards({
         <label htmlFor="import-list" className="text-sm font-medium">
           Card list
         </label>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-1 text-sm text-muted">
           One card per line. Optional quantity (<code>2 Fury Rune</code> or{" "}
           <code>2x Fury Rune</code>), <code>#</code> or <code>{"//"}</code> for comments, and{" "}
           <code>Legends:</code>-style headers to set the section for the lines beneath.
@@ -141,7 +142,7 @@ export default function ImportCards({
           rows={12}
           spellCheck={false}
           placeholder={PLACEHOLDER}
-          className="mt-2 w-full rounded-md border border-zinc-300 bg-white p-3 font-mono text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="mt-2 w-full rounded-md border border-line bg-sunken p-3 font-mono text-sm"
         />
       </div>
 
@@ -150,7 +151,7 @@ export default function ImportCards({
           type="button"
           onClick={runPreview}
           disabled={pending || text.trim().length === 0}
-          className="inline-flex h-9 items-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+          className={btn.primarySm}
         >
           {pending ? "Working…" : "Preview import"}
         </button>
@@ -160,11 +161,11 @@ export default function ImportCards({
               type="button"
               onClick={commit}
               disabled={pending || resolvedCount === 0}
-              className="inline-flex h-9 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className={btn.secondarySm}
             >
               Add {resolvedCount} {resolvedCount === 1 ? "line" : "lines"} to the cube
             </button>
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">
+            <span className="text-sm text-muted">
               Nothing is added until you confirm.
             </span>
           </>
@@ -188,7 +189,7 @@ export default function ImportCards({
 
       {preview && (
         <div className="space-y-4">
-          <p className="text-sm text-zinc-700 dark:text-zinc-300">
+          <p className="text-sm text-muted">
             <span className="font-medium tabular-nums">{preview.matchedCount}</span> matched
             {" · "}
             <span className="font-medium tabular-nums">{preview.unmatchedCount}</span> not found
@@ -200,7 +201,7 @@ export default function ImportCards({
 
           <table className="w-full table-auto text-sm">
             <thead>
-              <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800">
+              <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-subtle">
                 <th className="py-1 pr-2 font-medium">Line</th>
                 <th className="py-1 pr-2 font-medium">Qty</th>
                 <th className="py-1 pr-2 font-medium">Card</th>
@@ -223,9 +224,9 @@ export default function ImportCards({
                 return (
                   <tr
                     key={row.line}
-                    className="border-b border-zinc-100 align-top dark:border-zinc-900"
+                    className="border-b border-line align-top"
                   >
-                    <td className="py-1.5 pr-2 tabular-nums text-zinc-500">{row.line}</td>
+                    <td className="py-1.5 pr-2 tabular-nums text-subtle">{row.line}</td>
                     <td className="py-1.5 pr-2 tabular-nums">{row.quantity}</td>
                     <td className="py-1.5 pr-2">
                       {matched ? (
@@ -234,7 +235,7 @@ export default function ImportCards({
                         </span>
                       ) : (
                         <div>
-                          <span className="text-zinc-600 line-through dark:text-zinc-400">
+                          <span className="text-muted line-through">
                             {row.name}
                           </span>
                           {options.length > 0 ? (
@@ -248,7 +249,7 @@ export default function ImportCards({
                                   section,
                                 )
                               }
-                              className="ml-2 rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                              className="ml-2 rounded border border-line bg-sunken px-1 py-0.5 text-xs"
                             >
                               <option value="">Skip this line</option>
                               {options.map((card) => (
@@ -258,7 +259,7 @@ export default function ImportCards({
                               ))}
                             </select>
                           ) : (
-                            <span className="ml-2 text-xs text-zinc-500">no close matches</span>
+                            <span className="ml-2 text-xs text-subtle">no close matches</span>
                           )}
                         </div>
                       )}
@@ -283,7 +284,7 @@ export default function ImportCards({
                             );
                           }
                         }}
-                        className="rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+                        className="rounded border border-line bg-sunken px-1 py-0.5 text-xs"
                       >
                         {CUBE_SECTIONS.map((value) => (
                           <option key={value} value={value}>
@@ -292,7 +293,7 @@ export default function ImportCards({
                         ))}
                       </select>
                     </td>
-                    <td className="py-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                    <td className="py-1.5 text-xs text-muted">
                       {chosen && !matched ? "Resolved" : statusLabel(row)}
                     </td>
                   </tr>

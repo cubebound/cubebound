@@ -20,6 +20,7 @@ import {
   type DraftActionState,
 } from "./actions";
 import DraftSettings, { type PoolCounts } from "@/components/draft-settings";
+import { btn, cardTab } from "@/lib/ui";
 import DeckExport from "./deck-export";
 import DraftmancerExport from "./draftmancer-export";
 import PoolPiles, { type PoolCard } from "./pool-piles";
@@ -124,16 +125,12 @@ export function StartDraft({
       type="button"
       onClick={() => setTab(value)}
       aria-pressed={tab === value}
-      className={`flex-1 rounded-md px-3 py-2 text-left text-sm ${
-        tab === value
-          ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-          : "border border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-      }`}
+      className={tab === value ? cardTab.active : cardTab.inactive}
     >
       <span className="block font-medium">{label}</span>
       <span
         className={`block text-xs ${
-          tab === value ? "opacity-80" : "text-zinc-500"
+          tab === value ? "text-accent/75" : "text-subtle"
         }`}
       >
         {hint}
@@ -144,7 +141,7 @@ export function StartDraft({
   return (
     <div className="max-w-2xl space-y-4">
       {currentDraftPath && (
-        <p className="rounded-md border border-zinc-200 p-3 text-sm text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
+        <p className="rounded-md border border-line p-3 text-sm text-muted">
           Starting a new draft keeps the current one — it stays in{" "}
           <a href="/drafts" className="underline underline-offset-2">
             your drafts
@@ -165,7 +162,7 @@ export function StartDraft({
       {/* Above the form rather than below it, because it explains fields you
           are about to read. Players and packs mean different things per tab and
           saying so afterwards is saying so too late. */}
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-muted">
         {tab === "draftmancer" ? (
           <>
             These settings become the pack template in the file.{" "}
@@ -234,7 +231,7 @@ export function StartDraft({
  */
 function SignInToDraft() {
   return (
-    <p className="text-sm text-zinc-700 dark:text-zinc-300">
+    <p className="text-sm text-muted">
       Solo drafting saves your progress as you go, so it needs an account.{" "}
       <a href="/login" className="font-medium underline underline-offset-2">
         Sign in
@@ -262,7 +259,7 @@ function BotDraftAction({
         type="button"
         disabled={disabled}
         onClick={onStart}
-        className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+        className={btn.primary}
       >
         {pending ? "Dealing…" : "Start draft"}
       </button>
@@ -298,7 +295,7 @@ function CardButton({
         className="group block w-full text-left disabled:opacity-50"
       >
         <div
-          className="relative overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-black/10 transition group-hover:ring-2 group-hover:ring-zinc-900 dark:bg-zinc-900 dark:ring-white/15 dark:group-hover:ring-zinc-100"
+          className="relative overflow-hidden rounded-lg bg-sunken ring-1 ring-black/10 transition group-hover:ring-2 group-hover:ring-ink dark:ring-white/15"
           style={{ aspectRatio: aspectRatio(card.type) }}
         >
           <CardArt
@@ -314,7 +311,7 @@ function CardButton({
           />
           <span className="truncate">{card.name}</span>
           {card.energyCost !== null && (
-            <span className="ml-auto tabular-nums text-zinc-500">{card.energyCost}</span>
+            <span className="ml-auto tabular-nums text-subtle">{card.energyCost}</span>
           )}
         </p>
       </button>
@@ -356,12 +353,12 @@ export function PickScreen({
   return (
     <div className="space-y-8">
       <div>
-        <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mb-3 text-sm text-muted">
           Pack <span className="font-medium tabular-nums">{round + 1}</span> of{" "}
           <span className="tabular-nums">{totalRounds}</span> · pick{" "}
           <span className="font-medium tabular-nums">{pickNumber + 1}</span> of{" "}
           <span className="tabular-nums">{packSize}</span>
-          {pending && <span className="ml-2 text-zinc-500">Bots picking…</span>}
+          {pending && <span className="ml-2 text-subtle">Bots picking…</span>}
         </p>
 
         {error && (
@@ -430,7 +427,7 @@ export function EndScreen({
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-muted">
         This draft is saved. Sort your pool between main and sideboard here —
         it keeps, and you can reopen it any time from{" "}
         <a href="/drafts" className="underline underline-offset-2">

@@ -97,7 +97,7 @@ function describe(change: CubeChange) {
 export default function ChangeLog({ changes }: { changes: CubeChange[] }) {
   if (changes.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-zinc-300 p-10 text-center text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+      <p className="rounded-lg border border-dashed border-line p-10 text-center text-muted">
         Nothing has changed yet. Edits show up here as you make them.
       </p>
     );
@@ -115,18 +115,18 @@ export default function ChangeLog({ changes }: { changes: CubeChange[] }) {
     <div className="max-w-3xl space-y-6">
       {[...byDay.entries()].map(([day, entries]) => (
         <section key={day}>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-subtle">
             {dayFormat.format(entries[0].createdAt)}
             <span className="ml-2 font-normal tabular-nums">
               {entries.length} {entries.length === 1 ? "change" : "changes"}
             </span>
           </h3>
-          <ol className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+          <ol className="divide-y divide-line rounded-lg border border-line">
             {entries.map((change) => (
               <li key={change.id} className="flex flex-wrap items-baseline gap-x-2 px-3 py-2">
                 <time
                   dateTime={change.createdAt.toISOString()}
-                  className="shrink-0 text-xs tabular-nums text-zinc-500"
+                  className="shrink-0 text-xs tabular-nums text-subtle"
                   title={timestamp.format(change.createdAt)}
                 >
                   {change.createdAt.toLocaleTimeString("en", {
@@ -134,11 +134,11 @@ export default function ChangeLog({ changes }: { changes: CubeChange[] }) {
                     minute: "2-digit",
                   })}
                 </time>
-                <p className="min-w-0 flex-1 text-sm text-zinc-800 dark:text-zinc-200">
+                <p className="min-w-0 flex-1 text-sm text-ink">
                   {describe(change)}
                 </p>
                 {change.actorUsername && (
-                  <span className="shrink-0 text-xs text-zinc-500">
+                  <span className="shrink-0 text-xs text-subtle">
                     {change.actorUsername}
                   </span>
                 )}

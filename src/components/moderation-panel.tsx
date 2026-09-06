@@ -9,15 +9,15 @@ import {
   setUserSuspendedAction,
   type ModerationState,
 } from "@/app/moderation/actions";
+import { inputSm } from "@/lib/ui";
 
 const initial: ModerationState = {};
 
 const panelClass =
   "rounded-md border border-amber-400/60 bg-amber-50/60 p-4 dark:border-amber-500/40 dark:bg-amber-950/20";
-const inputClass =
-  "h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+const inputClass = inputSm;
 const primaryClass =
-  "h-9 shrink-0 rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white";
+  "h-9 shrink-0 rounded-md bg-ink px-3 text-sm font-medium text-surface hover:bg-ink-hover disabled:opacity-50";
 const dangerClass =
   "h-9 shrink-0 rounded-md bg-red-600 px-3 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50";
 
@@ -29,7 +29,7 @@ function Status({ state }: { state: ModerationState }) {
       </p>
     );
   }
-  if (state.ok) return <p className="text-sm text-zinc-600 dark:text-zinc-400">Done.</p>;
+  if (state.ok) return <p className="text-sm text-muted">Done.</p>;
   return null;
 }
 
@@ -67,7 +67,7 @@ export function CubeModerationPanel({
       <h2 className="text-sm font-semibold">Moderation</h2>
 
       {hidden && (
-        <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+        <p className="mt-2 text-sm text-muted">
           Hidden from everyone but you and its owner.
           {hiddenReason ? ` Reason: ${hiddenReason}` : ""}
         </p>
@@ -103,7 +103,7 @@ export function CubeModerationPanel({
         ) : (
           <form action={deleteFormAction} className="space-y-2">
             <input type="hidden" name="cubeId" value={cubeId} />
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            <p className="text-sm text-muted">
               This cannot be undone — there is no backup to restore from. Hiding
               is reversible; this is not. Type{" "}
               <strong className="font-semibold">{cubeName}</strong> to confirm.
@@ -128,7 +128,7 @@ export function CubeModerationPanel({
               <button
                 type="button"
                 onClick={() => setShowDelete(false)}
-                className="text-sm text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-400"
+                className="text-sm text-muted underline-offset-2 hover:underline"
               >
                 Cancel
               </button>
@@ -167,7 +167,7 @@ export function UserModerationPanel({
       <h2 className="text-sm font-semibold">Moderation</h2>
 
       {suspended && (
-        <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">
+        <p className="mt-2 text-sm text-muted">
           Suspended — none of this account&rsquo;s cubes render for anyone.
         </p>
       )}
@@ -202,7 +202,7 @@ export function UserModerationPanel({
         ) : (
           <form action={deleteFormAction} className="space-y-2">
             <input type="hidden" name="username" value={username} />
-            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+            <p className="text-sm text-muted">
               Deletes the account and{" "}
               <strong className="font-semibold">
                 all {cubeCount} of its cube{cubeCount === 1 ? "" : "s"}
@@ -231,7 +231,7 @@ export function UserModerationPanel({
               <button
                 type="button"
                 onClick={() => setShowDelete(false)}
-                className="text-sm text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-400"
+                className="text-sm text-muted underline-offset-2 hover:underline"
               >
                 Cancel
               </button>

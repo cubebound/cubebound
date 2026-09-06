@@ -70,7 +70,7 @@ export default function CardHoverPreview({ target }: { target: PreviewTarget | n
     <div
       // Purely decorative: the row it mirrors is already a labelled control.
       aria-hidden="true"
-      className="pointer-events-none fixed z-50 overflow-hidden rounded-lg bg-zinc-100 shadow-2xl ring-1 ring-black/20 dark:bg-zinc-900 dark:ring-white/20"
+      className="pointer-events-none fixed z-50 overflow-hidden rounded-lg bg-sunken shadow-2xl ring-1 ring-black/20 dark:ring-white/20"
       style={{ left, top, width: WIDTH, aspectRatio: aspectRatio(card.type) }}
     >
       {src ? (

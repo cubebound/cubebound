@@ -34,15 +34,15 @@ export default async function CardsPage({
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
       <header className="mb-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Cards</h1>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+        <h1 className="text-2xl font-semibold">Cards</h1>
+        <p className="mt-1 text-sm text-muted">
           Every Riftbound card. Click a card for full art and rules text. One
           entry per card by default — tick “All printings” for alt art and
           signature versions.
         </p>
       </header>
 
-      <div className="sticky top-0 z-10 -mx-4 mb-6 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 dark:border-zinc-800 dark:bg-zinc-950/90">
+      <div className="sticky top-0 z-10 -mx-4 mb-6 border-b border-line bg-raised/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
         <CardFilterBar
           options={options}
           active={filters}
@@ -52,7 +52,7 @@ export default async function CardsPage({
       </div>
 
       {result.cards.length === 0 ? (
-        <p className="py-24 text-center text-zinc-600 dark:text-zinc-400">
+        <p className="py-24 text-center text-muted">
           No cards match those filters.
         </p>
       ) : (

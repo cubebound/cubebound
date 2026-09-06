@@ -13,7 +13,7 @@ const dateFormat = new Intl.DateTimeFormat("en", {
 const VISIBILITY_STYLE: Record<string, string> = {
   public: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200",
   unlisted: "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200",
-  private: "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200",
+  private: "bg-sunken text-muted",
 };
 
 /**
@@ -38,7 +38,7 @@ function CoverThumb({ url }: { url: string | null }) {
       <span
         aria-hidden
         title="No cards yet"
-        className={`${THUMB_CLASS} flex items-center justify-center border border-dashed border-zinc-300 text-zinc-400 dark:border-zinc-700`}
+        className={`${THUMB_CLASS} flex items-center justify-center border border-dashed border-line text-subtle`}
       >
         {/* The brand mark's silhouette, as a placeholder for an empty cube. */}
         <svg viewBox="0 0 64 64" className="size-6 fill-none stroke-current" strokeWidth={4}>
@@ -53,7 +53,7 @@ function CoverThumb({ url }: { url: string | null }) {
       src={cardPicker(url) ?? ""}
       alt=""
       loading="lazy"
-      className={`${THUMB_CLASS} border border-zinc-200 object-cover dark:border-zinc-800`}
+      className={`${THUMB_CLASS} border border-line object-cover`}
       style={{ objectPosition: "50% 20%" }}
     />
   );
@@ -88,7 +88,7 @@ export default function CubeResults({
 }) {
   if (cubes.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-zinc-300 p-10 text-center text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+      <div className="rounded-lg border border-dashed border-line p-10 text-center text-muted">
         {empty}
       </div>
     );
@@ -97,7 +97,7 @@ export default function CubeResults({
   const owned = variant === "owned";
 
   return (
-    <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+    <ul className="divide-y divide-line rounded-lg border border-line">
       {cubes.map((cube) => {
         const path = `/cube/${cube.ownerUsername}/${cube.slug}`;
         return (
@@ -114,7 +114,7 @@ export default function CubeResults({
               >
                 {cube.name}
               </Link>
-              <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="mt-0.5 text-sm text-muted">
                 {!owned && (
                   <>
                     by{" "}
@@ -135,7 +135,7 @@ export default function CubeResults({
                 </time>
               </p>
               {cube.description && (
-                <p className="mt-1 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
+                <p className="mt-1 line-clamp-2 text-sm text-muted">
                   {cube.description}
                 </p>
               )}

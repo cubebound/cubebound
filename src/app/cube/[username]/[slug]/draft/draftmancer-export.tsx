@@ -5,6 +5,7 @@ import {
   reservedSlotsPerPack,
   type DraftConfig,
 } from "@/lib/draft/config";
+import { btn } from "@/lib/ui";
 
 /**
  * The export half of the draft screen: the same cube, drafted somewhere else.
@@ -53,25 +54,25 @@ export default function DraftmancerExport({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         {disabled ? (
-          <span className="text-sm text-zinc-500">
+          <span className="text-sm text-subtle">
             Fix the settings above to download.
           </span>
         ) : (
           <a
             href={href}
             download
-            className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            className={btn.primary}
           >
             Download cube file
           </a>
         )}
-        <span className="text-sm tabular-nums text-zinc-500">
+        <span className="text-sm tabular-nums text-subtle">
           {config.packSize}-card packs · {mainPerPack} main
           {reserved > 0 && ` + ${reserved} reserved`}
         </span>
       </div>
 
-      <ol className="list-decimal space-y-1 pl-5 text-sm text-zinc-600 dark:text-zinc-400">
+      <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
         <li>Download the file.</li>
         <li>
           Open{" "}
@@ -92,7 +93,7 @@ export default function DraftmancerExport({
         </li>
       </ol>
 
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-subtle">
         Main, legends and battlefields are exported.{" "}
         <strong className="font-medium">
           Runes, sideboard and maybeboard are not

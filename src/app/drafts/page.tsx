@@ -57,21 +57,21 @@ export default async function DraftsPage({
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Your drafts</h1>
-        <Link href="/cubes" className="text-sm text-zinc-500 underline-offset-4 hover:underline">
+        <h1 className="text-2xl font-semibold">Your drafts</h1>
+        <Link href="/cubes" className="text-sm text-subtle underline-offset-4 hover:underline">
           Your cubes
         </Link>
       </div>
 
       {drafts.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-zinc-300 p-10 text-center dark:border-zinc-700">
-          <p className="text-zinc-600 dark:text-zinc-400">
+        <div className="rounded-lg border border-dashed border-line p-10 text-center">
+          <p className="text-muted">
             You haven&rsquo;t drafted yet. Open any cube and choose{" "}
             <span className="font-medium">Draft</span> — you don&rsquo;t need to own it.
           </p>
         </div>
       ) : (
-        <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+        <ul className="divide-y divide-line rounded-lg border border-line">
           {drafts.map((draft) => {
             const href = `/cube/${draft.ownerUsername}/${draft.cubeSlug}/draft?draft=${draft.id}`;
             return (
@@ -93,10 +93,10 @@ export default async function DraftsPage({
                 >
                   {draft.status === "complete" ? "Finished" : "In progress"}
                 </span>
-                <span className="text-sm tabular-nums text-zinc-600 dark:text-zinc-400">
+                <span className="text-sm tabular-nums text-muted">
                   {draft.picked} / {target} picked
                 </span>
-                <span className="ml-auto text-sm text-zinc-500">
+                <span className="ml-auto text-sm text-subtle">
                   <time dateTime={draft.createdAt.toISOString()}>
                     {dateFormat.format(draft.createdAt)}
                   </time>

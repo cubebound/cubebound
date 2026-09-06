@@ -30,7 +30,7 @@ export default function BackToTop({ showAfter = 600 }: { showAfter?: number }) {
       onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
       aria-label="Back to top"
       title="Back to top"
-      className="fixed bottom-20 right-4 z-30 flex size-10 items-center justify-center rounded-full border border-zinc-300 bg-white/90 text-zinc-700 shadow-lg backdrop-blur transition hover:bg-white hover:text-zinc-900 dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+      className="fixed bottom-20 right-4 z-30 flex size-10 items-center justify-center rounded-full border border-line bg-raised/90 text-muted shadow-lg backdrop-blur transition hover:bg-raised hover:text-ink"
     >
       <svg
         viewBox="0 0 20 20"

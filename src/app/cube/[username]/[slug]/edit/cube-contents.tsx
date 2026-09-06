@@ -17,8 +17,8 @@ import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/rift
 const rowKey = (card: CubeCardRow) => `${card.id}:${card.section}`;
 
 const selectClass =
-  "h-7 min-w-0 rounded-md border border-zinc-300 bg-white px-1 text-[11px] text-zinc-700 " +
-  "disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300";
+  "h-7 min-w-0 rounded-md border border-line bg-sunken px-1 text-[11px] text-muted " +
+  "disabled:opacity-60";
 
 export default function CubeContents({
   cubeId,
@@ -97,7 +97,7 @@ export default function CubeContents({
     if (printings.length < 2) {
       return (
         <span
-          className="flex h-7 items-center justify-center truncate text-[11px] text-zinc-500"
+          className="flex h-7 items-center justify-center truncate text-[11px] text-subtle"
           title={`Printing ${card.id}`}
         >
           {card.id}
@@ -151,7 +151,7 @@ export default function CubeContents({
                 onClick={() => removeCopy(card)}
                 aria-label={`Remove one ${card.name}`}
                 title="Remove this copy"
-                className="h-7 shrink-0 rounded-md border border-zinc-300 px-2 text-[11px] text-zinc-600 hover:border-red-400 hover:text-red-600 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-red-500 dark:hover:text-red-400"
+                className="h-7 shrink-0 rounded-md border border-line px-2 text-[11px] text-muted hover:border-red-400 hover:text-red-600 disabled:opacity-60 dark:hover:border-red-500 dark:hover:text-red-400"
               >
                 Remove
               </button>
@@ -162,13 +162,13 @@ export default function CubeContents({
         detailFooter={(card, retarget) => (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <label className="text-xs uppercase tracking-wide text-zinc-500">Section</label>
+              <label className="text-xs uppercase tracking-wide text-subtle">Section</label>
               {sectionSelect(card, `${selectClass} h-9 px-2 text-sm`, (section) =>
                 retarget({ section }),
               )}
               {(printingsByBase[card.baseId]?.length ?? 0) > 1 && (
                 <>
-                  <label className="text-xs uppercase tracking-wide text-zinc-500">
+                  <label className="text-xs uppercase tracking-wide text-subtle">
                     Printing
                   </label>
                   {printingControl(card, `${selectClass} h-9 px-2 text-sm`, (id) =>
@@ -182,7 +182,7 @@ export default function CubeContents({
                 type="button"
                 disabled={busy === rowKey(card)}
                 onClick={() => removeCopy(card)}
-                className="h-9 rounded-md border border-zinc-300 px-4 text-sm font-medium text-zinc-700 hover:border-red-400 hover:text-red-600 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-500 dark:hover:text-red-400"
+                className="h-9 rounded-md border border-line px-4 text-sm font-medium text-muted hover:border-red-400 hover:text-red-600 disabled:opacity-60 dark:hover:border-red-500 dark:hover:text-red-400"
               >
                 Remove this copy
               </button>
@@ -191,7 +191,7 @@ export default function CubeContents({
                   type="button"
                   disabled={busy === rowKey(card)}
                   onClick={() => removeAll(card)}
-                  className="h-9 rounded-md border border-zinc-300 px-4 text-sm text-zinc-600 hover:border-red-400 hover:text-red-600 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-red-500 dark:hover:text-red-400"
+                  className="h-9 rounded-md border border-line px-4 text-sm text-muted hover:border-red-400 hover:text-red-600 disabled:opacity-60 dark:hover:border-red-500 dark:hover:text-red-400"
                 >
                   Remove all {card.quantity}
                 </button>

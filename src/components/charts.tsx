@@ -65,11 +65,11 @@ export function Panel({
 }) {
   return (
     <section
-      className={`rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 ${className}`}
+      className={`rounded-lg border border-line bg-sunken ${className}`}
     >
-      <header className="border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <header className="border-b border-line px-4 py-3">
         <h2 className="font-semibold">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-xs text-zinc-500">{subtitle}</p>}
+        {subtitle && <p className="mt-0.5 text-xs text-subtle">{subtitle}</p>}
       </header>
       <div className="p-4">{children}</div>
     </section>
@@ -86,7 +86,7 @@ export function Panel({
 export function Donut({ slices }: { slices: Slice[] }) {
   const total = slices.reduce((n, s) => n + s.count, 0);
   if (total === 0) {
-    return <p className="py-10 text-center text-sm text-zinc-500">Nothing to chart yet.</p>;
+    return <p className="py-10 text-center text-sm text-subtle">Nothing to chart yet.</p>;
   }
 
   const radius = 60;
@@ -133,7 +133,7 @@ export function Donut({ slices }: { slices: Slice[] }) {
               style={{ background: swatch(slice.color, "dot") }}
             />
             <span className="truncate">{slice.label}</span>
-            <span className="ml-auto pl-3 tabular-nums text-zinc-500">
+            <span className="ml-auto pl-3 tabular-nums text-subtle">
               {slice.count}
               <span className="ml-1 text-xs">
                 ({Math.round((slice.count / total) * 100)}%)
@@ -170,7 +170,7 @@ export function BarChart({
   height?: number;
 }) {
   if (groups.length === 0 || max === 0) {
-    return <p className="py-10 text-center text-sm text-zinc-500">Nothing to chart yet.</p>;
+    return <p className="py-10 text-center text-sm text-subtle">Nothing to chart yet.</p>;
   }
 
   return (
@@ -178,7 +178,7 @@ export function BarChart({
       <div className="flex min-w-[28rem] items-end gap-2" style={{ height }}>
         {groups.map((group) => (
           <div key={group.label} className="flex h-full min-w-0 flex-1 flex-col justify-end">
-            <p className="mb-1 text-center text-[11px] tabular-nums text-zinc-500">
+            <p className="mb-1 text-center text-[11px] tabular-nums text-subtle">
               {group.total > 0 ? group.total : ""}
             </p>
             {/* One column per bucket; the segments stack bottom-up, which is
@@ -206,7 +206,7 @@ export function BarChart({
         {groups.map((group) => (
           <p
             key={group.label}
-            className="min-w-0 flex-1 truncate text-center text-xs tabular-nums text-zinc-500"
+            className="min-w-0 flex-1 truncate text-center text-xs tabular-nums text-subtle"
           >
             {group.label}
           </p>
@@ -235,10 +235,10 @@ export function Legend({ slices }: { slices: Slice[] }) {
 
 export function StatCard({ value, label, hint }: { value: string; label: string; hint?: string }) {
   return (
-    <div className="rounded-lg border border-zinc-200 px-4 py-3 text-center dark:border-zinc-800">
+    <div className="rounded-lg border border-line px-4 py-3 text-center">
       <p className="text-2xl font-semibold tabular-nums">{value}</p>
-      <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">{label}</p>
-      {hint && <p className="mt-0.5 text-xs text-zinc-500">{hint}</p>}
+      <p className="mt-0.5 text-sm text-muted">{label}</p>
+      {hint && <p className="mt-0.5 text-xs text-subtle">{hint}</p>}
     </div>
   );
 }

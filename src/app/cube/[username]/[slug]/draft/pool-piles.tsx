@@ -52,7 +52,7 @@ function comparePiles(a: string, b: string): number {
 function CardArt({ card }: { card: PoolCard }) {
   return (
     <div
-      className="relative overflow-hidden rounded bg-zinc-100 ring-1 ring-black/10 dark:bg-zinc-900 dark:ring-white/15"
+      className="relative overflow-hidden rounded bg-sunken ring-1 ring-black/10 dark:ring-white/15"
       style={{ aspectRatio: aspectRatio(card.type) }}
     >
       <SharedCardArt
@@ -107,9 +107,9 @@ function Pile({
 
   return (
     <div className="min-w-0">
-      <p className="mb-1 flex items-baseline gap-1 border-b border-zinc-200 pb-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-800">
+      <p className="mb-1 flex items-baseline gap-1 border-b border-line pb-1 text-xs font-semibold uppercase tracking-wide">
         <span className="truncate">{label}</span>
-        <span className="ml-auto font-normal tabular-nums text-zinc-500">{cards.length}</span>
+        <span className="ml-auto font-normal tabular-nums text-subtle">{cards.length}</span>
       </p>
       <ul className="relative">
         {cards.map((card, index) => (
@@ -136,7 +136,7 @@ function Pile({
               <div
                 className={
                   raised === index
-                    ? "rounded shadow-xl ring-2 ring-zinc-900 dark:ring-zinc-100"
+                    ? "rounded shadow-xl ring-2 ring-ink"
                     : ""
                 }
               >
@@ -193,12 +193,12 @@ export default function PoolPiles({
     emptyMessage: string,
   ) => (
     <section>
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-subtle">
         {title}
         <span className="ml-2 font-normal tabular-nums">{data.inBoard.length}</span>
       </h2>
       {data.inBoard.length === 0 ? (
-        <p className="rounded border border-dashed border-zinc-300 p-4 text-sm text-zinc-500 dark:border-zinc-700">
+        <p className="rounded border border-dashed border-line p-4 text-sm text-subtle">
           {emptyMessage}
         </p>
       ) : (

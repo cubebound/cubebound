@@ -48,24 +48,24 @@ export default async function CubeSettingsPage({
     <div className="mx-auto w-full max-w-lg px-4 py-10 sm:px-6">
       <Link
         href={`/cube/${cube.ownerUsername}/${cube.slug}/edit`}
-        className="text-sm text-zinc-500 underline-offset-4 hover:underline"
+        className="text-sm text-subtle underline-offset-4 hover:underline"
       >
         ← Back to {cube.name}
       </Link>
-      <h1 className="mt-3 mb-6 text-2xl font-semibold tracking-tight">Cube settings</h1>
+      <h1 className="mt-3 mb-6 text-2xl font-semibold">Cube settings</h1>
 
       <CubeForm action={updateCubeAction} cube={cube} submitLabel="Save changes" />
 
-      <div className="mt-8 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-        <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+      <div className="mt-8 border-t border-line pt-6">
+        <p className="mb-4 text-sm text-muted">
           The URL stays <span className="font-mono">/cube/{cube.ownerUsername}/{cube.slug}</span>{" "}
           even if you rename the cube, so shared links keep working.
         </p>
       </div>
 
-      <div className="mt-4 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="mt-4 border-t border-line pt-6">
         <h2 className="mb-1 text-lg font-semibold">Cover art</h2>
-        <p className="mb-3 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mb-3 text-sm text-muted">
           The card shown when someone shares this cube in a chat or on social.
         </p>
         <CoverPicker
@@ -75,7 +75,7 @@ export default async function CubeSettingsPage({
         />
       </div>
 
-      <div className="mt-8 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+      <div className="mt-8 border-t border-line pt-6">
         <h2 className="mb-3 text-lg font-semibold">Danger zone</h2>
         <DeleteCube cube={cube} cardCount={cardCount} />
       </div>

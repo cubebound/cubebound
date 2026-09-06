@@ -30,7 +30,7 @@ export default function ThemeToggle({ initial }: { initial: Theme }) {
       aria-pressed={dark}
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
       title={dark ? "Switch to light mode" : "Switch to dark mode"}
-      className="inline-flex items-center gap-2 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+      className="inline-flex items-center gap-2 rounded-md border border-line px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-hover"
     >
       <svg
         viewBox="0 0 20 20"

@@ -417,6 +417,12 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - **After changing an adapter's mapping, run `npm run sync-cards -- --force`.** The diff compares stored raw payloads, so a mapping fix leaves every row looking unchanged and silently never lands — a corrected `champion` field once reported "1288 unchanged". `--force` rewrites every row from the current mapping. Dry-run first by re-mapping the stored payloads and diffing: a change to *names* would reshuffle `base_id` grouping and needs review, a change to other fields does not. **Run it against each environment separately** — card data is synced per project, not copied, so a fix applied to dev is not carried to production by deploying.
 - Never hand-edit card data; fix the sync instead.
 - Keep components small; colocate route-specific components under their route folder.
+- **Presentation classes are shared through `src/lib/ui.ts`, not retyped.** A
+  new button, field, panel, tab or badge takes an export from there; a fresh
+  Tailwind string is how the site got to 74 copies of the same button across 36
+  files. Colours come from the tokens in `globals.css` — see "Chrome and
+  theme" — so a raw `zinc-`, `bg-white` or `text-white` in `src/` is a bug
+  outside of red destructive buttons and overlays on card art.
 - Riftbound term casing in UI: domains and card types are proper nouns (Fury, Battlefield). Sources store them lowercase; title-case at the boundary via `titleCase` in `src/lib/riftbound.ts`.
 - Filter dropdowns are built from the **distinct values actually in the DB**, then sorted by the canonical lists in `src/lib/riftbound.ts` with unrecognized values kept at the end (`sortByCanonical`). A new set's new rarity therefore appears without a code change — `Promo` already does, and is not in `RARITIES`. That is also why sorting asserts on a **rank**, not a value: "sort by rarity ends at Showcase" is wrong, because `Promo` sorts after it.
 - **Set, domain, rarity and energy are multi-select; they OR within a filter and
@@ -537,6 +543,60 @@ a stale row — but it means a source switch leaves residue worth checking for.
 
 ## Chrome and theme
 
+- **Colour is a semantic token layer in `globals.css`, not Tailwind's zinc
+  scale.** `--surface` / `--surface-raised` / `--surface-sunken`, `--line` /
+  `--line-strong`, `--ink` / `--ink-muted` / `--ink-subtle` / `--ink-hover`,
+  `--hover`, and the two accents below. `@theme inline` exposes them as
+  `bg-surface`, `border-line`, `text-muted` and so on. **The whole set is
+  redefined under `.dark`, so a component that uses tokens needs no `dark:`
+  variant at all** — `bg-white text-zinc-900 dark:bg-zinc-950
+  dark:text-zinc-100` is `bg-surface text-ink`. That is the point of it: the
+  same button style had been copied into 36 files as 74 raw class strings, so
+  every palette change was 74 edits and the variants had already drifted. A
+  literal `zinc-`, `bg-white` or `text-white` in `src/` is now a bug unless it
+  is a red destructive button or an overlay sitting on card art.
+- **Ground is deliberately not pure black.** `#09090b` with flat hairline
+  borders gave every panel the page's own colour, which reads as harsh and
+  unfinished. Dark is `--surface: #101013` with `--surface-raised: #17171b` one
+  step above it, and the chrome, panels, menus and empty states sit on the
+  raised value. Fields sit on `--surface-sunken` so they read as wells.
+- **`--tint-base` must track `--surface-raised`.** It is what the cube table's
+  domain tints are mixed against, and that table sits on a raised panel — if
+  the two drift, one mix percentage stops reading the same in both themes,
+  which is the whole reason the variable exists.
+- **There are two accents, because one value cannot do both jobs at AA.**
+  `--accent` carries text (links, active labels) and is toned down on light,
+  where the brand `#ff6a2b` is only 2.75:1; `--accent-strong` is the brand
+  orange itself, for shapes needing 3:1 — the focus ring, the nav's
+  current-page bar, the mark. On dark the brand orange is 6.65:1 and both can
+  be near it.
+- **The accent marks state, never decoration.** It is the "you are here" signal
+  — active tab, active nav item, selected segment, focus ring, links — and
+  primary buttons stay high-contrast neutral (`bg-ink text-surface`). A page
+  with three orange buttons reads as three warnings. Warnings are amber and
+  deliberately a different hue; do not reach for the accent for them.
+- **One `:focus-visible` rule in `globals.css` covers the whole site.** Before
+  it there were two `focus-visible` rules in total and eight fields setting
+  `focus:outline-none` with only a border tint to replace it, so keyboard users
+  had no reliable indicator. Defining it globally means it also reaches
+  controls no component file touches. **Never add `focus:outline-none`
+  again** without providing a replacement indicator in the same change.
+- **Shared class strings live in `src/lib/ui.ts`** — `btn`, `input`, `panel`,
+  `tab`, `segment`, `cardTab`, `underlineTab`, `badge`, `menu`, `link`. Strings
+  rather than components, in a plain `.ts` with no `"use client"`, so both
+  server and client components can import them (the same rule under
+  Conventions about shared *values* living in `src/lib/`) and so call sites
+  stay free to add a layout class. **A new button or field takes one of these
+  rather than a fresh class string** — that is the entire reason the file
+  exists. `scripts/check-public-cube.mts` imports `btn.primarySm` to assert
+  which action is prominent, so the check can never drift from the styling.
+- **Type is Inter for body, Space Grotesk for headings and the wordmark**, both
+  self-hosted through `next/font/google` — no external request, no layout
+  shift, no dependency. `globals.css` applies the display face to `h1, h2, h3`
+  in one rule, so the site's ~40 headings cannot drift apart and no heading
+  needs its own `tracking-tight`. Inter carries the dense card tables on
+  purpose: character at 12–14px is noise. Geist Mono stays for the error
+  digest, the cube URL on Settings and `.primer code`.
 - **Dark is the default, and the theme is a cookie, not a media query.** The
   card art is dark-bordered on a dark frame, so a light page puts a bright
   margin around every image. `resolveTheme` in `src/lib/theme.ts` falls back to
@@ -557,14 +617,39 @@ a stale row — but it means a source switch leaves residue worth checking for.
   without which a 320px screen still overflowed. The nav is at its width
   budget: adding a sixth item means taking one away or collapsing them behind
   a menu, and the check is a 320px screenshot, not an opinion.
-- **The brand mark lives in `src/components/logo.tsx`** and every surface that
-  shows it — nav, landing page, coming-soon pages, 404 — renders that, so the
-  artwork changes in one place. The mark is `public/logo.svg` on a 320×300
-  viewBox, carrying enough fine detail (dashed rear edges, sparkles, 1px card
-  strokes) that it needs ~26px even in the nav rather than the 16px an icon-only
-  mark could take. It is served as an `<img>` rather than inlined: the file has
-  fixed `id`s, and a page showing the logo twice would duplicate them. Width and
-  height are both set so the header does not jump while it loads.
+  **Chrome clamps `--window-size` to 512px, so that screenshot cannot be taken
+  with the flag alone**, and framing the site to get a narrow viewport is
+  blocked by our own `frame-ancestors 'none'`. Drive
+  `Emulation.setDeviceMetricsOverride` over CDP against a headless Chrome on
+  :9222 — the same WebSocket approach `check-auth-flow.mts` uses — and assert
+  `scrollWidth === clientWidth` rather than eyeballing it.
+- **The nav's section links carry a current-page indicator**, which is why
+  `src/app/nav-links.tsx` is a client component in an otherwise server-rendered
+  layout: the active section is a function of the URL and only `usePathname`
+  reports it without threading a pathname through middleware into a header.
+  The indicator is an `::after` bar rather than a border so it adds nothing to
+  the link's box and the nav's height cannot shift between pages.
+- **The brand mark lives in `src/components/logo.tsx`, and there are two of
+  them.** Every surface that shows the logo — nav, landing page, coming-soon
+  pages, 404 — renders that component, so the artwork changes in one place;
+  the *size* picks the file. `lg` (64px) gets `public/logo.svg`, the detailed
+  mark with dashed rear edges, five floating cards and sparkles. `sm`/`md`
+  (26–30px, the nav) get `public/logo-mark.svg`: the cube silhouette and its
+  spokes, nothing else.
+  **The reason is arithmetic, and it is worth not rediscovering.** Stroke width
+  on an SVG scales with the viewBox. `logo.svg` is 320×300, so its original
+  1.2–2px strokes rendered at 26px came to about **0.15 CSS pixels** — under
+  what a display can paint, which is why the cube's edges greyed out and
+  shimmered rather than reading as lines. That was reported as the icon
+  "losing definition". `logo-mark.svg` is 64×64 with 3.75–5px strokes, and
+  `logo.svg` was itself redrawn at roughly 3.5× its old weights so it holds at
+  64px too — it had the same fault there, just less visibly. **If either mark
+  is ever rendered at a new size, check the stroke arithmetic before assuming
+  it reads.** `src/app/icon.svg` is a third simplification for the favicon and
+  is kept in step by colour and shape, not by sharing a file.
+  All of them are served as `<img>` rather than inlined: the files carry fixed
+  `id`s, and a page showing the logo twice would duplicate them. Width and
+  height are both set so the header does not jump while they load.
 - **A username is a link.** `/u/{username}` lists that account's public cubes
   with a search box, and `/profile` redirects to your own — one page, one
   address, and the account-menu item works without knowing your name. It shows
@@ -1421,7 +1506,7 @@ which is why they can create and delete accounts freely.
 | `check:browse-grid` | a grouped tile is a card, an all-printings tile is itself | Supabase + dev server | manual gate |
 | `check:card-filters` | multi-select ORs within a filter and ANDs across; energy buckets partition the pool; sorting uses the game's order | DB (read-only) | manual gate |
 | `check:copies-and-log` | quantity 2 lists as two entries; per-copy edits move one copy; edits reach the log | Supabase + dev server | manual gate |
-| `check:public-cube` | visibility gating, cloning, quantity-aware counts | Supabase + dev server | manual gate |
+| `check:public-cube` | visibility gating, cloning, quantity-aware counts, and which action is the prominent one (it imports `btn.primarySm` from `src/lib/ui.ts` rather than matching a palette string, so styling changes cannot break it) | Supabase + dev server | manual gate |
 | `check:auth-flow` | claiming a username refreshes the nav (`revalidatePath`) | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:cube-ownership` | replays an Add under another session and with no cookie | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:magic-link` | the `redirect_to` actually sent to Supabase, and `/?code=` self-heal | `dev:probe` server + Chrome :9222 | manual gate |
@@ -1457,6 +1542,16 @@ the write instead of sleeping a fixed budget. `check:auth-flow` and
 `check:magic-link` still use readyState, which is fine only because `/welcome`
 and `/login` have no loading boundary — **adding one to either route means
 fixing those checks the same way.**
+
+**Three checks constrain user-facing copy, which is easy to forget when the
+change in hand looks like a wording tweak.** `check:oauth-buttons` requires
+`/login` to keep the two-sided same-address warning — reword it freely, remove
+it and the build fails, which is the point, since dropping half that guidance
+is what pushes people into making the duplicate account it exists to prevent.
+`check:cube-ownership` requires the two delete confirmations to keep
+*comparing* the typed name; the prose around them is free, the comparison is
+not. `check:public-cube` asserts a cube page still offers Share and Clone by
+those exact labels. Run all three after a copy pass.
 
 `check:cube-ownership` is also structural: it fails if a new action in
 `src/app/cube/actions.ts` skips `requireOwnedCube` without a documented

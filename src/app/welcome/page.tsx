@@ -16,8 +16,8 @@ export default async function WelcomePage() {
 
   return (
     <div className="mx-auto w-full max-w-sm px-4 py-20 sm:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Choose a username</h1>
-      <p className="mt-2 mb-6 text-sm text-zinc-600 dark:text-zinc-400">
+      <h1 className="text-2xl font-semibold">Choose a username</h1>
+      <p className="mt-2 mb-6 text-sm text-muted">
         You&rsquo;re signed in as {current.user.email}. Pick a username to finish
         setting up your account.
       </p>

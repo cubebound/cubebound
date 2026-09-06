@@ -113,20 +113,20 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
+      <div className="flex items-center justify-between gap-2 border-b border-line px-3 py-2.5">
         <h2 className="text-sm font-semibold">Quick add</h2>
         {onClose && (
           <button
             onClick={onClose}
             aria-label="Close quick add"
-            className="rounded-md px-2 text-xl leading-none text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded-md px-2 text-xl leading-none text-subtle hover:bg-hover"
           >
             ×
           </button>
         )}
       </div>
 
-      <div className="border-b border-zinc-200 p-3 dark:border-zinc-800">
+      <div className="border-b border-line p-3">
         <input
           ref={inputRef}
           type="search"
@@ -135,9 +135,9 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
           placeholder="Card name…"
           aria-label="Search card names"
           autoComplete="off"
-          className="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+          className="h-9 w-full rounded-md border border-line bg-sunken px-3 text-sm placeholder:text-subtle focus:border-line-strong"
         />
-        <p aria-live="polite" className="mt-1.5 min-h-4 text-xs text-zinc-500">
+        <p aria-live="polite" className="mt-1.5 min-h-4 text-xs text-subtle">
           {error ? (
             <span className="text-red-600 dark:text-red-400">{error}</span>
           ) : searching ? (
@@ -152,9 +152,9 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {results.length === 0 && longEnough && !searching && (
-          <p className="p-3 text-sm text-zinc-500">No cards match.</p>
+          <p className="p-3 text-sm text-subtle">No cards match.</p>
         )}
-        <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
+        <ul className="divide-y divide-line">
           {results.map((result) => {
             const choice = chosen[result.card.baseId];
             // Default to the printing already in the cube, so adding again
@@ -178,7 +178,7 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
             return (
               <li key={result.card.baseId} className="flex gap-2.5 p-2.5">
                 <div
-                  className="w-12 shrink-0 self-start overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800"
+                  className="w-12 shrink-0 self-start overflow-hidden rounded bg-sunken"
                   style={{ aspectRatio: aspectRatio(printing.type) }}
                 >
                   {printing.imageThumb && (
@@ -200,7 +200,7 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
                       <EnergyChip energy={printing.energyCost} />
                     </span>
                   </div>
-                  <p className="mt-0.5 text-xs text-zinc-500">
+                  <p className="mt-0.5 text-xs text-subtle">
                     {printing.type} · {printing.setCode}
                   </p>
 
@@ -214,7 +214,7 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
                       onChange={(event) =>
                         setChoice({ section: event.target.value as CubeSection })
                       }
-                      className="h-7 min-w-0 flex-1 rounded border border-zinc-300 bg-white px-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900"
+                      className="h-7 min-w-0 flex-1 rounded border border-line bg-sunken px-1 text-[11px]"
                     >
                       {CUBE_SECTIONS.map((value) => (
                         <option key={value} value={value}>
@@ -228,7 +228,7 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
                         aria-label={`Printing for ${printing.name}`}
                         value={printingId}
                         onChange={(event) => setChoice({ printingId: event.target.value })}
-                        className="h-7 min-w-0 flex-1 rounded border border-zinc-300 bg-white px-1 text-[11px] dark:border-zinc-700 dark:bg-zinc-900"
+                        className="h-7 min-w-0 flex-1 rounded border border-line bg-sunken px-1 text-[11px]"
                       >
                         {result.printings.map((option) => (
                           <option key={option.id} value={option.id}>
@@ -244,7 +244,7 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
                     {held > 0 && (
                       <span
                         title={`${held} in this cube`}
-                        className="shrink-0 rounded bg-zinc-200 px-1 text-[10px] font-medium tabular-nums text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
+                        className="shrink-0 rounded bg-sunken px-1 text-[10px] font-medium tabular-nums text-muted"
                       >
                         ×{held}
                       </span>
@@ -254,7 +254,7 @@ function QuickAddPanel({ cubeId, inCube, onClose }: Props & { onClose?: () => vo
                       disabled={busy}
                       onClick={() => add(result, printingId, section)}
                       title={held > 0 ? "Add another copy" : "Add to the cube"}
-                      className="ml-auto h-7 rounded bg-zinc-900 px-2.5 text-[11px] font-medium text-white hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+                      className="ml-auto h-7 rounded bg-ink px-2.5 text-[11px] font-medium text-surface hover:bg-ink-hover disabled:opacity-60"
                     >
                       {busy ? "…" : held > 0 ? "Add another" : "Add"}
                     </button>
@@ -296,7 +296,7 @@ export default function QuickAdd(props: Props) {
         type="button"
         onClick={() => setOpen(true)}
         aria-expanded={open}
-        className="fixed bottom-4 right-4 z-30 rounded-full bg-zinc-900 px-5 py-3 text-sm font-medium text-white shadow-lg hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+        className="fixed bottom-4 right-4 z-30 rounded-full bg-ink px-5 py-3 text-sm font-medium text-surface shadow-lg hover:bg-ink-hover"
       >
         Quick add
       </button>
@@ -311,7 +311,7 @@ export default function QuickAdd(props: Props) {
         >
           <div
             onClick={(event) => event.stopPropagation()}
-            className="h-[80vh] w-full rounded-t-xl bg-white lg:h-full lg:w-[22rem] lg:rounded-none lg:border-l lg:border-zinc-200 dark:bg-zinc-950 dark:lg:border-zinc-800"
+            className="h-[80vh] w-full rounded-t-xl bg-raised lg:h-full lg:w-[22rem] lg:rounded-none lg:border-l lg:border-line"
           >
             <QuickAddPanel {...props} onClose={() => setOpen(false)} />
           </div>

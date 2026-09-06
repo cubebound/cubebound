@@ -30,10 +30,10 @@ interface Props {
 }
 
 const controlClass =
-  "h-9 rounded-md border border-zinc-300 bg-white px-2 text-sm text-zinc-900 " +
-  "focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+  "h-9 rounded-md border border-line bg-sunken px-2 text-sm text-ink " +
+  "focus:border-line-strong";
 
-const checkboxClass = "size-4 shrink-0 accent-zinc-900 dark:accent-zinc-100";
+const checkboxClass = "size-4 shrink-0 accent-accent-strong";
 
 /**
  * Every filter button is this wide, whatever is selected.
@@ -109,14 +109,14 @@ function FilterMenu({
         aria-label={label}
         title={count > 0 ? summary : undefined}
         className={`${controlClass} ${MENU_BUTTON_W} flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden ${
-          count > 0 ? "border-zinc-500 dark:border-zinc-400" : ""
+          count > 0 ? "border-line-strong" : ""
         }`}
       >
         <span className="min-w-0 flex-1 truncate text-left">{summary}</span>
         {/* Only past one: at a single choice the summary already names it, and
             "Rare 1" reads as a quantity of cards rather than of filters. */}
         {count > 1 && (
-          <span className="shrink-0 rounded bg-zinc-900 px-1.5 text-xs font-medium text-white tabular-nums dark:bg-zinc-100 dark:text-zinc-900">
+          <span className="shrink-0 rounded bg-ink px-1.5 text-xs font-medium text-surface tabular-nums">
             {count}
           </span>
         )}
@@ -125,7 +125,7 @@ function FilterMenu({
         </svg>
       </summary>
       <div
-        className={`absolute left-0 z-30 mt-1 ${width} max-h-80 overflow-y-auto rounded-md border border-zinc-300 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900`}
+        className={`absolute left-0 z-30 mt-1 ${width} max-h-80 overflow-y-auto rounded-md border border-line bg-raised p-2 shadow-lg`}
       >
         {children}
       </div>
@@ -148,7 +148,7 @@ function CheckRow({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
+    <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-hover">
       <input
         type="checkbox"
         name={name}
@@ -279,13 +279,13 @@ export default function CardFilterBar({
           onChange={(event) => setQ(event.target.value)}
           placeholder="Search names, rules text and traits…"
           aria-label="Search cards"
-          className="h-9 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
+          className="h-9 min-w-0 flex-1 rounded-md border border-line bg-sunken px-3 text-sm text-ink placeholder:text-subtle focus:border-line-strong"
         />
 
         {/* Submit target for Enter / no-JS browsers; the controls auto-apply. */}
         <button
           type="submit"
-          className="h-9 shrink-0 rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+          className="h-9 shrink-0 rounded-md bg-ink px-3 text-sm font-medium text-surface hover:bg-ink-hover"
         >
           Search
         </button>
@@ -295,7 +295,7 @@ export default function CardFilterBar({
             keystroke is what makes a bar feel unsteady. */}
         <span
           aria-live="polite"
-          className={`w-24 shrink-0 text-right text-sm tabular-nums ${isPending ? "text-zinc-400" : "text-zinc-600 dark:text-zinc-400"}`}
+          className={`w-24 shrink-0 text-right text-sm tabular-nums ${isPending ? "text-subtle" : "text-muted"}`}
         >
           {isPending ? "Searching…" : `${total.toLocaleString()} ${unit}`}
         </span>
@@ -324,7 +324,7 @@ export default function CardFilterBar({
               onChange={(checked) => navigate({ sets: toggle(sets, set.code, checked) })}
             >
               <span className="min-w-0 flex-1 truncate">{set.label}</span>
-              <span className="shrink-0 font-mono text-xs text-zinc-500">{set.code}</span>
+              <span className="shrink-0 font-mono text-xs text-subtle">{set.code}</span>
             </CheckRow>
           ))}
         </FilterMenu>
@@ -371,8 +371,8 @@ export default function CardFilterBar({
                   key={bucket}
                   className={`flex h-8 cursor-pointer items-center justify-center rounded border text-sm tabular-nums ${
                     checked
-                      ? "border-zinc-900 bg-zinc-900 font-medium text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                      : "border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                      ? "border-ink bg-ink font-medium text-surface"
+                      : "border-line hover:bg-hover"
                   } ${bucket === "none" ? "col-span-2" : ""}`}
                 >
                   <input
@@ -390,7 +390,7 @@ export default function CardFilterBar({
               );
             })}
           </div>
-          <p className="mt-2 px-1 text-xs text-zinc-500">
+          <p className="mt-2 px-1 text-xs text-subtle">
             “None” is legends, runes and battlefields, which have no energy cost
             at all.
           </p>
@@ -485,7 +485,7 @@ export default function CardFilterBar({
         </select>
 
         <label
-          className="flex h-9 cursor-pointer items-center gap-2 px-1 text-sm text-zinc-700 dark:text-zinc-300"
+          className="flex h-9 cursor-pointer items-center gap-2 px-1 text-sm text-muted"
           title="Alt-art and signature printings are hidden by default"
         >
           <input
@@ -509,7 +509,7 @@ export default function CardFilterBar({
             aria-hidden={!hasFilters}
             tabIndex={hasFilters ? undefined : -1}
             className={`h-9 rounded-md px-3 text-sm underline-offset-4 ${
-              hasFilters ? "text-zinc-600 hover:underline dark:text-zinc-400" : "invisible"
+              hasFilters ? "text-muted hover:underline" : "invisible"
             }`}
           >
             Clear

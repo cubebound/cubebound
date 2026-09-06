@@ -14,7 +14,7 @@ export function SkeletonLine({ className = "" }: { className?: string }) {
   return (
     <span
       aria-hidden
-      className={`block animate-pulse rounded bg-zinc-200 dark:bg-zinc-800 ${className}`}
+      className={`block animate-pulse rounded bg-sunken ${className}`}
     />
   );
 }
@@ -24,7 +24,7 @@ export function SkeletonRows({ rows = 6 }: { rows?: number }) {
   return (
     <ul
       aria-hidden
-      className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800"
+      className="divide-y divide-line rounded-lg border border-line"
     >
       {Array.from({ length: rows }, (_, i) => (
         <li key={i} className="flex items-start gap-3 px-4 py-3">

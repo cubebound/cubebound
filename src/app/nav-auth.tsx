@@ -11,7 +11,7 @@ export default async function NavAuth() {
     return (
       <Link
         href="/login"
-        className="ml-auto text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+        className="ml-auto text-sm text-muted hover:text-ink"
       >
         Sign in
       </Link>
@@ -26,14 +26,14 @@ export default async function NavAuth() {
               the nav past its own right edge. */}
           <Link
             href="/cubes"
-            className="whitespace-nowrap text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            className="whitespace-nowrap text-muted hover:text-ink"
           >
             <span className="hidden sm:inline">Your </span>
             <span className="sm:lowercase">Cubes</span>
           </Link>
           <Link
             href="/drafts"
-            className="whitespace-nowrap text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            className="whitespace-nowrap text-muted hover:text-ink"
           >
             <span className="hidden sm:inline">Your </span>
             <span className="sm:lowercase">Drafts</span>
@@ -42,14 +42,14 @@ export default async function NavAuth() {
         </>
       ) : (
         <>
-          <Link href="/welcome" className="text-zinc-900 underline dark:text-zinc-100">
+          <Link href="/welcome" className="text-ink underline">
             Choose a username
           </Link>
           {/* No profile yet, so no account menu to put Log out inside. */}
           <form action={signOut}>
             <button
               type="submit"
-              className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+              className="text-muted hover:text-ink"
             >
               Sign out
             </button>

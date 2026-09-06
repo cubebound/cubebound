@@ -86,7 +86,7 @@ export default function CubeSections({
 
   if (cards.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-zinc-300 p-10 text-center text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+      <p className="rounded-lg border border-dashed border-line p-10 text-center text-muted">
         {emptyMessage}
       </p>
     );
@@ -104,7 +104,7 @@ export default function CubeSections({
           if (inSection.length === 0) return null;
           return (
             <section key={section}>
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-subtle">
                 {CUBE_SECTION_LABELS[section]}
                 <span className="ml-2 font-normal tabular-nums">
                   {countCopies(inSection)}

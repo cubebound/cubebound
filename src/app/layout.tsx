@@ -1,20 +1,40 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Inter, Space_Grotesk } from "next/font/google";
 import { cookies, headers } from "next/headers";
 import Link from "next/link";
 import "./globals.css";
 
 import { Analytics } from "@vercel/analytics/next";
 
-import Logo from "@/components/logo";
+import Logo, { LogoMark } from "@/components/logo";
 import ThemeToggle from "@/components/theme-toggle";
 import { resolveSiteUrl } from "@/lib/site-url";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 
 import NavAuth from "./nav-auth";
+import NavLinks from "./nav-links";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+/**
+ * Two faces, both self-hosted by `next/font` — no external request, no layout
+ * shift, no new dependency.
+ *
+ * Inter carries body text, card names and the dense cube tables, where
+ * character becomes noise at 12–14px. Space Grotesk carries headings and the
+ * wordmark, where it is the site's voice: squared-off, slightly technical,
+ * deliberate. `globals.css` applies it to h1/h2/h3 in one rule so the site's
+ * ~40 headings cannot drift apart.
+ *
+ * Geist Mono stays. Mono appears in three places — the error digest, the cube
+ * URL on Settings, and `.primer code` — and swapping it would be churn for no
+ * visible gain.
+ */
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
 });
 
@@ -67,63 +87,58 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased ${
+      className={`${inter.variable} ${spaceGrotesk.variable} ${geistMono.variable} h-full antialiased ${
         theme === "dark" ? "dark" : ""
       }`}
     >
-      <body className="flex min-h-full flex-col bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-        <header className="border-b border-zinc-200 dark:border-zinc-800">
-          <nav className="mx-auto flex w-full max-w-[1600px] items-center gap-3 px-4 py-3 sm:gap-6 sm:px-6">
+      <body className="flex min-h-full flex-col bg-surface text-ink">
+        {/* `raised` against the page's `surface`: one step of elevation is what
+            separates the chrome from the content. The header used to be the
+            page's own colour with a hairline under it, which read as flat. */}
+        <header className="border-b border-line bg-raised">
+          <nav className="mx-auto flex w-full max-w-[1600px] items-center gap-4 px-4 py-3 sm:gap-6 sm:px-6">
             {/* Below `sm` the wordmark goes and the mark stands alone: five nav
                 items plus "cubebound.gg" ran a 320px phone past its own right
                 edge. The mark is still the link home, and the accessible name
                 moves onto it. */}
             <Logo size="sm" withWordmark={false} className="sm:hidden" />
             <Logo size="md" className="hidden sm:block" />
-            <Link
-              href="/cards"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-            >
-              Cards
-            </Link>
-            <Link
-              href="/explore"
-              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-            >
-              Explore
-            </Link>
+            <NavLinks />
             <NavAuth />
           </nav>
         </header>
 
         <main className="flex-1">{children}</main>
 
-        <footer className="border-t border-zinc-200 dark:border-zinc-800">
-          <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 px-4 py-6 sm:flex-row sm:items-start sm:px-6">
-            <div className="min-w-0">
-              <p className="text-xs leading-relaxed text-zinc-500">
-                cubebound.gg is not endorsed by Riot Games and does not reflect
-                the views or opinions of Riot Games or anyone officially involved
-                in producing or managing Riot Games properties.
-              </p>
-              <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-zinc-500">
+        <footer className="mt-16 border-t border-line bg-raised">
+          <div className="mx-auto w-full max-w-[1600px] px-4 py-8 sm:px-6">
+            {/* Brand and navigation lead; the Riot disclaimer sits below the
+                rule. It is required on every page (see CLAUDE.md) and stays
+                verbatim — this only stops it being the first thing the footer
+                says. */}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+              <LogoMark size="sm" />
+              <nav
+                aria-label="Footer"
+                className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted"
+              >
                 <Link
                   href="/guides/riftbound-cube-drafting"
-                  className="underline-offset-2 hover:text-zinc-700 hover:underline dark:hover:text-zinc-300"
+                  className="transition-colors hover:text-ink"
                 >
                   How to build and draft a cube
                 </Link>
-                <Link
-                  href="/privacy"
-                  className="underline-offset-2 hover:text-zinc-700 hover:underline dark:hover:text-zinc-300"
-                >
+                <Link href="/explore" className="transition-colors hover:text-ink">
+                  Explore cubes
+                </Link>
+                <Link href="/privacy" className="transition-colors hover:text-ink">
                   Privacy
                 </Link>
                 <a
                   href="https://x.com/cubeboundgg"
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1.5 underline-offset-2 hover:text-zinc-700 hover:underline dark:hover:text-zinc-300"
+                  className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
                 >
                   {/* Inline rather than an <img>: one 16px glyph is smaller as
                       markup than as a request, and it inherits currentColor so
@@ -137,11 +152,17 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   </svg>
                   @cubeboundgg
                 </a>
-              </p>
+              </nav>
+              <div className="ml-auto">
+                <ThemeToggle initial={theme} />
+              </div>
             </div>
-            <div className="sm:ml-auto">
-              <ThemeToggle initial={theme} />
-            </div>
+
+            <p className="mt-6 border-t border-line pt-5 text-xs leading-relaxed text-subtle">
+              cubebound.gg is not endorsed by Riot Games and does not reflect the
+              views or opinions of Riot Games or anyone officially involved in
+              producing or managing Riot Games properties.
+            </p>
           </div>
         </footer>
 

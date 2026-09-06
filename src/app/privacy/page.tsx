@@ -18,7 +18,7 @@ const CONTACT = "contact@cubebound.gg";
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+      <h2 className="text-lg font-semibold text-ink">
         {title}
       </h2>
       <div className="mt-2 space-y-3">{children}</div>
@@ -26,7 +26,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-const linkClass = "underline underline-offset-2 hover:text-zinc-900 dark:hover:text-zinc-100";
+const linkClass = "underline underline-offset-2 hover:text-ink";
 
 /**
  * The privacy policy.
@@ -43,18 +43,18 @@ const linkClass = "underline underline-offset-2 hover:text-zinc-900 dark:hover:t
 export default function PrivacyPolicy() {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-12 sm:px-6">
-      <article className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-        <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
+      <article className="text-sm leading-relaxed text-muted">
+        <h1 className="text-3xl font-semibold text-ink">
           Privacy Policy
         </h1>
-        <p className="mt-2 text-xs text-zinc-500">Last updated {LAST_UPDATED}</p>
+        <p className="mt-2 text-xs text-subtle">Last updated {LAST_UPDATED}</p>
 
         <p className="mt-6">
           cubebound.gg is a free, unofficial fan project for building and
           drafting Riftbound cubes. It is run by one person. This page describes
           everything it stores about you, in plain language.
         </p>
-        <p className="mt-3 font-medium text-zinc-900 dark:text-zinc-100">
+        <p className="mt-3 font-medium text-ink">
           We do not sell your data, show advertising, or use tracking or
           advertising cookies.
         </p>
@@ -168,7 +168,7 @@ export default function PrivacyPolicy() {
             change history and its followers.
           </p>
           <p>
-            <strong className="font-medium text-zinc-900 dark:text-zinc-100">
+            <strong className="font-medium text-ink">
               Deleting your whole account is not yet self-serve.
             </strong>{" "}
             It is being built. In the meantime, email{" "}
@@ -207,7 +207,7 @@ export default function PrivacyPolicy() {
           </p>
         </Section>
 
-        <p className="mt-10 border-t border-zinc-200 pt-6 text-xs text-zinc-500 dark:border-zinc-800">
+        <p className="mt-10 border-t border-line pt-6 text-xs text-subtle">
           cubebound.gg is not endorsed by Riot Games and does not reflect the
           views or opinions of Riot Games or anyone officially involved in
           producing or managing Riot Games properties. See also our{" "}

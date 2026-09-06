@@ -45,8 +45,8 @@ export default function FollowButton({
   // the cube page a filled one would out-shout Clone, which is the visitor's
   // actual primary action. "On" is a tinted fill instead.
   const style = optimistic
-    ? "border-zinc-400 bg-zinc-200 text-zinc-900 hover:bg-zinc-300 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700"
-    : "border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";
+    ? "border-line-strong bg-sunken text-ink hover:bg-hover"
+    : "border-line hover:bg-hover";
 
   if (!signedIn) {
     return (

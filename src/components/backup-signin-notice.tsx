@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { BACKUP_NOTICE_COOKIE, BACKUP_NOTICE_COOKIE_MAX_AGE } from "@/lib/backup-notice";
+import { btn } from "@/lib/ui";
 
 /**
  * Tells someone whose only way in is email that they should add another.
@@ -25,7 +26,7 @@ export default function BackupSignInNotice() {
     <div className="mb-6 flex flex-wrap items-start gap-3 rounded-md border border-amber-400/60 bg-amber-50/60 p-4 dark:border-amber-500/40 dark:bg-amber-950/20">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">Email is your only way into this account</p>
-        <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
+        <p className="mt-1 text-sm text-muted">
           If you lose access to your mailbox there is no password to fall back
           on. Connecting Discord or Google takes a few seconds.
         </p>
@@ -33,7 +34,7 @@ export default function BackupSignInNotice() {
       <div className="flex shrink-0 items-center gap-3">
         <Link
           href="/settings"
-          className="inline-flex h-9 items-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+          className={btn.primarySm}
         >
           Add a backup
         </Link>
@@ -43,7 +44,7 @@ export default function BackupSignInNotice() {
             document.cookie = `${BACKUP_NOTICE_COOKIE}=1; path=/; max-age=${BACKUP_NOTICE_COOKIE_MAX_AGE}; samesite=lax`;
             setDismissed(true);
           }}
-          className="text-sm text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-400"
+          className="text-sm text-muted underline-offset-2 hover:underline"
         >
           Not now
         </button>

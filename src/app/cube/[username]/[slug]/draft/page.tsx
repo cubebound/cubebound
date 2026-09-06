@@ -13,6 +13,7 @@ import {
 } from "@/db/queries/drafts";
 import { getCurrentUser } from "@/lib/auth";
 import { canViewCube } from "@/lib/cube-access";
+import { btn } from "@/lib/ui";
 
 import RestartDraft from "./draft-controls";
 import { EndScreen, PickScreen, StartDraft, type DraftTile } from "./draft-client";
@@ -80,11 +81,11 @@ export default async function DraftPage({
 
   const header = (extra?: React.ReactNode, others?: React.ReactNode) => (
     <header className="mb-5">
-      <Link href={publicPath} className="text-sm text-zinc-500 underline-offset-4 hover:underline">
+      <Link href={publicPath} className="text-sm text-subtle underline-offset-4 hover:underline">
         ← {cube.name}
       </Link>
       <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Draft</h1>
+        <h1 className="text-2xl font-semibold">Draft</h1>
         <span className="ml-auto flex flex-wrap items-center gap-2">
           {extra}
           {/* Signed out this links to a page that only asks you to sign in, so
@@ -92,7 +93,7 @@ export default async function DraftPage({
           {current?.profile && (
             <Link
               href="/drafts"
-              className="inline-flex h-9 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className={btn.secondarySm}
             >
               Your drafts
             </Link>
@@ -210,8 +211,8 @@ export default async function DraftPage({
                 aria-current={active ? "page" : undefined}
                 className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 ${
                   active
-                    ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                    : "border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    ? "border-ink bg-ink text-surface"
+                    : "border-line hover:bg-hover"
                 }`}
               >
                 <span>{dateFormat.format(entry.createdAt)}</span>

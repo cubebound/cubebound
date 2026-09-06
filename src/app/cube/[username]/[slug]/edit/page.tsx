@@ -110,8 +110,8 @@ export default async function EditCubePage({
       aria-current={active ? "page" : undefined}
       className={`rounded-md px-3 py-1.5 text-sm font-medium ${
         active
-          ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-          : "border border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          ? "bg-ink text-surface"
+          : "border border-line hover:bg-hover"
       }`}
     >
       {label}
@@ -121,15 +121,15 @@ export default async function EditCubePage({
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
       <header className="mb-5">
-        <Link href="/cubes" className="text-sm text-zinc-500 underline-offset-4 hover:underline">
+        <Link href="/cubes" className="text-sm text-subtle underline-offset-4 hover:underline">
           ← Your cubes
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{cube.name}</h1>
-          <span className="rounded bg-zinc-200 px-2 py-0.5 text-xs font-medium capitalize text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200">
+          <h1 className="text-2xl font-semibold">{cube.name}</h1>
+          <span className="rounded bg-sunken px-2 py-0.5 text-xs font-medium capitalize text-muted">
             {cube.visibility}
           </span>
-          <span className="text-sm text-zinc-500 tabular-nums">
+          <span className="text-sm text-subtle tabular-nums">
             {totalCopies} {totalCopies === 1 ? "card" : "cards"}
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
@@ -143,19 +143,19 @@ export default async function EditCubePage({
             <Link
               /* Same as the public page: Draft sets one up. */
               href={`${publicPath}/draft?new=1`}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-hover"
             >
               Draft
             </Link>
             <Link
               href={`${publicPath}`}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-hover"
             >
               View
             </Link>
             <Link
               href={`${publicPath}/settings`}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-hover"
             >
               Settings
             </Link>
@@ -186,7 +186,7 @@ export default async function EditCubePage({
 
       {onMaybeboard ? (
         <section>
-          <p className="mb-4 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mb-4 max-w-3xl text-sm text-muted">
             Cards you&rsquo;re considering. They don&rsquo;t count toward the cube
             or get drafted — move one to a section when you decide to run it, the
             same way you move cards between sections.
@@ -202,7 +202,7 @@ export default async function EditCubePage({
         </section>
       ) : importing ? (
         <section className="max-w-4xl">
-          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mb-4 text-sm text-muted">
             Paste a card list to add many cards at once. You&rsquo;ll see exactly
             what matched before anything is added, and imports append to what the
             cube already holds.
@@ -211,14 +211,14 @@ export default async function EditCubePage({
         </section>
       ) : viewingLog ? (
         <section>
-          <p className="mb-4 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mb-4 max-w-3xl text-sm text-muted">
             Every edit to this cube, newest first.
           </p>
           <ChangeLog changes={changes} />
         </section>
       ) : writingPrimer ? (
         <section>
-          <p className="mb-4 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mb-4 max-w-3xl text-sm text-muted">
             A long-form write-up for people browsing your cube — the archetypes,
             the house rules, why a card is in. Separate from the one-line
             description, and shown on the cube&rsquo;s Primer tab.
@@ -229,7 +229,7 @@ export default async function EditCubePage({
         /* Browse mode replaces the cube list rather than sitting under it, so
            the search controls are the first thing on screen. */
         <section>
-          <div className="sticky top-0 z-10 -mx-4 mb-6 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 dark:border-zinc-800 dark:bg-zinc-950/90">
+          <div className="sticky top-0 z-10 -mx-4 mb-6 border-b border-line bg-raised/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
             <CardFilterBar
               options={browse![0]}
               active={filters}
@@ -241,7 +241,7 @@ export default async function EditCubePage({
           </div>
 
           {browse![1].cards.length === 0 ? (
-            <p className="py-16 text-center text-zinc-600 dark:text-zinc-400">
+            <p className="py-16 text-center text-muted">
               No cards match those filters.
             </p>
           ) : (

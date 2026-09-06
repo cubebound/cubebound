@@ -48,7 +48,7 @@ function safeUrl(url: string): string {
 
 export default function Primer({ markdown }: { markdown: string }) {
   return (
-    <div className="primer max-w-3xl text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+    <div className="primer max-w-3xl text-sm leading-relaxed text-ink">
       <Markdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[[rehypeSanitize, schema]]}

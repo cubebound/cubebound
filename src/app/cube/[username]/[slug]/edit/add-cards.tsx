@@ -33,8 +33,8 @@ interface Held {
 }
 
 const addClass =
-  "h-8 rounded-md bg-zinc-900 text-xs font-medium text-white transition hover:bg-zinc-700 " +
-  "disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white";
+  "h-8 rounded-md bg-ink text-xs font-medium text-surface transition hover:bg-ink-hover " +
+  "disabled:opacity-60";
 
 export default function AddCards({ cubeId, cards, holdings, showingEveryPrinting }: Props) {
   const [held, setHeld] = useState<Record<string, Held>>(() => toHeld(holdings));
@@ -148,7 +148,7 @@ export default function AddCards({ cubeId, cards, holdings, showingEveryPrinting
                       onClick={() => openPicker(card)}
                       aria-label={`Choose a printing of ${card.name}`}
                       title={`${card.printingCount} printings`}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 text-sm leading-none text-zinc-600 hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-line text-sm leading-none text-muted hover:bg-hover disabled:opacity-60"
                     >
                       ▾
                     </button>
@@ -171,7 +171,7 @@ export default function AddCards({ cubeId, cards, holdings, showingEveryPrinting
                 const card = cards.find((c) => c.baseId === selected.baseId) ?? selected;
                 add(card, selected).then(() => setSelected(null));
               }}
-              className="h-10 rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+              className="h-10 rounded-md bg-ink px-4 text-sm font-medium text-surface hover:bg-ink-hover"
             >
               Add to {CUBE_SECTION_LABELS[defaultSectionForType(selected.type)]}
             </button>
@@ -224,19 +224,19 @@ function PrintingPicker({
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        className="max-h-full w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-2xl dark:bg-zinc-900"
+        className="max-h-full w-full max-w-2xl overflow-y-auto rounded-xl bg-raised p-5 shadow-2xl"
       >
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold">{card.name}</h2>
-            <p className="mt-0.5 text-sm text-zinc-500">
+            <p className="mt-0.5 text-sm text-subtle">
               Pick which printing to add. The base printing is listed first.
             </p>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md px-2 py-1 text-xl leading-none text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="rounded-md px-2 py-1 text-xl leading-none text-subtle hover:bg-hover"
           >
             ×
           </button>
@@ -257,9 +257,9 @@ function PrintingPicker({
                     className="w-full rounded-lg"
                   />
                 )}
-                <p className="mt-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                <p className="mt-1.5 text-xs text-muted">
                   {printing.id} · {printing.rarity}
-                  {isBase && <span className="ml-1 text-zinc-400">(base)</span>}
+                  {isBase && <span className="ml-1 text-subtle">(base)</span>}
                   {copies > 0 && <span className="ml-1 tabular-nums">· ×{copies}</span>}
                 </p>
                 <button

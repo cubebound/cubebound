@@ -17,11 +17,11 @@ export default async function NewCubePage() {
 
   return (
     <div className="mx-auto w-full max-w-lg px-4 py-10 sm:px-6">
-      <Link href="/cubes" className="text-sm text-zinc-500 underline-offset-4 hover:underline">
+      <Link href="/cubes" className="text-sm text-subtle underline-offset-4 hover:underline">
         ← Your cubes
       </Link>
-      <h1 className="mt-3 text-2xl font-semibold tracking-tight">New cube</h1>
-      <p className="mt-1 mb-6 text-sm text-zinc-600 dark:text-zinc-400">
+      <h1 className="mt-3 text-2xl font-semibold">New cube</h1>
+      <p className="mt-1 mb-6 text-sm text-muted">
         Its URL comes from the name — you can rename it later without breaking
         the link.
       </p>

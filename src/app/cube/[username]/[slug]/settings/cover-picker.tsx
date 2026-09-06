@@ -60,7 +60,7 @@ export default function CoverPicker({
 
   if (cards.length === 0) {
     return (
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-muted">
         Add some cards and you&rsquo;ll be able to pick one as the cube&rsquo;s
         cover art.
       </p>
@@ -81,14 +81,14 @@ export default function CoverPicker({
           onChange={(event) => setFilter(event.target.value)}
           placeholder="Filter by name…"
           aria-label="Filter cards by name"
-          className="h-9 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="h-9 min-w-0 flex-1 rounded-md border border-line bg-sunken px-3 text-sm"
         />
         {choice && (
           <button
             type="button"
             onClick={() => choose(null)}
             disabled={pending}
-            className="h-9 shrink-0 rounded-md border border-zinc-300 px-3 text-sm hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            className="h-9 shrink-0 rounded-md border border-line px-3 text-sm hover:bg-hover disabled:opacity-60"
           >
             Use default
           </button>
@@ -101,7 +101,7 @@ export default function CoverPicker({
         </p>
       )}
 
-      <div className="mt-3 grid max-h-96 grid-cols-3 gap-2 overflow-y-auto rounded-md border border-zinc-200 p-2 sm:grid-cols-4 dark:border-zinc-800">
+      <div className="mt-3 grid max-h-96 grid-cols-3 gap-2 overflow-y-auto rounded-md border border-line p-2 sm:grid-cols-4">
         {shown.map((card) => {
           const active = card.id === choice;
           return (
@@ -114,7 +114,7 @@ export default function CoverPicker({
               title={card.name}
               className={`relative overflow-hidden rounded transition ${
                 active
-                  ? "ring-2 ring-zinc-900 dark:ring-zinc-100"
+                  ? "ring-2 ring-ink"
                   : "opacity-80 hover:opacity-100"
               }`}
             >
@@ -130,13 +130,13 @@ export default function CoverPicker({
           );
         })}
         {shown.length === 0 && (
-          <p className="col-span-full py-6 text-center text-sm text-zinc-500">
+          <p className="col-span-full py-6 text-center text-sm text-subtle">
             No cards match &ldquo;{filter}&rdquo;.
           </p>
         )}
       </div>
 
-      <p className="mt-2 text-xs text-zinc-500">
+      <p className="mt-2 text-xs text-subtle">
         {choice
           ? "This art shows when the cube is shared as a link."
           : "No cover set — a card from the cube is used automatically."}

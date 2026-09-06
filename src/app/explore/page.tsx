@@ -4,6 +4,7 @@ import Link from "next/link";
 import CubeResults from "@/components/cube-results";
 import { searchCubes, type CubeSort } from "@/db/queries/discovery";
 import { getCurrentUser } from "@/lib/auth";
+import { btn, pager, tab } from "@/lib/ui";
 
 /** How deep an ordering goes before you have to search instead. */
 const EXPLORE_LIMIT = 60;
@@ -19,10 +20,6 @@ export const metadata: Metadata = {
   // a crawler through the sitemap rather than through a results page.
   alternates: { canonical: "/explore" },
 };
-
-const pagerClass =
-  "rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 " +
-  "dark:border-zinc-700 dark:hover:bg-zinc-800";
 
 function one(value: string | string[] | undefined): string {
   return (Array.isArray(value) ? value[0] : value) ?? "";
@@ -90,11 +87,7 @@ export default async function ExplorePage({
     <Link
       href={href({ sort: value, page: 1 })}
       aria-current={sort === value ? "page" : undefined}
-      className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-        sort === value
-          ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-          : "border border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-      }`}
+      className={sort === value ? tab.active : tab.inactive}
     >
       {label}
     </Link>
@@ -104,8 +97,8 @@ export default async function ExplorePage({
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Explore cubes</h1>
-      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+      <h1 className="text-2xl font-semibold">Explore cubes</h1>
+      <p className="mt-2 text-sm text-muted">
         Public cubes from everyone. Search names, descriptions and primers, or
         find the cubes running a particular card.
       </p>
@@ -119,19 +112,19 @@ export default async function ExplorePage({
             defaultValue={keywords}
             placeholder="Name, description or primer…"
             aria-label="Search cube names, descriptions and primers"
-            className="h-10 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-10 min-w-0 flex-1 rounded-md border border-line bg-sunken px-3 text-sm"
           />
           <input
             name="card"
             defaultValue={cardName}
             placeholder="Contains card…"
             aria-label="Only cubes containing this card"
-            className="h-10 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+            className="h-10 min-w-0 flex-1 rounded-md border border-line bg-sunken px-3 text-sm"
           />
           {sort !== "updated" && <input type="hidden" name="sort" value={sort} />}
           <button
             type="submit"
-            className="inline-flex h-10 items-center rounded-md bg-zinc-900 px-4 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            className={btn.primary}
           >
             Search
           </button>
@@ -141,7 +134,7 @@ export default async function ExplorePage({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {sortTab("Recently updated", "updated")}
         {sortTab("Most followed", "follows")}
-        <span className="ml-auto text-sm text-zinc-500">
+        <span className="ml-auto text-sm text-subtle">
           {found.length === EXPLORE_LIMIT ? `Top ${EXPLORE_LIMIT}` : null}
         </span>
       </div>
@@ -162,34 +155,34 @@ export default async function ExplorePage({
       {(page > 1 || hasMore) && (
         <nav
           aria-label="Pagination"
-          className="mt-6 flex items-center justify-between gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800"
+          className="mt-6 flex items-center justify-between gap-3 border-t border-line pt-4"
         >
           {page > 1 ? (
-            <Link href={href({ page: page - 1 })} rel="prev" className={pagerClass}>
+            <Link href={href({ page: page - 1 })} rel="prev" className={pager}>
               ← Previous
             </Link>
           ) : (
-            <span className={`${pagerClass} cursor-default opacity-40`}>← Previous</span>
+            <span className={`${pager} cursor-default opacity-40`}>← Previous</span>
           )}
 
           {/* The page number, but never "of N" — with pages of twenty that
               would report how many cubes exist. */}
-          <span className="text-sm tabular-nums text-zinc-600 dark:text-zinc-400">
+          <span className="text-sm tabular-nums text-muted">
             Page {page}
           </span>
 
           {hasMore ? (
-            <Link href={href({ page: page + 1 })} rel="next" className={pagerClass}>
+            <Link href={href({ page: page + 1 })} rel="next" className={pager}>
               Next →
             </Link>
           ) : (
-            <span className={`${pagerClass} cursor-default opacity-40`}>Next →</span>
+            <span className={`${pager} cursor-default opacity-40`}>Next →</span>
           )}
         </nav>
       )}
 
       {!hasMore && found.length === EXPLORE_LIMIT && (
-        <p className="mt-3 text-center text-xs text-zinc-500">
+        <p className="mt-3 text-center text-xs text-subtle">
           That&rsquo;s as far as this list goes — search to find more.
         </p>
       )}

@@ -7,26 +7,88 @@
    answering to the operating system. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-  /* What domain tints in the cube list are mixed down against, so one mix
-     percentage reads as a pale wash on light and a dark wash on dark while
-     the body text stays legible either way. */
-  --tint-base: #ffffff;
-}
+/* ---------------------------------------------------------------------------
+   Design tokens.
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+   These are semantic, not literal: components ask for `bg-raised`, never for a
+   zinc number. The whole set is redefined under `.dark` below, so a component
+   that uses tokens needs no `dark:` variant at all — which is what collapses
+   `bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100` down to
+   `bg-surface text-ink`, and what makes a palette change one edit rather than
+   the 74 it used to be.
+
+   Ground is deliberately *not* pure black. #09090b against dark-bordered card
+   art gave the page no depth and read as harsh; one step of elevation between
+   `surface` and `raised` is what lets a panel look like a panel.
+   --------------------------------------------------------------------------- */
+:root {
+  --surface: #fbfbfa;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f4f4f2;
+  --line: #e4e4e2;
+  --line-strong: #d4d4d1;
+  --ink: #18181b;
+  --ink-muted: #52525b;
+  --ink-subtle: #7a7a83;
+  /* Not derivable from `--ink`: on light the primary button lightens on hover,
+     on dark it brightens to white, and one expression cannot do both. */
+  --ink-hover: #3f3f46;
+  --hover: #f0f0ee;
+
+  /* Two accents, because one value cannot do both jobs at AA.
+     `--accent` is text-safe (4.99:1 on `--surface`) and carries links and
+     active labels. `--accent-strong` is the brand orange itself, for shapes
+     that only need 3:1 — focus rings, indicator bars, the mark. On light,
+     #ff6a2b is 2.75:1 and fails even that, which is why it is toned here and
+     left alone in dark. */
+  --accent: #c2410c;
+  --accent-strong: #e85a15;
+  --accent-hover: #9a3412;
+
+  /* What domain tints in the cube list are mixed down against. It must track
+     `--surface-raised`, since that is the panel the tinted cost cells sit on —
+     if the two drift, one mix percentage stops reading the same in both
+     themes, which is the whole reason this variable exists. */
+  --tint-base: var(--surface-raised);
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --tint-base: #18181b;
+  --surface: #101013;
+  --surface-raised: #17171b;
+  --surface-sunken: #0c0c0f;
+  --line: #26262c;
+  --line-strong: #33333b;
+  --ink: #ededed;
+  --ink-muted: #a1a1aa;
+  --ink-subtle: #7b7b85;
+  --ink-hover: #ffffff;
+  --hover: #22222a;
+
+  /* On this ground the brand orange is 6.65:1, so text and shapes can share a
+     value and only the hover state needs lifting. */
+  --accent: #ff8a52;
+  --accent-strong: #ff6a2b;
+  --accent-hover: #ffa070;
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-raised: var(--surface-raised);
+  --color-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--ink-muted);
+  --color-subtle: var(--ink-subtle);
+  --color-ink-hover: var(--ink-hover);
+  --color-hover: var(--hover);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-hover: var(--accent-hover);
+
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-space-grotesk);
+  --font-mono: var(--font-geist-mono);
 }
 
 /* Always reserve the scrollbar's width, whether or not the page needs one.
@@ -46,23 +108,62 @@ html {
 }
 
 body {
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+/* Headings take the display face here rather than through a `font-display`
+   class on every one of them — there are ~40 and they would drift. Space
+   Grotesk is already tight, so the tracking correction is small; setting it
+   here also retires the ad-hoc `tracking-tight` each heading used to carry. */
+h1,
+h2,
+h3 {
+  font-family: var(--font-space-grotesk), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+/* The one focus indicator, defined once so it also covers every control the
+   token sweep does not touch. Before this the site had two `focus-visible`
+   rules in total and eight inputs that set `focus:outline-none` with only a
+   border tint to replace it, which left keyboard users with nothing reliable.
+   `:focus-visible` rather than `:focus` so a mouse click on a button does not
+   paint a ring. */
+:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent-strong) 28%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Cube primers are user-written markdown; Tailwind's reset strips heading and
    list styling, so restore just enough for long-form prose. Scoped to .primer
    so it can never leak into the app's own chrome. */
 .primer > * + * { margin-top: 0.85em; }
-.primer h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
+.primer h1 { font-size: 1.5rem; font-weight: 600; }
 .primer h2 { font-size: 1.25rem; font-weight: 600; }
 .primer h3 { font-size: 1.05rem; font-weight: 600; }
 .primer h4, .primer h5, .primer h6 { font-weight: 600; }
 .primer ul { list-style: disc; padding-left: 1.4em; }
 .primer ol { list-style: decimal; padding-left: 1.4em; }
 .primer li + li { margin-top: 0.25em; }
+.primer a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.primer a:hover { color: var(--accent-hover); }
 .primer blockquote {
-  border-left: 3px solid currentColor;
-  opacity: 0.8;
+  border-left: 3px solid var(--accent-strong);
+  color: var(--ink-muted);
   padding-left: 0.9em;
 }
 .primer code {
@@ -81,8 +182,8 @@ body {
 .primer pre code { background: none; padding: 0; }
 .primer table { border-collapse: collapse; display: block; overflow-x: auto; }
 .primer th, .primer td {
-  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border: 1px solid var(--line);
   padding: 0.35em 0.6em;
   text-align: left;
 }
-.primer hr { border-top: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
+.primer hr { border-top: 1px solid var(--line); }

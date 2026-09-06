@@ -32,7 +32,7 @@ export default function DeleteDraft({
         onClick={() => setConfirming(true)}
         aria-label={`Delete ${label}`}
         title="Delete this draft"
-        className="rounded px-2 py-1 text-xs text-zinc-500 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950 dark:hover:text-red-400"
+        className="rounded px-2 py-1 text-xs text-subtle hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950 dark:hover:text-red-400"
       >
         Delete
       </button>
@@ -41,7 +41,7 @@ export default function DeleteDraft({
 
   return (
     <span className="flex flex-wrap items-center gap-2 text-xs">
-      <span className="text-zinc-700 dark:text-zinc-300">Delete this draft and its picks?</span>
+      <span className="text-muted">Delete this draft and its picks?</span>
       <button
         type="button"
         disabled={pending}
@@ -68,7 +68,7 @@ export default function DeleteDraft({
         type="button"
         disabled={pending}
         onClick={() => setConfirming(false)}
-        className="rounded border border-zinc-300 px-2 py-1 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        className="rounded border border-line px-2 py-1 hover:bg-hover"
       >
         Cancel
       </button>

@@ -4,16 +4,12 @@ import Link from "next/link";
 import { useActionState } from "react";
 
 import { cloneCubeAction, type ActionState } from "@/app/cube/actions";
+import { btn } from "@/lib/ui";
 
 const initial: ActionState = {};
 
-const PROMINENT =
-  "inline-flex h-9 items-center rounded-md bg-zinc-900 px-3 text-sm font-medium text-white " +
-  "hover:bg-zinc-700 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white";
-
-const QUIET =
-  "inline-flex h-9 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium " +
-  "hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800";
+const PROMINENT = btn.primarySm;
+const QUIET = btn.secondarySm;
 
 /**
  * Signed-out visitors still see the button — hiding it would hide the feature

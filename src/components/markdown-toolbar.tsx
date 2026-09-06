@@ -44,7 +44,7 @@ export function applyEdit(
 
 const buttonClass =
   "flex h-8 min-w-8 items-center justify-center rounded px-2 text-sm " +
-  "text-zinc-700 hover:bg-zinc-200 dark:text-zinc-300 dark:hover:bg-zinc-700";
+  "text-muted hover:bg-hover";
 
 /**
  * One toolbar button. Defined at module scope, not inside the toolbar, because
@@ -80,7 +80,7 @@ function ToolButton({
 }
 
 function Divider() {
-  return <span aria-hidden className="mx-1 h-5 w-px bg-zinc-300 dark:bg-zinc-700" />;
+  return <span aria-hidden className="mx-1 h-5 w-px bg-line" />;
 }
 
 /**
@@ -117,7 +117,7 @@ export default function MarkdownToolbar({
     <div
       role="toolbar"
       aria-label="Formatting"
-      className="flex flex-wrap items-center gap-0.5 rounded-t-md border border-b-0 border-zinc-300 bg-zinc-100 p-1 dark:border-zinc-700 dark:bg-zinc-800"
+      className="flex flex-wrap items-center gap-0.5 rounded-t-md border border-b-0 border-line bg-sunken p-1"
     >
       {([1, 2, 3] as const).map((level) => (
         <ToolButton

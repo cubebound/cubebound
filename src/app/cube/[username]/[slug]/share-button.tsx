@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { btn } from "@/lib/ui";
 
 /**
  * Copies the cube's public URL.
@@ -46,14 +47,14 @@ export default function ShareButton({
         type="button"
         onClick={copy}
         title={`Copy this cube's link (${visibility})`}
-        className="inline-flex h-9 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        className={btn.secondarySm}
       >
         {state === "copied" ? "Link copied" : "Share"}
       </button>
 
       {/* Assertive: the caveat matters more than the confirmation, and a
           visitor acting on a dead link is the thing to interrupt for. */}
-      <span role="status" aria-live="polite" className="text-xs text-zinc-600 dark:text-zinc-400">
+      <span role="status" aria-live="polite" className="text-xs text-muted">
         {state === "copied" && visibility === "unlisted" && "Unlisted — anyone with the link can view."}
         {state === "copied" && visibility === "private" && (
           <>
@@ -73,7 +74,7 @@ export default function ShareButton({
           value={url}
           aria-label="Cube link"
           onFocus={(event) => event.currentTarget.select()}
-          className="h-9 w-64 rounded-md border border-zinc-300 bg-white px-2 text-xs dark:border-zinc-700 dark:bg-zinc-900"
+          className="h-9 w-64 rounded-md border border-line bg-sunken px-2 text-xs"
         />
       )}
     </div>

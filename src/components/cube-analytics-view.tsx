@@ -25,7 +25,7 @@ export default function CubeAnalyticsView({ cards }: { cards: AnalyticsCard[] })
 
   if (stats.total === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-zinc-300 p-10 text-center text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+      <p className="rounded-lg border border-dashed border-line p-10 text-center text-muted">
         Add some cards and this fills in.
       </p>
     );
@@ -115,25 +115,25 @@ export default function CubeAnalyticsView({ cards }: { cards: AnalyticsCard[] })
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[32rem] text-sm">
               <thead>
-                <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500 dark:border-zinc-800">
+                <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-subtle">
                   <th className="py-2 pr-3 font-medium">Keyword</th>
                   <th className="py-2 pr-3 text-right font-medium">Cards</th>
                   <th className="py-2 pr-3 text-right font-medium">Share</th>
                   <th className="py-2 font-medium">Domains</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-900">
+              <tbody className="divide-y divide-line">
                 {stats.keywords.rows.map((row) => (
                   <tr key={row.keyword}>
                     <td className="py-1.5 pr-3 font-medium">{row.keyword}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{row.count}</td>
-                    <td className="py-1.5 pr-3 text-right tabular-nums text-zinc-500">
+                    <td className="py-1.5 pr-3 text-right tabular-nums text-subtle">
                       {pct(row.share)}
                     </td>
                     <td className="py-1.5">
                       {/* A bar per domain rather than a list of names: at this
                           density the shape is readable and the words are not. */}
-                      <span className="flex h-2.5 w-32 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-900">
+                      <span className="flex h-2.5 w-32 overflow-hidden rounded-full bg-sunken">
                         {row.domains.map((domain) => (
                           <span
                             key={domain.key}

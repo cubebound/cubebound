@@ -19,7 +19,7 @@ export interface PaginationProps {
 }
 
 const linkClass =
-  "rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";
+  "rounded-md border border-line px-3 py-1.5 text-sm hover:bg-hover";
 
 export default function Pagination({
   page,
@@ -35,9 +35,9 @@ export default function Pagination({
   return (
     <nav
       aria-label="Pagination"
-      className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800"
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4"
     >
-      <p className="text-sm tabular-nums text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm tabular-nums text-muted">
         Showing {first.toLocaleString()}–{last.toLocaleString()} of {total.toLocaleString()}
         {label ? ` ${label}` : ""}
       </p>
@@ -49,7 +49,7 @@ export default function Pagination({
         ) : (
           <span className={`${linkClass} cursor-default opacity-40`}>← Previous</span>
         )}
-        <span className="text-sm tabular-nums text-zinc-600 dark:text-zinc-400">
+        <span className="text-sm tabular-nums text-muted">
           Page {page} of {pageCount}
         </span>
         {page < pageCount ? (

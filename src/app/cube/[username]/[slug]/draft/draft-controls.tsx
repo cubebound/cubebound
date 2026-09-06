@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { btn } from "@/lib/ui";
 
 /**
  * Goes to the draft settings to start a fresh draft of the same cube.
@@ -16,7 +17,7 @@ export default function RestartDraft({ draftPath }: { draftPath: string }) {
   return (
     <Link
       href={`${draftPath}?new=1`}
-      className="inline-flex h-9 items-center rounded-md border border-zinc-300 px-3 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+      className={btn.secondarySm}
     >
       New draft
     </Link>

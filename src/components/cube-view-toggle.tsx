@@ -9,6 +9,7 @@ import {
   CUBE_VIEWS,
   type CubeView,
 } from "@/lib/cube-view";
+import { segment } from "@/lib/ui";
 
 const LABELS: Record<CubeView, string> = { visual: "Visual", text: "List" };
 
@@ -42,7 +43,7 @@ export default function CubeViewToggle({ active }: { active: CubeView }) {
     <div
       role="group"
       aria-label="Card list view"
-      className={`inline-flex overflow-hidden rounded-md border border-zinc-300 dark:border-zinc-700 ${isPending ? "opacity-60" : ""}`}
+      className={`inline-flex overflow-hidden rounded-md border border-line ${isPending ? "opacity-60" : ""}`}
     >
       {CUBE_VIEWS.map((view) => (
         <button
@@ -50,11 +51,7 @@ export default function CubeViewToggle({ active }: { active: CubeView }) {
           type="button"
           onClick={() => choose(view)}
           aria-pressed={view === active}
-          className={`px-3 py-1.5 text-sm font-medium ${
-            view === active
-              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-              : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          }`}
+          className={view === active ? segment.active : segment.inactive}
         >
           {LABELS[view]}
         </button>

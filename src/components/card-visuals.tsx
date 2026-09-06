@@ -36,7 +36,7 @@ export function EnergyChip({ energy }: { energy: number | null }) {
   return (
     <span
       title={`Energy ${energy}`}
-      className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-[11px] font-semibold tabular-nums text-zinc-700 dark:bg-zinc-700 dark:text-zinc-100"
+      className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-sunken text-[11px] font-semibold tabular-nums text-muted"
     >
       {energy}
     </span>
@@ -110,7 +110,7 @@ export function PowerCost({
   return (
     <span
       aria-label={`Power ${total}${tint.length > 0 ? ` ${tint.join("/")}` : ""}`}
-      className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-zinc-600 dark:text-zinc-400"
+      className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-muted"
     >
       {total}
       <span
@@ -130,7 +130,7 @@ function SymbolBadge({ symbol }: { symbol: RulesSymbol }) {
       return (
         <span
           title={symbol.label}
-          className={`${shared} size-[1.15em] rounded-full bg-zinc-700 text-[0.72em] font-semibold tabular-nums text-white dark:bg-zinc-300 dark:text-zinc-900`}
+          className={`${shared} size-[1.15em] rounded-full bg-ink text-[0.72em] font-semibold tabular-nums text-surface`}
         >
           {symbol.value}
         </span>
@@ -154,13 +154,13 @@ function SymbolBadge({ symbol }: { symbol: RulesSymbol }) {
       );
     case "might":
       return (
-        <span title="Might" className={`${shared} font-semibold text-zinc-700 dark:text-zinc-300`}>
+        <span title="Might" className={`${shared} font-semibold text-muted`}>
           ⚔
         </span>
       );
     case "exhaust":
       return (
-        <span title="Exhaust" className={`${shared} font-semibold text-zinc-700 dark:text-zinc-300`}>
+        <span title="Exhaust" className={`${shared} font-semibold text-muted`}>
           ⟳
         </span>
       );
@@ -176,14 +176,14 @@ function SymbolBadge({ symbol }: { symbol: RulesSymbol }) {
 
 export function RulesText({ text }: { text: string }) {
   return (
-    <p className="text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+    <p className="text-sm leading-relaxed text-ink">
       {parseRulesText(text).map((node, i) => {
         if (node.type === "text") return <span key={i}>{node.value}</span>;
         if (node.type === "keyword") {
           return (
             <span
               key={i}
-              className="mx-0.5 rounded bg-zinc-200 px-1 py-px text-[0.85em] font-semibold text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100"
+              className="mx-0.5 rounded bg-sunken px-1 py-px text-[0.85em] font-semibold text-ink"
             >
               {node.value}
             </span>
@@ -198,10 +198,10 @@ export function RulesText({ text }: { text: string }) {
 function Stat({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-baseline gap-2">
-      <dt className="w-20 shrink-0 text-xs uppercase tracking-wide text-zinc-500">
+      <dt className="w-20 shrink-0 text-xs uppercase tracking-wide text-subtle">
         {label}
       </dt>
-      <dd className="flex items-center gap-1.5 text-sm text-zinc-900 dark:text-zinc-100">
+      <dd className="flex items-center gap-1.5 text-sm text-ink">
         {children}
       </dd>
     </div>
@@ -239,7 +239,7 @@ export function CardDetail({
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        className="flex max-h-full w-full max-w-3xl flex-col gap-6 overflow-y-auto rounded-xl bg-white p-5 shadow-2xl md:flex-row dark:bg-zinc-900"
+        className="flex max-h-full w-full max-w-3xl flex-col gap-6 overflow-y-auto rounded-xl bg-raised p-5 shadow-2xl md:flex-row"
       >
         <div className="w-full shrink-0 md:w-80" style={{ aspectRatio: aspectRatio(card.type) }}>
           {card.imageFull ? (
@@ -250,7 +250,7 @@ export function CardDetail({
               className="size-full rounded-lg object-contain"
             />
           ) : (
-            <div className="flex size-full items-center justify-center rounded-lg bg-zinc-100 text-sm text-zinc-500 dark:bg-zinc-800">
+            <div className="flex size-full items-center justify-center rounded-lg bg-sunken text-sm text-subtle">
               No image
             </div>
           )}
@@ -259,10 +259,10 @@ export function CardDetail({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+              <h2 className="text-xl font-semibold text-ink">
                 {card.name}
               </h2>
-              <p className="mt-1 text-sm text-zinc-500">
+              <p className="mt-1 text-sm text-subtle">
                 {card.setCode} · #{card.collectorNo} · {card.rarity}
               </p>
             </div>
@@ -270,7 +270,7 @@ export function CardDetail({
               ref={closeRef}
               onClick={onClose}
               aria-label="Close"
-              className="rounded-md px-2 py-1 text-xl leading-none text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              className="rounded-md px-2 py-1 text-xl leading-none text-subtle hover:bg-hover"
             >
               ×
             </button>
@@ -285,7 +285,7 @@ export function CardDetail({
                   <span>{card.domains.join(" / ")}</span>
                 </>
               ) : (
-                <span className="text-zinc-500">—</span>
+                <span className="text-subtle">—</span>
               )}
             </Stat>
             {card.energyCost !== null && (
@@ -309,7 +309,7 @@ export function CardDetail({
                     <Link
                       key={tag}
                       href={`/cards?trait=${encodeURIComponent(tag)}`}
-                      className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700"
+                      className="rounded bg-sunken px-1.5 py-0.5 text-xs hover:bg-hover"
                     >
                       {tag}
                     </Link>
@@ -321,13 +321,13 @@ export function CardDetail({
           </dl>
 
           {card.rulesText && (
-            <div className="mt-5 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+            <div className="mt-5 border-t border-line pt-4">
               <RulesText text={card.rulesText} />
             </div>
           )}
 
           {card.printingCount > 1 && (
-            <p className="mt-4 text-xs text-zinc-500">
+            <p className="mt-4 text-xs text-subtle">
               {card.printingCount} printings of this card.
             </p>
           )}
@@ -365,7 +365,7 @@ export function CardTile({
         aria-label={`View ${card.name}`}
       >
         <div
-          className={`relative overflow-hidden rounded-lg bg-zinc-100 ring-1 ring-black/5 transition group-hover:ring-2 group-hover:ring-zinc-400 group-focus-visible:ring-2 group-focus-visible:ring-zinc-500 dark:bg-zinc-800 dark:ring-white/10 ${dimmed ? "opacity-45" : ""}`}
+          className={`relative overflow-hidden rounded-lg bg-sunken ring-1 ring-black/5 transition group-hover:ring-2 group-hover:ring-accent-strong/60 group-focus-visible:ring-2 group-focus-visible:ring-accent-strong dark:ring-white/10 ${dimmed ? "opacity-45" : ""}`}
           style={{ aspectRatio: aspectRatio(card.type) }}
         >
           {/* Retries a failed fetch before settling on the name: this grid
@@ -400,7 +400,7 @@ export function CardTile({
             the tiles that don't. */}
         <div className="mt-1.5 flex h-5 items-center gap-1.5">
           <DomainDots domains={card.domains} />
-          <span className="truncate text-xs text-zinc-700 dark:text-zinc-300">{card.name}</span>
+          <span className="truncate text-xs text-muted">{card.name}</span>
           <span className="ml-auto">
             <EnergyChip energy={card.energyCost} />
           </span>

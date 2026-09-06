@@ -174,7 +174,7 @@ function CostCell({
   return (
     <div className="mb-1.5 overflow-hidden rounded border border-black/10 dark:border-white/10">
       <p
-        className="flex items-baseline gap-1 bg-black/[0.03] px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-white/[0.06] dark:text-zinc-400"
+        className="flex items-baseline gap-1 bg-black/[0.03] px-1.5 py-0.5 text-[11px] text-muted dark:bg-sunken/[0.06]"
         title={cost === "—" ? "No energy cost" : `Energy cost ${cost}`}
       >
         <span className="font-medium tabular-nums">{cost}</span>
@@ -201,7 +201,7 @@ function CostCell({
                 // whole card, so the tooltip was covering better information
                 // than it carried. Truncation is visual only: the button's
                 // accessible name is still the full text.
-                className="min-w-0 flex-1 truncate rounded py-0.5 text-left text-xs text-zinc-900 hover:underline dark:text-zinc-100"
+                className="min-w-0 flex-1 truncate rounded py-0.5 text-left text-xs text-ink hover:underline"
               >
                 {row.card.name}
                 {row.distinguishBy && (
@@ -305,13 +305,13 @@ export default function CubeTable({
 
           return (
             <section key={column} className="min-w-0">
-              <h4 className="mb-1.5 flex items-center gap-1.5 border-b border-zinc-200 pb-1 text-xs font-semibold uppercase tracking-wide dark:border-zinc-800">
+              <h4 className="mb-1.5 flex items-center gap-1.5 border-b border-line pb-1 text-xs font-semibold uppercase tracking-wide">
                 <span
                   className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
                   style={{ background: domainDot(domainsOfColumn(column)) }}
                 />
                 <span className="truncate">{column}</span>
-                <span className="ml-auto font-normal tabular-nums text-zinc-500">
+                <span className="ml-auto font-normal tabular-nums text-subtle">
                   {columnTotal}
                 </span>
               </h4>
@@ -324,7 +324,7 @@ export default function CubeTable({
                 return (
                   <div key={subgroup || "all"} className="mb-2">
                     {subgroup && (
-                      <p className="mb-1 flex items-baseline gap-1 px-0.5 text-[11px] font-medium text-zinc-500">
+                      <p className="mb-1 flex items-baseline gap-1 px-0.5 text-[11px] font-medium text-subtle">
                         <span>{subgroup}</span>
                         <span className="tabular-nums">({subgroupTotal})</span>
                       </p>

@@ -65,7 +65,7 @@ function ProviderForm({
       <button
         type="submit"
         disabled={pending}
-        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-medium hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-line px-4 text-sm font-medium hover:bg-hover disabled:opacity-60"
       >
         <ProviderIcon provider={provider} />
         {verb} {PROVIDER_LABELS[provider]}

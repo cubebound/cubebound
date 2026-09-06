@@ -29,7 +29,7 @@ export default function DeleteCube({ cube, cardCount }: { cube: Cube; cardCount:
   return (
     <form action={formAction} className="space-y-3 rounded-lg border border-red-300 p-4 dark:border-red-800">
       <input type="hidden" name="cubeId" value={cube.id} />
-      <p className="text-sm text-zinc-700 dark:text-zinc-300">
+      <p className="text-sm text-muted">
         This permanently deletes <strong>{cube.name}</strong>
         {cardCount > 0 && <> and its {cardCount} {cardCount === 1 ? "card" : "cards"}</>}. This
         cannot be undone, and the URL will stop working for anyone you shared it with.
@@ -43,7 +43,7 @@ export default function DeleteCube({ cube, cardCount }: { cube: Cube; cardCount:
         autoComplete="off"
         value={typed}
         onChange={(event) => setTyped(event.target.value)}
-        className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900"
+        className="w-full rounded-md border border-line bg-sunken px-3 py-2 text-sm focus:border-line-strong"
       />
       {state.error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
@@ -64,7 +64,7 @@ export default function DeleteCube({ cube, cardCount }: { cube: Cube; cardCount:
             setOpen(false);
             setTyped("");
           }}
-          className="h-10 rounded-md border border-zinc-300 px-4 text-sm dark:border-zinc-700"
+          className="h-10 rounded-md border border-line px-4 text-sm"
         >
           Cancel
         </button>

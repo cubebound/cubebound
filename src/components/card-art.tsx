@@ -57,7 +57,7 @@ export default function CardArt({
   return (
     <>
       {!ready && (
-        <div className="absolute inset-0 flex items-center justify-center p-2 text-center text-xs text-zinc-600 dark:text-zinc-300">
+        <div className="absolute inset-0 flex items-center justify-center p-2 text-center text-xs text-muted">
           {name}
         </div>
       )}

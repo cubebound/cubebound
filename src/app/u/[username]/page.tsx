@@ -106,13 +106,13 @@ export default async function ProfilePage({
         {/* The same initial the nav avatar uses, so you recognise the account. */}
         <span
           aria-hidden
-          className="flex size-14 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xl font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+          className="flex size-14 shrink-0 items-center justify-center rounded-full bg-ink text-xl font-medium text-surface"
         >
           {user.username.charAt(0).toUpperCase()}
         </span>
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{user.username}</h1>
-          <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
+          <h1 className="truncate text-2xl font-semibold">{user.username}</h1>
+          <p className="mt-0.5 text-sm text-muted">
             <span className="tabular-nums">{total}</span> public{" "}
             {total === 1 ? "cube" : "cubes"}
             {isYou && (
@@ -133,11 +133,11 @@ export default async function ProfilePage({
           defaultValue={keywords}
           placeholder={`Search ${isYou ? "your" : `${user.username}'s`} cubes…`}
           aria-label="Search these cubes"
-          className="h-10 min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="h-10 min-w-0 flex-1 rounded-md border border-line bg-sunken px-3 text-sm"
         />
         <button
           type="submit"
-          className="inline-flex h-10 shrink-0 items-center rounded-md border border-zinc-300 px-4 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          className="inline-flex h-10 shrink-0 items-center rounded-md border border-line px-4 text-sm font-medium hover:bg-hover"
         >
           Search
         </button>

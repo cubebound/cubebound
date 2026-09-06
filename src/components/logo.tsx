@@ -7,16 +7,20 @@ import Link from "next/link";
  * coming-soon pages and the 404 — renders this, so changing the artwork is a
  * change to this file alone.
  *
- * The mark is `public/logo.svg`, drawn on a 320×300 viewBox. It carries a lot
- * of small detail (dashed rear edges, sparkles, 1px card strokes) so it needs
- * real size to read — hence 26px even in the nav, rather than the 16–20px an
- * icon-only mark could get away with. Width and height are both set so the
- * header does not jump while the file loads.
+ * **There are two marks, and the size picks between them.** `public/logo.svg`
+ * is the detailed one: a 320×300 viewBox carrying dashed rear edges, five
+ * floating cards and sparkles. Its strokes are 1.2–2px on that viewBox, which
+ * at the nav's 26–30px works out to roughly 0.15 CSS pixels — below what a
+ * display can paint, so the cube's own edges greyed out and shimmered. That is
+ * why `lg` (64px) gets the detailed file and `sm`/`md` get
+ * `public/logo-mark.svg`, redrawn at 64×64 with strokes heavy enough to survive
+ * the scale. Same reasoning, and the same geometry, as `src/app/icon.svg`.
  *
- * Served as an `<img>` rather than inlined: the file repeats fixed `id`s
- * (`cbTitle`, `cbDesc`), and inlining it on a page that shows the logo twice
- * would duplicate them. As an image its internal title is ignored anyway, so
- * the accessible name comes from `alt`.
+ * Served as `<img>` rather than inlined: both files carry fixed `id`s, and
+ * inlining on a page that shows the logo twice would duplicate them. As an
+ * image the internal title is ignored anyway, so the accessible name comes
+ * from `alt`. Width and height are both set so the header does not jump while
+ * the file loads.
  */
 
 const SIZES = {
@@ -27,8 +31,8 @@ const SIZES = {
 
 export type LogoSize = keyof typeof SIZES;
 
-/** viewBox is 320 × 300, so width is a touch wider than height. */
-const ASPECT = 320 / 300;
+/** The detailed mark's viewBox is 320 × 300; the small one is square. */
+const DETAILED_ASPECT = 320 / 300;
 
 export function LogoMark({
   size = "md",
@@ -38,21 +42,23 @@ export function LogoMark({
   withWordmark?: boolean;
 }) {
   const { mark, text } = SIZES[size];
+  const detailed = size === "lg";
+  const width = Math.round(mark * (detailed ? DETAILED_ASPECT : 1));
 
   return (
     <span className="inline-flex items-center gap-2 align-middle">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/logo.svg"
+        src={detailed ? "/logo.svg" : "/logo-mark.svg"}
         alt={withWordmark ? "" : "cubebound.gg"}
         aria-hidden={withWordmark || undefined}
-        width={Math.round(mark * ASPECT)}
+        width={width}
         height={mark}
         className="shrink-0"
       />
       {withWordmark && (
-        <span className={`${text} font-semibold tracking-tight whitespace-nowrap`}>
-          cubebound<span className="text-zinc-400">.gg</span>
+        <span className={`${text} font-display font-semibold whitespace-nowrap`}>
+          cubebound<span className="text-subtle">.gg</span>
         </span>
       )}
     </span>

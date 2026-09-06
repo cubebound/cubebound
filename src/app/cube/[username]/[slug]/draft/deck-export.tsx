@@ -41,17 +41,17 @@ export default function DeckExport({ pool }: { pool: PoolCard[] }) {
   }
 
   return (
-    <details className="rounded-md border border-zinc-200 dark:border-zinc-800">
-      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-900">
+    <details className="rounded-md border border-line">
+      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium hover:bg-hover">
         Export deck
-        <span className="ml-2 font-normal text-zinc-500">
+        <span className="ml-2 font-normal text-subtle">
           for Piltover Archive and other builders
         </span>
       </summary>
 
-      <div className="space-y-3 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+      <div className="space-y-3 border-t border-line px-4 py-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded-md border border-zinc-300 text-sm dark:border-zinc-700">
+          <div className="flex rounded-md border border-line text-sm">
             {(["main", "side"] as const).map((which) => (
               <button
                 key={which}
@@ -60,8 +60,8 @@ export default function DeckExport({ pool }: { pool: PoolCard[] }) {
                 aria-pressed={board === which}
                 className={`px-3 py-1.5 first:rounded-l-md last:rounded-r-md ${
                   board === which
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                    : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    ? "bg-ink text-surface"
+                    : "hover:bg-hover"
                 }`}
               >
                 {which === "main" ? "Main deck" : "Sideboard"}
@@ -73,18 +73,18 @@ export default function DeckExport({ pool }: { pool: PoolCard[] }) {
             type="button"
             onClick={copy}
             disabled={list.count === 0}
-            className="h-9 rounded-md bg-zinc-900 px-3 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white"
+            className="h-9 rounded-md bg-ink px-3 text-sm font-medium text-surface hover:bg-ink-hover disabled:opacity-50"
           >
             {copied ? "Copied" : "Copy"}
           </button>
 
-          <span className="text-sm tabular-nums text-zinc-500">
+          <span className="text-sm tabular-nums text-subtle">
             {list.count} {list.count === 1 ? "card" : "cards"}
           </span>
         </div>
 
         {list.count === 0 ? (
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-subtle">
             {showSide
               ? "Nothing in the sideboard."
               : "Nothing in the main deck yet — move cards up from the sideboard."}
@@ -97,11 +97,11 @@ export default function DeckExport({ pool }: { pool: PoolCard[] }) {
             rows={Math.min(16, Math.max(4, list.text.split("\n").length))}
             aria-label={`${showSide ? "Sideboard" : "Main deck"} as text`}
             onFocus={(event) => event.currentTarget.select()}
-            className="w-full rounded-md border border-zinc-300 bg-white p-3 font-mono text-xs leading-relaxed dark:border-zinc-700 dark:bg-zinc-900"
+            className="w-full rounded-md border border-line bg-sunken p-3 font-mono text-xs leading-relaxed"
           />
         )}
 
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-subtle">
           One card per line, quantity first — the format Piltover Archive and
           other builders accept. <strong className="font-medium">Runes are not
           included</strong>, because they are supplied outside the draft; add
