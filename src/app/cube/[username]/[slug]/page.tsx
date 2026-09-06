@@ -31,6 +31,25 @@ interface RouteParams {
   slug: string;
 }
 
+/**
+ * A cube's own description, fit for a `<meta>` tag.
+ *
+ * The column is free text a user wrote for the page, so it can be paragraphs
+ * long and carry newlines. Search engines cut a description around 155
+ * characters, and a snippet cut mid-word reads as broken — so collapse the
+ * whitespace and clip at the last word that fits. Kept here rather than in
+ * `src/lib/` because this is its only caller; move it if a second appears.
+ */
+const META_DESCRIPTION_MAX = 155;
+
+function metaDescription(text: string): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= META_DESCRIPTION_MAX) return flat;
+  const cut = flat.slice(0, META_DESCRIPTION_MAX);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[,;:.\s]+$/, "")}…`;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -45,11 +64,21 @@ export async function generateMetadata({
     return { title: "Cube" };
   }
 
-  const title = `${cube.name} by ${cube.ownerUsername}`;
-  const description = cube.description ?? `A Riftbound cube by ${cube.ownerUsername}.`;
+  // "Riftbound cube" is the phrase people actually search, and the cube's own
+  // name carries none of it — the same reasoning that renamed the homepage off
+  // the bare brand. See "Page titles carry the words people search".
+  const title = `${cube.name} — Riftbound cube by ${cube.ownerUsername}`;
+  const description = metaDescription(
+    cube.description ?? `A Riftbound cube by ${cube.ownerUsername}.`,
+  );
   return {
     title,
     description,
+    // `?view=` and `?tab=` are the same cube under four or five URLs, and the
+    // view is *also* set from a cookie, so the variants get linked and shared
+    // in the wild rather than only crawled. They consolidate onto the bare
+    // path; none of the tabs is a page worth ranking on its own.
+    alternates: { canonical: `/cube/${cube.ownerUsername}/${cube.slug}` },
     // Unlisted means "not advertised": reachable by link, but kept out of
     // search results. The link preview still works, which is the point of it.
     robots: cube.visibility === "unlisted" ? { index: false, follow: false } : undefined,

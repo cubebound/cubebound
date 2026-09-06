@@ -12,6 +12,11 @@ export const metadata: Metadata = {
   description:
     "Browse every Riftbound card by set, domain, energy cost, type, rarity and " +
     "trait. Full art and rules text for all sets.",
+  // Every filter and page is a query string over the same page, and the filter
+  // surface is combinatorial — a crawler left to itself would index thousands
+  // of near-identical URLs and split the signal across all of them. The cards
+  // themselves are not lost: the sitemap carries the pages worth crawling.
+  alternates: { canonical: "/cards" },
 };
 
 export default async function CardsPage({

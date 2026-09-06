@@ -856,6 +856,24 @@ a stale row — but it means a source switch leaves residue worth checking for.
   is where a per-cube decision belongs. `sitemap.ts` lists public cubes and
   their owners via `searchCubes`, so the public-only rule is the same single one
   Explore uses, and it degrades to the static pages rather than 500ing.
+- **Every indexable route declares a canonical, and it is always the bare
+  path.** Each one has query-string variants serving the same content — `?view=`
+  and `?tab=` on a cube, the whole filter surface on `/cards`, `?q=`/`?sort=`/
+  `?page=` on `/explore`, and the `?code=…` auth near-miss on `/`. Without a
+  canonical each variant is a separate URL competing with the others, and on a
+  site this size the signal is thin enough already. Nothing is lost by
+  consolidating: every page worth crawling is in the sitemap. Canonicals resolve
+  against the per-request `metadataBase`, so a preview deployment self-references
+  rather than claiming to be production. **A private cube returns before this**,
+  from the same early exit that keeps its name out of a link preview, so the
+  canonical cannot confirm a guessed slug either.
+- **A cube's `<title>` names the game, not just the cube** — `"<name> —
+  Riftbound cube by <owner>"`. A cube's own name carries none of the words
+  anyone searches, which is the same reason the homepage stopped being the bare
+  brand. Its `<meta name="description">` is the owner's own description passed
+  through `metaDescription`: free text written for the page, so whitespace is
+  collapsed and it is clipped at the last whole word inside 155 characters
+  rather than cut mid-word by the search engine.
 - **The sitemap has a thin-content floor: `SITEMAP_MIN_CARDS` (20).** A
   near-empty cube's page is a name, a byline and nothing to read, and on a site
   this size a handful of them is a large share of everything indexable — two

@@ -14,6 +14,10 @@ export const metadata: Metadata = {
   description:
     "Browse Riftbound cubes built by the community. Search by name, description, " +
     "primer or the cards they hold, then draft or clone one into your own account.",
+  // `?q=`, `?sort=` and `?page=` are all the same page re-filtered, and indexed
+  // internal search results are thin by definition. Every public cube reaches
+  // a crawler through the sitemap rather than through a results page.
+  alternates: { canonical: "/explore" },
 };
 
 const pagerClass =

@@ -1,8 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { LogoMark } from "@/components/logo";
 import { getCurrentUser } from "@/lib/auth";
+
+// Title and description come from the layout's defaults; only the canonical is
+// this page's own. The near-miss `?code=…` catch below means the landing page
+// is reachable under a query string it should never be indexed under.
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 /** First value of a param that may arrive repeated. */
 function one(value: string | string[] | undefined): string | undefined {
