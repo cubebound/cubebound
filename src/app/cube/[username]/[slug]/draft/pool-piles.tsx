@@ -129,7 +129,7 @@ function Pile({
               onFocus={() => setRaised(index)}
               onBlur={() => setRaised((current) => (current === index ? null : current))}
               disabled={busy}
-              title={`${card.name} — ${actionLabel}`}
+              title={`${card.name}: ${actionLabel}`}
               aria-label={`${card.name}, ${actionLabel}`}
               className="block w-full rounded text-left transition disabled:opacity-50"
             >

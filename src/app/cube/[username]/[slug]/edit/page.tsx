@@ -185,7 +185,7 @@ export default async function EditCubePage({
         <section>
           <p className="mb-4 max-w-3xl text-sm text-muted">
             Cards you&rsquo;re considering. They don&rsquo;t count toward the cube
-            or get drafted — move one to a section when you decide to run it, the
+            or get drafted. Move one to a section when you decide to run it, the
             same way you move cards between sections.
           </p>
           <CubeContents
@@ -216,7 +216,7 @@ export default async function EditCubePage({
       ) : writingPrimer ? (
         <section>
           <p className="mb-4 max-w-3xl text-sm text-muted">
-            A long-form write-up for people browsing your cube — the archetypes,
+            A long-form write-up for people browsing your cube: the archetypes,
             the house rules, why a card is in. Separate from the one-line
             description, and shown on the cube&rsquo;s Primer tab.
           </p>

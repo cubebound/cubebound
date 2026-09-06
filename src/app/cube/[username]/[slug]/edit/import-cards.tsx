@@ -13,7 +13,7 @@ import { MAX_IMPORT_LINES } from "@/lib/import-list";
 import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
 import { btn } from "@/lib/ui";
 
-const PLACEHOLDER = `# Paste a card list — one per line
+const PLACEHOLDER = `# Paste a card list, one per line
 2 Fury Rune
 Blazing Scorcher
 

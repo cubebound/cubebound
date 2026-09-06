@@ -173,7 +173,8 @@ export default function DraftSettings({
         </span>
         {short > 0 && (
           <span className="text-amber-600 dark:text-amber-400">
-            — {short} filled from main
+            {" "}
+            ({short} filled from main)
           </span>
         )}
       </li>
@@ -246,7 +247,7 @@ export default function DraftSettings({
         <span className="text-xs text-subtle">
           {canUseEitherSlot(config)
             ? "One of the two per slot, at random."
-            : "Needs both legends and battlefields reserved — it draws from each."}
+            : "Needs both legends and battlefields reserved, since it draws from each."}
         </span>
       </label>
 
@@ -278,7 +279,8 @@ export default function DraftSettings({
               </span>
               {mainShort > 0 && (
                 <span className="font-medium text-red-600 dark:text-red-400">
-                  — {mainShort} short
+                  {" "}
+                  ({mainShort} short)
                 </span>
               )}
             </li>
@@ -294,7 +296,8 @@ export default function DraftSettings({
                 </span>
                 {flexibleShort > 0 && (
                   <span className="text-amber-600 dark:text-amber-400">
-                    — {flexibleShort} filled from main
+                    {" "}
+                    ({flexibleShort} filled from main)
                   </span>
                 )}
               </li>

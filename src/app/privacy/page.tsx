@@ -71,7 +71,7 @@ export default function PrivacyPolicy() {
               public and appears in the address of every cube you make.
             </li>
             <li>
-              <strong className="font-medium">The content you create</strong> —
+              <strong className="font-medium">The content you create</strong>:
               cubes, card lists, descriptions, primers, drafts and which cubes
               you follow.
             </li>
@@ -99,22 +99,22 @@ export default function PrivacyPolicy() {
             <li>
               <strong className="font-medium">
                 <code className="font-mono text-xs">cubebound.theme</code>
-              </strong>{" "}
-              — whether you chose light or dark.
+              </strong>:
+              whether you chose light or dark.
             </li>
             <li>
               <strong className="font-medium">
                 <code className="font-mono text-xs">cubebound.cube-view2</code>
-              </strong>{" "}
-              — whether you prefer the list or image view of a cube.
+              </strong>:
+              whether you prefer the list or image view of a cube.
             </li>
             <li>
               <strong className="font-medium">
                 <code className="font-mono text-xs">
                   cubebound.backup-notice
                 </code>
-              </strong>{" "}
-              — that you dismissed the reminder to add a second way of signing
+              </strong>:
+              that you dismissed the reminder to add a second way of signing
               in.
             </li>
           </ul>
@@ -142,15 +142,15 @@ export default function PrivacyPolicy() {
           </p>
           <ul className="ml-5 list-disc space-y-1">
             <li>
-              <strong className="font-medium">Vercel</strong> — hosting and
+              <strong className="font-medium">Vercel</strong>: hosting and
               analytics.
             </li>
             <li>
-              <strong className="font-medium">Supabase</strong> — the database
+              <strong className="font-medium">Supabase</strong>: the database
               and sign-in system, which stores your email address.
             </li>
             <li>
-              <strong className="font-medium">Riot Games</strong> — card images
+              <strong className="font-medium">Riot Games</strong>: card images
               are served directly from Riot&rsquo;s content network, so loading a
               page that shows cards makes a request to their servers.
             </li>

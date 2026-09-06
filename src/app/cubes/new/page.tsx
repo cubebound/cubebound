@@ -22,7 +22,7 @@ export default async function NewCubePage() {
       </Link>
       <h1 className="mt-3 text-2xl font-semibold">New cube</h1>
       <p className="mt-1 mb-6 text-sm text-muted">
-        Its URL comes from the name — you can rename it later without breaking
+        Its URL comes from the name. You can rename it later without breaking
         the link.
       </p>
       <CubeForm action={createCubeAction} submitLabel="Create cube" />

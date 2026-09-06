@@ -86,7 +86,7 @@ export default function DeckExport({ pool }: { pool: PoolCard[] }) {
           <p className="text-sm text-subtle">
             {showSide
               ? "Nothing in the sideboard."
-              : "Nothing in the main deck yet — move cards up from the sideboard."}
+              : "Nothing in the main deck yet. Move cards up from the sideboard."}
           </p>
         ) : (
           <textarea
@@ -101,7 +101,7 @@ export default function DeckExport({ pool }: { pool: PoolCard[] }) {
         )}
 
         <p className="text-xs text-subtle">
-          One card per line, quantity first — the format Piltover Archive and
+          One card per line, quantity first: the format Piltover Archive and
           other builders accept. <strong className="font-medium">Runes are not
           included</strong>, because they are supplied outside the draft; add
           them in the builder.

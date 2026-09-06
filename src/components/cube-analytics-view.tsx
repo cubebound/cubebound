@@ -43,7 +43,7 @@ export default function CubeAnalyticsView({ cards }: { cards: AnalyticsCard[] })
           stats.curve.costless > 0
             ? `By energy cost, split by domain. ${stats.curve.costless} card${
                 stats.curve.costless === 1 ? "" : "s"
-              } with no cost — legends, runes and battlefields — sit off this scale.`
+              } with no cost (legends, runes and battlefields) sit off this scale.`
             : "By energy cost, split by domain."
         }
       >
@@ -86,7 +86,7 @@ export default function CubeAnalyticsView({ cards }: { cards: AnalyticsCard[] })
 
       <Panel
         title={`Keywords (${stats.keywords.unique})`}
-        subtitle="Read from each card's printed rules text — what the cube uses, how often, and which domains carry it."
+        subtitle="Read from each card's printed rules text: what the cube uses, how often, and which domains carry it."
       >
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard value={String(stats.keywords.unique)} label="Unique keywords" />

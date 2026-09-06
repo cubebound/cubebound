@@ -55,10 +55,10 @@ export default function ShareButton({
       {/* Assertive: the caveat matters more than the confirmation, and a
           visitor acting on a dead link is the thing to interrupt for. */}
       <span role="status" aria-live="polite" className="text-xs text-muted">
-        {state === "copied" && visibility === "unlisted" && "Unlisted — anyone with the link can view."}
+        {state === "copied" && visibility === "unlisted" && "Unlisted: anyone with the link can view."}
         {state === "copied" && visibility === "private" && (
           <>
-            Private — only you can open this.{" "}
+            Private: only you can open this.{" "}
             {settingsHref && (
               <Link href={settingsHref} className="underline underline-offset-2">
                 Change visibility

@@ -56,7 +56,7 @@ export default function DeleteDraft({
               }
               router.refresh();
             } catch {
-              setError("Couldn't reach the server — nothing was deleted.");
+              setError("Couldn't reach the server, so nothing was deleted.");
             }
           })
         }

@@ -107,7 +107,7 @@ export default async function CubesPage({
           )}
           {atLimit ? (
             <span
-              title={`You can hold ${MAX_CUBES_PER_USER} cubes. Delete one to make room.`}
+              title={`You can keep ${MAX_CUBES_PER_USER} cubes. Delete one to make room.`}
               className="h-9 cursor-not-allowed rounded-md bg-ink px-3 py-2 text-sm font-medium text-surface opacity-40"
             >
               New cube

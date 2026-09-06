@@ -61,7 +61,7 @@ async function runAction<T extends { error?: string }>(
     const digest = (error as { digest?: string })?.digest;
     if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) throw error;
     onError(
-      "Lost contact with the server. Your draft is saved — reload the page to pick up where you left off.",
+      "Lost contact with the server. Your draft is saved. Reload the page to pick up where you left off.",
     );
     return null;
   }
@@ -142,7 +142,7 @@ export function StartDraft({
     <div className="max-w-2xl space-y-4">
       {currentDraftPath && (
         <p className="rounded-md border border-line p-3 text-sm text-muted">
-          Starting a new draft keeps the current one — it stays in{" "}
+          Starting a new draft keeps the current one. It stays in{" "}
           <a href="/drafts" className="underline underline-offset-2">
             your drafts
           </a>
@@ -166,14 +166,14 @@ export function StartDraft({
         {tab === "draftmancer" ? (
           <>
             These settings become the pack template in the file.{" "}
-            <strong className="font-medium">Players</strong> only checks the cube
-            is big enough — Draftmancer&rsquo;s host sets the real number — and{" "}
-            <strong className="font-medium">packs each</strong> goes in as their
-            default.
+            <strong className="font-medium">Players</strong> only checks that the
+            cube is big enough, since Draftmancer&rsquo;s host sets the real
+            number. <strong className="font-medium">Packs each</strong> goes in
+            as their default.
           </>
         ) : (
           <>
-            Empty seats are filled by bots, and the draft is saved as you pick —
+            Empty seats are filled by bots, and the draft is saved as you pick, so
             you can leave and come back to it.
           </>
         )}
@@ -236,7 +236,7 @@ function SignInToDraft() {
       <a href="/login" className="font-medium underline underline-offset-2">
         Sign in
       </a>{" "}
-      to draft this cube — you don&rsquo;t need to own it.
+      to draft this cube. You don&rsquo;t need to own it.
     </p>
   );
 }
@@ -428,8 +428,8 @@ export function EndScreen({
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted">
-        This draft is saved. Sort your pool between main and sideboard here —
-        it keeps, and you can reopen it any time from{" "}
+        This draft is saved. Sort your pool between main and sideboard here. It
+        keeps, and you can reopen it any time from{" "}
         <a href="/drafts" className="underline underline-offset-2">
           your drafts
         </a>

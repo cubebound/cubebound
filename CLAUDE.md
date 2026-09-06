@@ -424,6 +424,26 @@ a stale row — but it means a source switch leaves residue worth checking for.
   theme" — so a raw `zinc-`, `bg-white` or `text-white` in `src/` is a bug
   outside of red destructive buttons and overlays on card art.
 - Riftbound term casing in UI: domains and card types are proper nouns (Fury, Battlefield). Sources store them lowercase; title-case at the boundary via `titleCase` in `src/lib/riftbound.ts`.
+- **User-facing copy avoids the em dash.** It had become the site's default
+  joint — roughly 35 of them across the interface, several sentences carrying a
+  pair — and a dash-heavy register now reads to a lot of people as
+  machine-written, which is the wrong thing for a one-person fan project to
+  sound like. Use what the sentence actually needs: a full stop where two
+  statements are doing separate work, a colon where a term is about to be
+  glossed or a list introduced, parentheses for a true aside, or a plain
+  conjunction. The remaining ones are deliberate and are not prose: the `—`
+  glyph that marks a **costless** card in the cube table, the pool piles and
+  the analytics panels, and the em dash inside page `<title>`s, which is
+  ordinary title convention and is SEO-load-bearing besides. **Code comments
+  are exempt** — they are not read by visitors, and this file is full of them.
+- **The rest of the voice**, derived from the copy that was already there and
+  worth keeping to: plain and declarative, no exclamation marks and no
+  marketing verbs; say the consequence rather than only the rule ("so shared
+  links keep working"); name a tradeoff instead of hiding it; contractions
+  throughout; second person and active. **One verb per concept** — it is *sign
+  in* and *sign out* everywhere, never "log out"; a generic "you must be
+  authenticated" error is always "You need to be signed in.", and where the
+  action can be named, name it ("Sign in to clone this cube.").
 - Filter dropdowns are built from the **distinct values actually in the DB**, then sorted by the canonical lists in `src/lib/riftbound.ts` with unrecognized values kept at the end (`sortByCanonical`). A new set's new rarity therefore appears without a code change — `Promo` already does, and is not in `RARITIES`. That is also why sorting asserts on a **rank**, not a value: "sort by rarity ends at Showcase" is wrong, because `Promo` sorts after it.
 - **Set, domain, rarity and energy are multi-select; they OR within a filter and
   AND across filters.** Ticking Fury and Calm means either — an AND would return

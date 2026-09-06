@@ -139,7 +139,7 @@ export default function CoverPicker({
       <p className="mt-2 text-xs text-subtle">
         {choice
           ? "This art shows when the cube is shared as a link."
-          : "No cover set — a card from the cube is used automatically."}
+          : "No cover set, so a card from the cube is used automatically."}
       </p>
     </div>
   );

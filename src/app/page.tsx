@@ -64,14 +64,13 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       </h1>
       <div className="mt-5 space-y-4 text-muted">
         <p>
-          Welcome to cubebound.gg! Build a cube from the full card pool, organize
-          it by domain, cost and type, and write a primer explaining how it
-          drafts.
+          Build a cube from the full card pool, organize it by domain, cost and
+          type, and write a primer explaining how it drafts.
         </p>
         <p>
-          Share your cube far and wide with shareable links — anyone can clone
-          one into their own account to make it theirs. Do a test draft against
-          bots or export your cube to Draftmancer and draft it with friends.
+          Share it with a link. Anyone who opens it can clone the cube into their
+          own account and make it theirs. Test-draft it against bots, or export
+          it to Draftmancer and draft it with friends.
         </p>
         {/* Above the Cube Cobra credit and below the pitch: someone who has
             never drafted a cube needs this before they need a Create button,
@@ -89,6 +88,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       <div className="mt-8 flex flex-wrap items-center gap-3">
         <Link href={build.href} className={btn.primary}>
           {build.label}
+        </Link>
+        <Link href="/explore" className={btn.secondary}>
+          Browse cubes
         </Link>
         <Link href="/cards" className={btn.secondary}>
           Browse cards

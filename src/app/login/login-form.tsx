@@ -69,7 +69,7 @@ export default function LoginForm({ initialError }: { initialError?: string }) {
         {pending ? "Sending…" : "Email me a sign-in link"}
       </button>
         <p className="text-xs text-subtle">
-          No password needed — we email you a one-time link.
+          No password needed. We email you a one-time link.
         </p>
       </form>
 
@@ -81,12 +81,12 @@ export default function LoginForm({ initialError }: { initialError?: string }) {
           uses — so that is the route to say out loud, rather than leaving
           people to discover the failure. */}
       <p className="text-xs text-subtle">
-        Already have an account? Signing in with Google or Discord using the{" "}
-        <strong className="font-medium">same email address</strong> connects to it
-        automatically, cubes and all. To use a Google or Discord account
-        associated with a{" "}
+        Already have an account? Google or Discord will connect to it
+        automatically if it uses the{" "}
+        <strong className="font-medium">same email address</strong>, cubes and
+        all. If it uses a{" "}
         <strong className="font-medium">different email address</strong>, sign in
-        with your email first, then connect it from Settings. Otherwise, you get
+        by email first and connect it from Settings, or you&rsquo;ll end up with
         a second, empty account.
       </p>
     </div>

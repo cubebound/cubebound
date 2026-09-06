@@ -159,7 +159,7 @@ export default async function ProfilePage({
             ) : isYou ? (
               <>
                 None of your cubes are public yet. Set one to public in its
-                settings and it will show up here.
+                settings and it&rsquo;ll show up here.
               </>
             ) : (
               <>{user.username} hasn&rsquo;t made any public cubes yet.</>

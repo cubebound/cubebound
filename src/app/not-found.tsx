@@ -17,7 +17,7 @@ export default function NotFound() {
       <Logo size="lg" className="inline-block" />
       <h1 className="mt-6 text-2xl font-semibold">Page not found</h1>
       <p className="mt-3 text-muted">
-        That link is wrong, or the cube behind it is private or gone.
+        That link is wrong, or whatever it pointed at is private or gone.
       </p>
       <p className="mt-8 flex flex-wrap justify-center gap-3">
         <Link href="/" className={btn.primary}>

@@ -37,7 +37,7 @@ export default async function CardsPage({
         <h1 className="text-2xl font-semibold">Cards</h1>
         <p className="mt-1 text-sm text-muted">
           Every Riftbound card. Click a card for full art and rules text. One
-          entry per card by default — tick “All printings” for alt art and
+          entry per card by default; tick “All printings” for alt art and
           signature versions.
         </p>
       </header>

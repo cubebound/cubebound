@@ -142,7 +142,7 @@ export async function claimUsernameAction(
   formData: FormData,
 ): Promise<FormState> {
   const user = await getAuthUser();
-  if (!user) return { error: "You need to sign in first." };
+  if (!user) return { error: "You need to be signed in." };
 
   const check = checkUsername(String(formData.get("username") ?? ""));
   if (!check.ok) return { error: check.error };

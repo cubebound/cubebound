@@ -155,7 +155,7 @@ export async function setUserSuspendedAction(
     return { error: "You cannot suspend your own account." };
   }
   if (target.isAdmin && suspended) {
-    return { error: "Suspend the admin flag first — admins cannot be suspended." };
+    return { error: "Remove the admin flag first; admins cannot be suspended." };
   }
 
   await record(

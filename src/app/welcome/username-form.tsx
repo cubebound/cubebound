@@ -45,7 +45,8 @@ export default function UsernameForm() {
       </button>
       <p className="text-xs text-subtle">
         {USERNAME_MIN}–{USERNAME_MAX} characters: letters, numbers, hyphens and
-        underscores. This becomes part of your cube URLs, so choose carefully.
+        underscores. It becomes part of every cube URL you share, and you
+        can&rsquo;t change it later.
       </p>
     </form>
   );

@@ -97,10 +97,10 @@ export default function DraftmancerExport({
         Main, legends and battlefields are exported.{" "}
         <strong className="font-medium">
           Runes, sideboard and maybeboard are not
-        </strong>{" "}
-        — the same sections our own draft leaves out. Draftmancer bots have never
-        seen a Riftbound card, so each one carries a 0–5 rating derived from its
-        rarity to give them something to pick on.
+        </strong>
+        . Those are the same sections our own draft leaves out. Draftmancer bots
+        have never seen a Riftbound card, so each one carries a 0–5 rating
+        derived from its rarity to give them something to pick on.
       </p>
     </div>
   );

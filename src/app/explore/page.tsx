@@ -183,7 +183,7 @@ export default async function ExplorePage({
 
       {!hasMore && found.length === EXPLORE_LIMIT && (
         <p className="mt-3 text-center text-xs text-subtle">
-          That&rsquo;s as far as this list goes — search to find more.
+          That&rsquo;s as far as this list goes. Search to find more.
         </p>
       )}
     </div>

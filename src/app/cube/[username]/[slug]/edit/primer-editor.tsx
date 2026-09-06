@@ -58,7 +58,7 @@ export default function PrimerEditor({
             className="w-full rounded-b-md border border-line bg-sunken p-3 font-mono text-sm leading-relaxed focus:border-line-strong"
           />
           <p className="mt-1 text-xs text-subtle">
-            Markdown only — raw HTML is stripped when the primer is shown.
+            Markdown only. Raw HTML is stripped when the primer is shown.
           </p>
         </div>
 

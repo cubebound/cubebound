@@ -35,8 +35,9 @@ export default function Error({
       <Logo size="lg" className="inline-block" />
       <h1 className="mt-6 text-2xl font-semibold">Something broke</h1>
       <p className="mt-3 text-muted">
-        That page didn&rsquo;t load. Trying again usually works; if it doesn&rsquo;t,
-        the reference below identifies what went wrong.
+        That page didn&rsquo;t load. Trying again usually works; if it
+        doesn&rsquo;t, quote the reference below and it&rsquo;ll find this in our
+        logs.
       </p>
       {error.digest && (
         <p className="mt-3 inline-block rounded border border-line bg-sunken px-2 py-1 font-mono text-xs text-subtle">

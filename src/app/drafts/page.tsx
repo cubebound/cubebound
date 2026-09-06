@@ -67,7 +67,7 @@ export default async function DraftsPage({
         <div className="rounded-lg border border-dashed border-line p-10 text-center">
           <p className="text-muted">
             You haven&rsquo;t drafted yet. Open any cube and choose{" "}
-            <span className="font-medium">Draft</span> — you don&rsquo;t need to own it.
+            <span className="font-medium">Draft</span>. You don&rsquo;t need to own it.
           </p>
         </div>
       ) : (

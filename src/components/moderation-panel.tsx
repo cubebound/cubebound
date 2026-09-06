@@ -104,7 +104,7 @@ export function CubeModerationPanel({
           <form action={deleteFormAction} className="space-y-2">
             <input type="hidden" name="cubeId" value={cubeId} />
             <p className="text-sm text-muted">
-              This cannot be undone — there is no backup to restore from. Hiding
+              This cannot be undone. There is no backup to restore from, and hiding
               is reversible; this is not. Type{" "}
               <strong className="font-semibold">{cubeName}</strong> to confirm.
             </p>
@@ -168,7 +168,7 @@ export function UserModerationPanel({
 
       {suspended && (
         <p className="mt-2 text-sm text-muted">
-          Suspended — none of this account&rsquo;s cubes render for anyone.
+          Suspended. None of this account&rsquo;s cubes render for anyone.
         </p>
       )}
 
@@ -207,7 +207,7 @@ export function UserModerationPanel({
               <strong className="font-semibold">
                 all {cubeCount} of its cube{cubeCount === 1 ? "" : "s"}
               </strong>
-              , with their drafts and follows. This cannot be undone — suspending
+              , with their drafts and follows. This cannot be undone, and suspending
               is reversible and does the same job. Type{" "}
               <strong className="font-semibold">{username}</strong> to confirm.
             </p>

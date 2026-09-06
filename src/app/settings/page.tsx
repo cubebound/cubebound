@@ -95,8 +95,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             <p className="text-sm font-medium">Add a backup way in</p>
             <p className="mt-1 text-sm text-muted">
               Right now your email is the only way into this account. If you lose
-              access to that mailbox — or mail simply stops arriving — there is
-              no password to fall back on and no way for us to verify it is you.
+              access to that mailbox, or mail simply stops arriving, there is no
+              password to fall back on and no way for us to verify it is you.
               Connecting Discord or Google takes a few seconds and fixes that
               permanently.
             </p>
@@ -118,7 +118,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
 
         <p className="mt-4 text-xs text-subtle">
           Connecting here attaches the provider to <em>this</em> account, whatever
-          address it uses — your Google or Discord address does not have to match
+          address it uses. Your Google or Discord address does not have to match
           your sign-in email. The one thing that will not work is connecting an
           account already linked to a different cubebound account.
         </p>
@@ -128,7 +128,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
         <h2 className="text-lg font-semibold">Your data</h2>
         <p className="mt-2 text-sm text-muted">
           You can delete any cube from its own Settings page. Deleting your whole
-          account isn&rsquo;t self-serve yet — see the{" "}
+          account isn&rsquo;t self-serve yet. See the{" "}
           <Link href="/privacy" className="underline underline-offset-2">
             privacy policy
           </Link>{" "}

@@ -456,7 +456,7 @@ export function draftmancerPlan(
     const need = config.seats * config.packsPerPlayer * perPack;
     if (perPack > 0 && have < need) {
       warnings.push(
-        `${label}: ${config.seats} players × ${config.packsPerPlayer} packs needs ${need}, and this cube has ${have}. Draftmancer will stop when the sheet runs out — use fewer players or packs.`,
+        `${label}: ${config.seats} players × ${config.packsPerPlayer} packs needs ${need}, and this cube has ${have}. Draftmancer will stop when the sheet runs out. Use fewer players or packs.`,
       );
     }
   };
