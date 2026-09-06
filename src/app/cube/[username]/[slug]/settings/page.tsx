@@ -76,7 +76,7 @@ export default async function CubeSettingsPage({
       </div>
 
       <div className="mt-8 border-t border-line pt-6">
-        <h2 className="mb-3 text-lg font-semibold">Danger zone</h2>
+        <h2 className="mb-3 text-lg font-semibold">Delete this cube</h2>
         <DeleteCube cube={cube} cardCount={cardCount} />
       </div>
     </div>

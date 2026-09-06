@@ -20,7 +20,7 @@ export default function DeleteCube({ cube, cardCount }: { cube: Cube; cardCount:
           onClick={() => setOpen(true)}
           className="h-10 rounded-md border border-red-300 px-4 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/40"
         >
-          Delete this cube
+          Delete cube
         </button>
       </div>
     );
