@@ -1551,6 +1551,33 @@ dev Supabase. Before believing such a failure, check the page it fetches answers
 at all (`/cards` in ~600ms is healthy); a socket abort against a responsive
 server is the environment, not the code.
 
+**A long gate session poisons two things, and both look like code failures.**
+Between them these cost an hour of misdiagnosis once, so check them before
+believing any gate result late in a sitting.
+
+- **Restart the debug Chrome before trusting a Chrome-driven failure.** After
+  hours of runs it had 36 `chrome.exe` processes on a reused profile, and
+  `check:cube-ownership` failed four times in a row with "editor never became
+  clickable: skeleton". Same code, same server, fresh headless Chrome with a new
+  `--user-data-dir`: passed first try. `check:auth-flow` and
+  `check:primer-toolbar` share that instance, so they are exposed to the same
+  thing.
+- **Restart the dev server when a card route hangs.** One slow query exhausts
+  the app's Drizzle pool (`max: 6` — see `check:pool`), and every card request
+  after it queues forever: `/cards` sat at 200s while the database answered the
+  same query in 250ms. `check:pool` keeps passing throughout because it opens
+  its own pool, which is exactly what makes this confusing. **That difference is
+  the diagnostic** — a fast `check:pool` beside a hanging `/cards` means the
+  server's pool, not the database. A fresh server takes `/cards` back to ~150ms
+  warm.
+
+Two hypotheses that felt obvious and were both wrong, recorded so they are not
+re-run: GoTrue was **not** rate-limiting `getUser()` (40 sequential calls, 40
+× 200), and cold-route compilation was **not** the cause (the routes measured
+389ms when the check still failed). Comparing against `master` correctly proved
+the change was innocent, but said nothing about the cause — an environmental
+failure reproduces there too.
+
 **`draftmancer.txt` is covered by no check script.** It was verified by hand
 against `npm run build && npx next start` — 200 with the right headers and
 filename, a custom pack template, 400 on an incoherent config, and 404 for
