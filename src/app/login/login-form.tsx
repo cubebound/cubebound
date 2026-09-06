@@ -73,12 +73,21 @@ export default function LoginForm({ initialError }: { initialError?: string }) {
         </p>
       </form>
 
-      {/* The failure mode worth warning about up front: signing in with a
-          provider whose email differs from the one already on the account
-          creates a *second* account, and the cubes appear to have vanished. */}
+      {/* Signing in and *linking* resolve accounts differently, and only one of
+          them cares about the address. Signing in with a provider matches on
+          email, so a different address silently creates a second account and
+          the cubes appear to have vanished. Linking from Settings attaches to
+          whatever account you are already in, whatever address the provider
+          uses — so that is the route to say out loud, rather than leaving
+          people to discover the failure. */}
       <p className="text-xs text-zinc-500">
-        Already have an account? Use the same email address you signed up with,
-        whichever method you pick.
+        Already have an account? Signing in with Google or Discord using the{" "}
+        <strong className="font-medium">same email address</strong> connects to it
+        automatically, cubes and all. To use a Google or Discord account
+        associated with a{" "}
+        <strong className="font-medium">different email address</strong>, sign in
+        with your email first, then connect it from Settings. Otherwise, you get
+        a second, empty account.
       </p>
     </div>
   );

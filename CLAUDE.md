@@ -1593,10 +1593,28 @@ what it has and adds what it lacks.
   without elevated access, so an account made that way cannot be linked to an
   existing one, cannot be recovered, and cannot be contacted. That is a
   different kind of account, not a different button.
-- **Linking attaches on a matching verified email.** A provider whose address
-  differs from the one on the account creates a *second* account, and the
-  person's cubes appear to have vanished. `/login` says so up front, because
-  that is the entire support burden this feature otherwise generates.
+- **Signing in matches on email; linking does not.** The two paths resolve
+  accounts differently and this was documented backwards at first, so it is
+  worth stating precisely. `signInWithOAuth` from `/login` resolves to whichever
+  account carries the provider's address: the same address attaches to the
+  existing account, and a *different* one silently creates a second account
+  whose cubes appear to have vanished. `linkIdentity` from `/settings` attaches
+  to the account in the current session **whatever address the provider uses** —
+  verified in dev by linking a `@gmail.com` Google identity onto an account
+  registered as `@cubebound.test`. The only thing it refuses is a provider
+  account already linked elsewhere, which comes back as
+  `identity_already_exists`.
+- **So the guidance on `/login` is two-sided**, and `check:oauth-buttons`
+  asserts both halves: a matching address connects automatically, and a
+  different address means signing in by email first and connecting from
+  Settings. Stating only the first reads as "you cannot use another address",
+  which is untrue and pushes people into making the duplicate account the
+  warning exists to prevent.
+- **A successful link returns to `/settings?linked=<provider>`**, via a `next`
+  on `redirectTo`. Without it the callback exchanges the code, finds a profile
+  and falls through to `/` — so a link that *worked* looked exactly like one
+  that failed. The banner additionally checks the provider really is on the
+  account rather than trusting the query parameter, since a URL can be typed.
 - **"Has a backup" is not "has two identities".** Magic link works for any
   address on the account, including one that arrived from Discord — so a
   Discord-only account already has two ways in, while an email-only account has

@@ -26,45 +26,51 @@ const expect = (ok: boolean, message: string) => {
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
 
+// The fetch is the only thing here that can throw — the assertions below are
+// string and regex tests — so this is the whole error surface and there is no
+// outer catch.
+let html = "";
 try {
-  let html = "";
-  try {
-    const res = await fetch(`${APP}/login`, { cache: "no-store" });
-    html = await res.text();
-    expect(res.ok, `/login returned ${res.status}`);
-  } catch (error) {
-    failures.push(
-      `could not load /login — is the dev server up? ${(error as Error).message}`,
-    );
-  }
-
-  if (html) {
-    for (const provider of OAUTH_PROVIDERS) {
-      expect(
-        html.includes(`value="${provider}"`),
-        `/login should offer ${provider} as a form field`,
-      );
-    }
-
-    expect(
-      !/href="https:\/\/(accounts\.google\.com|discord\.com)/.test(html),
-      "the provider buttons must post to the action, not link straight out — a " +
-        "direct link skips the PKCE verifier cookie and the exchange then fails",
-    );
-
-    // The support burden this feature otherwise generates: a provider whose
-    // address differs from the one on the account creates a *second* account,
-    // and the person's cubes appear to have vanished. The app cannot detect
-    // that — `public.users` has no email column — so the warning is the whole
-    // mitigation and must not be quietly dropped.
-    expect(
-      html.includes("same email address you signed up with"),
-      "/login must warn that a different address creates a separate account",
-    );
-
-  }
+  const res = await fetch(`${APP}/login`, { cache: "no-store" });
+  html = await res.text();
+  expect(res.ok, `/login returned ${res.status}`);
 } catch (error) {
-  failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);
+  failures.push(
+    `could not load /login — is the dev server up? ${(error as Error).message}`,
+  );
+}
+
+if (html) {
+  for (const provider of OAUTH_PROVIDERS) {
+    expect(
+      html.includes(`value="${provider}"`),
+      `/login should offer ${provider} as a form field`,
+    );
+  }
+
+  expect(
+    !/href="https:\/\/(accounts\.google\.com|discord\.com)/.test(html),
+    "the provider buttons must post to the action, not link straight out — a " +
+      "direct link skips the PKCE verifier cookie and the exchange then fails",
+  );
+
+  // The support burden this feature otherwise generates. Signing in matches on
+  // email, so a different address creates a *second* account and the person's
+  // cubes appear to have vanished; the app cannot detect that, because
+  // `public.users` has no email column. Both halves are asserted because either
+  // alone misleads: the first without the second reads as "you cannot use
+  // another address at all", which is untrue — linking from Settings attaches
+  // to the current account whatever address it carries.
+  expect(
+    html.includes("same email address"),
+    "/login must say that signing in with a matching address connects to the " +
+      "existing account",
+  );
+  expect(
+    /different email address/.test(html) && /from Settings/.test(html),
+    "/login must point a different email address at Settings rather than " +
+      "implying it cannot be used — linking there does not require a match",
+  );
 }
 
 if (failures.length > 0) {
@@ -76,6 +82,7 @@ if (failures.length > 0) {
   );
   console.log("oauth buttons check passed");
 }
+
 // `process.exitCode` rather than `process.exit()`: this script's only resource
 // is a `fetch`, and undici holds the socket open briefly after the response.
 // Exiting inside that teardown aborts the process with a libuv assertion on

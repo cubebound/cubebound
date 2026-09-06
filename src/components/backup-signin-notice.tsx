@@ -3,9 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-/** How long a dismissal lasts. Long enough not to nag, short enough to matter. */
-const DISMISS_DAYS = 30;
-const COOKIE = "cubebound.backup-notice";
+import { BACKUP_NOTICE_COOKIE, BACKUP_NOTICE_COOKIE_MAX_AGE } from "@/lib/backup-notice";
 
 /**
  * Tells someone whose only way in is email that they should add another.
@@ -16,9 +14,8 @@ const COOKIE = "cubebound.backup-notice";
  * `/cubes` only — the page a signed-in person actually lands on — rather than
  * following them around the site.
  *
- * Dismissal is a cookie, not a database column: it is a UI preference, it does
- * not need to survive a device change, and adding a column for it would mean a
- * migration for something that costs nothing to get wrong.
+ * Dismissal is a cookie, not a database column — see `src/lib/backup-notice.ts`
+ * for the name, the lifetime and why they live there rather than here.
  */
 export default function BackupSignInNotice() {
   const [dismissed, setDismissed] = useState(false);
@@ -43,7 +40,7 @@ export default function BackupSignInNotice() {
         <button
           type="button"
           onClick={() => {
-            document.cookie = `${COOKIE}=1; path=/; max-age=${DISMISS_DAYS * 86400}; samesite=lax`;
+            document.cookie = `${BACKUP_NOTICE_COOKIE}=1; path=/; max-age=${BACKUP_NOTICE_COOKIE_MAX_AGE}; samesite=lax`;
             setDismissed(true);
           }}
           className="text-sm text-zinc-600 underline-offset-2 hover:underline dark:text-zinc-400"
@@ -54,5 +51,3 @@ export default function BackupSignInNotice() {
     </div>
   );
 }
-
-export const BACKUP_NOTICE_COOKIE = COOKIE;

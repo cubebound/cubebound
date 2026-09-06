@@ -105,9 +105,23 @@ export async function linkProvider(
   } = await supabase.auth.getUser();
   if (!user) return { error: "You need to be signed in." };
 
+  // Come back to `/settings`, not the home page. The callback exchanges the
+  // code exactly as it does for a sign-in, finds a profile, and falls through
+  // to its default destination — so without a `next` a *successful* link drops
+  // the person on the landing page with nothing to say it worked, which is
+  // indistinguishable from it having failed. `?linked=` is what the settings
+  // page confirms with.
+  //
+  // The `next` travels on `redirectTo`, which is the pattern Supabase's own
+  // Next.js example uses, and the callback already refuses anything that does
+  // not start with `/`. **`redirectTo` still has to match the allowlist**, so
+  // if a successful link starts landing on `/` again, suspect that first.
+  const callback = new URL(authCallbackUrl(await headers()));
+  callback.searchParams.set("next", `/settings?linked=${provider}`);
+
   const { data, error } = await supabase.auth.linkIdentity({
     provider,
-    options: { redirectTo: authCallbackUrl(await headers()) },
+    options: { redirectTo: callback.toString() },
   });
 
   if (error) return { error: error.message };

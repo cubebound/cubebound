@@ -2,11 +2,8 @@
 
 import { useActionState } from "react";
 
+import { type FormState } from "@/app/auth/actions";
 import { OAUTH_PROVIDERS, PROVIDER_LABELS, type OAuthProvider } from "@/lib/auth-providers";
-
-interface FormState {
-  error?: string;
-}
 
 const initial: FormState = {};
 
@@ -40,16 +37,59 @@ function ProviderIcon({ provider }: { provider: OAuthProvider }) {
  * `hide` drops providers already on the account, so the settings page offers
  * only what is missing.
  */
+type ProviderAction = (prev: FormState, formData: FormData) => Promise<FormState>;
+
+/**
+ * One provider's button, holding its own action state.
+ *
+ * A hook per form rather than one shared across all of them. Sharing is fewer
+ * lines but couples the providers: a failure signing in with Google renders its
+ * error under the Discord button as well, and `pending` on either disables
+ * both. Owning the state here means an error appears under the button that
+ * produced it, which is the only place it reads as an answer.
+ */
+function ProviderForm({
+  action,
+  provider,
+  verb,
+}: {
+  action: ProviderAction;
+  provider: OAuthProvider;
+  verb: string;
+}) {
+  const [state, formAction, pending] = useActionState(action, initial);
+
+  return (
+    <form action={formAction}>
+      <input type="hidden" name="provider" value={provider} />
+      <button
+        type="submit"
+        disabled={pending}
+        className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-medium hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
+      >
+        <ProviderIcon provider={provider} />
+        {verb} {PROVIDER_LABELS[provider]}
+      </button>
+      {state.error && (
+        <p role="alert" className="mt-1 text-sm text-red-600 dark:text-red-400">
+          {state.error}
+        </p>
+      )}
+    </form>
+  );
+}
+
 export default function ProviderButtons({
   action,
   hide = [],
   verb = "Continue with",
 }: {
-  action: (prev: FormState, formData: FormData) => Promise<FormState>;
+  action: ProviderAction;
+  /** Providers already on the account. Only the OAuth ones can be hidden, so
+   *  passing the whole list — `email` included — is harmless. */
   hide?: string[];
   verb?: string;
 }) {
-  const [state, formAction, pending] = useActionState(action, initial);
   const offered = OAUTH_PROVIDERS.filter((provider) => !hide.includes(provider));
 
   if (offered.length === 0) return null;
@@ -57,23 +97,8 @@ export default function ProviderButtons({
   return (
     <div className="space-y-2">
       {offered.map((provider) => (
-        <form key={provider} action={formAction}>
-          <input type="hidden" name="provider" value={provider} />
-          <button
-            type="submit"
-            disabled={pending}
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-zinc-300 px-4 text-sm font-medium hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
-          >
-            <ProviderIcon provider={provider} />
-            {verb} {PROVIDER_LABELS[provider]}
-          </button>
-        </form>
+        <ProviderForm key={provider} action={action} provider={provider} verb={verb} />
       ))}
-      {state.error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {state.error}
-        </p>
-      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import BackupSignInNotice, { BACKUP_NOTICE_COOKIE } from "@/components/backup-signin-notice";
+import BackupSignInNotice from "@/components/backup-signin-notice";
 import CubeResults from "@/components/cube-results";
 import Pagination from "@/components/pagination";
 import { countCubesForOwner, MAX_CUBES_PER_USER } from "@/db/queries/cubes";
@@ -14,6 +14,7 @@ import {
 } from "@/db/queries/discovery";
 import { getCurrentUser } from "@/lib/auth";
 import { hasBackupSignIn } from "@/lib/auth-providers";
+import { BACKUP_NOTICE_COOKIE } from "@/lib/backup-notice";
 
 export const metadata: Metadata = {
   title: "Your cubes",

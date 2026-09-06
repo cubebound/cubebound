@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import AuthHashError from "@/app/auth-hash-error";
 import { LogoMark } from "@/components/logo";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -50,6 +51,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-24 sm:px-6">
+      {/* The query-string self-heal above cannot see a fragment, and Supabase
+          reports some OAuth failures that way — see auth-hash-error.tsx. */}
+      <AuthHashError signedIn={Boolean(current)} />
       {/* Not a link: this is already home. */}
       <p className="mb-4">
         <LogoMark size="lg" />

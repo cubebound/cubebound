@@ -33,7 +33,8 @@ const linkClass = "underline underline-offset-2 hover:text-zinc-900 dark:hover:t
  *
  * Written to describe what the code actually does, so it has to be updated
  * with the code rather than treated as boilerplate. Specifically: the cookie
- * list matches `THEME_COOKIE` and `CUBE_VIEW_COOKIE`, "analytics" means the
+ * list matches `THEME_COOKIE`, `CUBE_VIEW_COOKIE` and `BACKUP_NOTICE_COOKIE`,
+ * "analytics" means the
  * Vercel Analytics component in the root layout, and the deletion section says
  * plainly that self-serve account deletion does not exist yet — promising a
  * button that isn't built would be the one genuinely dishonest thing this page
@@ -89,7 +90,7 @@ export default function PrivacyPolicy() {
         </Section>
 
         <Section title="Cookies">
-          <p>We set three kinds of cookie, all of them functional:</p>
+          <p>We set four kinds of cookie, all of them functional:</p>
           <ul className="ml-5 list-disc space-y-1">
             <li>
               <strong className="font-medium">Sign-in cookies</strong>, set by
@@ -106,6 +107,15 @@ export default function PrivacyPolicy() {
                 <code className="font-mono text-xs">cubebound.cube-view2</code>
               </strong>{" "}
               — whether you prefer the list or image view of a cube.
+            </li>
+            <li>
+              <strong className="font-medium">
+                <code className="font-mono text-xs">
+                  cubebound.backup-notice
+                </code>
+              </strong>{" "}
+              — that you dismissed the reminder to add a second way of signing
+              in.
             </li>
           </ul>
           <p>
