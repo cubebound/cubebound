@@ -14,6 +14,7 @@ import {
   getCubeHoldingsForBases,
   listCubeChanges,
 } from "@/db/queries/cubes";
+import { tab } from "@/lib/ui";
 import { getPrintingsForBases } from "@/db/queries/cards";
 import { loadCube, loadViewer } from "@/lib/cube-request";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
@@ -108,11 +109,7 @@ export default async function EditCubePage({
       href={href}
       scroll={false}
       aria-current={active ? "page" : undefined}
-      className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-        active
-          ? "bg-ink text-surface"
-          : "border border-line hover:bg-hover"
-      }`}
+      className={active ? tab.active : tab.inactive}
     >
       {label}
     </Link>

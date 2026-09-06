@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { toDeckList } from "@/lib/deck-export";
 
 import type { PoolCard } from "./pool-piles";
+import { segment } from "@/lib/ui";
 
 /**
  * Copies the drafted deck out as text for another Riftbound builder.
@@ -58,10 +59,8 @@ export default function DeckExport({ pool }: { pool: PoolCard[] }) {
                 type="button"
                 onClick={() => setShowSide(which === "side")}
                 aria-pressed={board === which}
-                className={`px-3 py-1.5 first:rounded-l-md last:rounded-r-md ${
-                  board === which
-                    ? "bg-ink text-surface"
-                    : "hover:bg-hover"
+                className={`first:rounded-l-md last:rounded-r-md ${
+                  board === which ? segment.active : segment.inactive
                 }`}
               >
                 {which === "main" ? "Main deck" : "Sideboard"}
