@@ -6,6 +6,7 @@ import CardHoverPreview, {
   useCardPreview,
   type PreviewCard,
 } from "@/components/card-hover-preview";
+import { PowerCost } from "@/components/card-visuals";
 import type { CubeCardRow } from "@/db/queries/cubes";
 import { ambiguousBaseIds, countCopies, expandCopies } from "@/lib/cube-cards";
 import {
@@ -209,6 +210,10 @@ function CostCell({
                   </span>
                 )}
               </button>
+              {/* Outside the name button, so the button's accessible name stays
+                  the card name, and `shrink-0` so the indicator never
+                  compresses — the name absorbs the width through `truncate`. */}
+              <PowerCost powerCost={row.card.powerCost} />
               {onRemove && (
                 <button
                   type="button"

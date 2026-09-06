@@ -6,7 +6,8 @@ import { useEffect, useRef, type ReactNode } from "react";
 import type { BrowseCard } from "@/db/queries/cards";
 import CardArt from "@/components/card-art";
 import { cardFull, cardThumb } from "@/lib/card-images";
-import { aspectRatio, DOMAIN_COLORS, titleCase } from "@/lib/riftbound";
+import { domainDot } from "@/lib/domain-columns";
+import { aspectRatio, DOMAIN_COLORS, titleCase, totalPips } from "@/lib/riftbound";
 import { parseRulesText, type RulesSymbol } from "@/lib/rules-text";
 
 /* Shared between the card browser and the cube editor.
@@ -62,6 +63,52 @@ export function PowerPips({ powerCost }: { powerCost: Record<string, number> | n
           />
         );
       })}
+    </span>
+  );
+}
+
+/**
+ * Power cost for a dense row: the pip count, then one dot for its domain.
+ *
+ * `PowerPips` draws a dot per pip, which is faithful where there is room. A cube
+ * list row has about 19px to spare beside a name that already truncates, so this
+ * renders the *count* instead: constant width whatever the cost, where a run of
+ * pips grows with it and would need an arbitrary cap. The digit carries the
+ * number and the dot carries the colour, which is the whole of what the row
+ * needs — the cost cell above it already states the energy.
+ *
+ * **No `title` attribute**, deliberately. A tooltip here lands on top of the
+ * hover preview the same gesture just opened — the reason the card name lost
+ * its own `title`, explained at length in cube-table.tsx. The `aria-label`
+ * carries the same words without drawing anything.
+ *
+ * A card with no power cost renders nothing rather than a 0: costless is not
+ * zero, and `totalPips` returns 0 for both.
+ */
+export function PowerCost({ powerCost }: { powerCost: Record<string, number> | null }) {
+  const total = totalPips(powerCost);
+  if (total === 0) return null;
+
+  // Sources cannot say which domain the pips belong to on a multi-domain card,
+  // so those arrive as `{"any": n}` and there is no colour to show. That reads
+  // as a hollow ring rather than as Colorless, which is a real domain a card
+  // could actually be.
+  const known = Object.keys(powerCost ?? {})
+    .map(titleCase)
+    .filter((domain) => DOMAIN_COLORS[domain]);
+
+  return (
+    <span
+      aria-label={
+        known.length > 0 ? `Power ${total} ${known.join(" ")}` : `Power ${total}, any domain`
+      }
+      className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-zinc-600 dark:text-zinc-400"
+    >
+      {total}
+      <span
+        className="size-2.5 rounded-full ring-1 ring-black/15 dark:ring-white/20"
+        style={known.length > 0 ? { background: domainDot(known) } : undefined}
+      />
     </span>
   );
 }

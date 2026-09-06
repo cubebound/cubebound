@@ -27,6 +27,23 @@ export const DOMAIN_COLORS: Record<string, string> = {
   [COLORLESS]: "#9aa0a6",
 };
 
+/**
+ * How many power pips a card costs in total.
+ *
+ * `power_cost` is a per-domain map (`{"fury": 2}`), so "how much power" is a sum
+ * rather than a field. Sources report power as a single integer and cannot say
+ * which domain it belongs to on a multi-domain card, so that case is stored as
+ * `{"any": n}` — the total is right, only the split is unknown.
+ *
+ * Returns 0 for no cost at all. **Callers that render must treat 0 as "show
+ * nothing", never as a zero cost** — costless is not zero, the same rule the
+ * energy curve and the `none` filter bucket exist for.
+ */
+export function totalPips(powerCost: Record<string, number> | null): number {
+  if (!powerCost) return 0;
+  return Object.values(powerCost).reduce((sum, pips) => sum + (pips ?? 0), 0);
+}
+
 export const CARD_TYPES = [
   "Unit",
   "Champion Unit",

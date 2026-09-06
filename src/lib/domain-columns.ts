@@ -10,7 +10,7 @@
  * swallow most of them and say nothing.
  */
 
-import { COLORLESS, DOMAINS, DOMAIN_COLORS } from "@/lib/riftbound";
+import { COLORLESS, DOMAINS, DOMAIN_COLORS, totalPips } from "@/lib/riftbound";
 
 export function sortDomains(domains: string[]): string[] {
   return [...domains].sort(
@@ -61,12 +61,8 @@ export function displayCost(card: {
   powerCost: Record<string, number> | null;
 }): number | null {
   if (card.energyCost !== null && card.energyCost !== undefined) return card.energyCost;
-  const power = card.powerCost;
-  if (power) {
-    const total = Object.values(power).reduce((sum, pips) => sum + (pips ?? 0), 0);
-    if (total > 0) return total;
-  }
-  return null;
+  const total = totalPips(card.powerCost);
+  return total > 0 ? total : null;
 }
 
 /**

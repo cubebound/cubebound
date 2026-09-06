@@ -611,6 +611,29 @@ a stale row — but it means a source switch leaves residue worth checking for.
   are tinted with their domain colour mixed against `--tint-base`, which flips
   between white and near-black so one mix percentage stays legible in both
   themes.
+- **A text-view row shows its power cost as a count plus one domain dot**
+  (`PowerCost` in `src/components/card-visuals.tsx`), right-aligned after the
+  name. Power was invisible in both cube views before — it rendered only in the
+  card detail modal — so judging a cube's colour commitment cost a hover per
+  card, on the view whose whole point is scanning the cube at once. It is a
+  *count*, not `PowerPips`' dot-per-pip: a row has about 19px to spare beside a
+  name that already truncates, and a run of pips grows with the cost and would
+  need an arbitrary cap, where a digit is constant width at any cost. The cell
+  header above already states the energy, so the row does not repeat it.
+  **The indicator carries no `title`** — a tooltip there lands on top of the
+  hover preview the same gesture opens, which is why the card name lost its own
+  `title`; an `aria-label` says the same words without drawing anything. Grouping
+  and sorting are untouched: cells still bucket on `energyCost`, so a
+  power-cost-only card still sits under `—` and shows its pips there.
+- **Multi-domain cards show a domain-less power dot**, a hollow ring rather than
+  a colour. Every source reports power as one integer and cannot say which
+  domain the pips belong to, so `buildPowerCost` stores that case as
+  `{"any": n}` rather than inventing a split — the total is right, only the
+  breakdown is unknown. The ring is deliberately not Colorless grey: Colorless
+  is a real domain a card could be. Fixing this needs a source with per-domain
+  pips, not a schema or display change; the raw stats are kept in `cards.data`
+  for exactly that. `totalPips` in `src/lib/riftbound.ts` is the one definition
+  of "how much power", shared by this indicator and by `displayCost`.
 - **Multi-domain cards get a column per pair** (Fury/Chaos, Fury/Order, ...),
   not one shared "Multi" bucket — nearly every legend has two domains, so a
   single bucket would swallow most of them and say nothing. Columns sort as:
