@@ -89,6 +89,14 @@ jobs:
       - name: Check Draftmancer export
         run: npm run check:draftmancer
 
+      # The edit panel batches a session of changes into one write, so one
+      # function decides what a run of clicks does to the cube. Its failures are
+      # all silent: a dropped edit, a doubled one, or two rows for the same
+      # (card, section) - which Postgres refuses inside a single ON CONFLICT, so
+      # the save fails on a constraint rather than on anything the reader did.
+      - name: Check staged cube edits
+        run: npm run check:staged-edit
+
       # Auth invariants, and pure: the backup rule, the provider allowlist, and
       # that both sign-in actions still validate their input and build their
       # redirect through authCallbackUrl. Catching a broken one at gate time

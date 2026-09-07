@@ -1576,6 +1576,7 @@ which is why they can create and delete accounts freely.
 | `check:primer-toolbar` | the toolbar is *wired*: a click reaches React state, Ctrl+B matches the button, and the result saves byte-for-byte | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:deck-export` | drafted decks export as names other builders accept: legends rebuilt as `Champion, Title`, promo variant suffixes stripped, copies aggregated, and the result re-imports here | DB (read-only) | manual gate |
 | `check:draftmancer` | the cube file Draftmancer reads: unique custom-card names, every sheet line resolving to an entry, no slot naming an unemitted sheet and no empty sheet across four configs, the either-slot weighted 50/50, rarity in the accepted set with treatments resolved through `base_id` and a non-zero fallback, costless as `""`, and only the drafted sections | nothing | **CI** |
+| `check:staged-edit` | the edit panel's batching: collapse yields one row per (card, section) so a save cannot violate `ON CONFLICT`, netting cancels a staged-then-unstaged pair while two *different* printings stay two changes, quantities clamp, and `sectionForBoard` files a Legend to `legends` | nothing | **CI** |
 | `check:oauth` | the backup rule, `providersOf` order, the provider allowlist, and that both sign-in actions still validate their input and build `redirectTo` through `authCallbackUrl` | nothing | **CI** |
 | `check:oauth-buttons` | `/login` offers both providers as form fields, links to no provider directly, and still carries the same-address warning | dev server | manual gate |
 | `check:moderation` | hide/suspend take effect and drop out of every listing including the owner's own; `canUseCube` refuses even the owner; deleting an account cascades and leaves a surviving log entry | DB | manual gate |
@@ -1622,7 +1623,7 @@ exemption.
 
 `.github/workflows/ci.yml`, on every push and pull request: typecheck, lint,
 `check:primer-safety`, `check:draft`, `check:analytics`, `check:markdown-edit`,
-`check:draftmancer`, and a production build. It uses **placeholder** Supabase
+`check:draftmancer`, `check:staged-edit`, and a production build. It uses **placeholder** Supabase
 values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**
