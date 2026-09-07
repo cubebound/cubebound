@@ -348,6 +348,7 @@ export function CardTile({
   dimmed = false,
   quantity,
   wide = false,
+  bare = false,
 }: {
   card: BrowseCard;
   onOpen: () => void;
@@ -368,6 +369,17 @@ export function CardTile({
    * detail modal already uses, so it is cached rather than newly fetched.
    */
   wide?: boolean;
+  /**
+   * Image only: no caption, and no room for controls beneath.
+   *
+   * A cube's visual view is a wall of card art, and the art already carries the
+   * name, cost and domain in a form people read faster than a caption strip.
+   * Dropping it fits more cards on a screen at the same tile size, and the
+   * detail modal one click away is where the per-copy controls live. The card
+   * browser keeps its captions, because there you are scanning for a name you
+   * have not found yet.
+   */
+  bare?: boolean;
 }) {
   const source = card.imageThumb ?? card.imageFull;
   const thumb = wide ? cardFull(source) : cardThumb(source);
@@ -412,13 +424,15 @@ export function CardTile({
         {/* Fixed height: the energy chip is taller than bare text, and without
             this the tiles that have one push their action row out of line with
             the tiles that don't. */}
-        <div className="mt-1.5 flex h-5 items-center gap-1.5">
-          <DomainDots domains={card.domains} />
-          <span className="truncate text-xs text-muted">{card.name}</span>
-          <span className="ml-auto">
-            <EnergyChip energy={card.energyCost} />
-          </span>
-        </div>
+        {!bare && (
+          <div className="mt-1.5 flex h-5 items-center gap-1.5">
+            <DomainDots domains={card.domains} />
+            <span className="truncate text-xs text-muted">{card.name}</span>
+            <span className="ml-auto">
+              <EnergyChip energy={card.energyCost} />
+            </span>
+          </div>
+        )}
       </button>
       {action && <div className="mt-1.5">{action}</div>}
     </li>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import {
   quickSearchAction,
@@ -9,10 +9,7 @@ import {
   type CardSuggestion,
 } from "@/app/cube/actions";
 import StagedList, { type StagedRow } from "./staged-list";
-import {
-  CUBE_SECTION_LABELS,
-  type CubeSection,
-} from "@/lib/riftbound";
+import { CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
 import {
   EDIT_BOARDS,
   MAX_STAGED_ROWS,
@@ -41,6 +38,8 @@ export interface HeldCard {
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
+/** Past this the floating trigger appears; above it the toolbar one is in view. */
+const FLOATING_TRIGGER_AFTER = 400;
 const BOARD_LABELS: Record<EditBoard, string> = {
   mainboard: "Mainboard",
   maybeboard: "Maybeboard",
@@ -57,6 +56,7 @@ export default function EditPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<StagedRow[]>([]);
+  const [scrolled, setScrolled] = useState(false);
 
   // Escape hides the panel; it deliberately does not discard the batch. The
   // whole point of staging is that your work survives until you say otherwise.
@@ -78,18 +78,41 @@ export default function EditPanel({
     return () => window.removeEventListener("beforeunload", warn);
   }, [rows.length]);
 
+  // The toolbar trigger is the discoverable one and sits at the top of the
+  // page; the floating one appears only once that has scrolled away, so a long
+  // cube always has Edit within reach without ever showing two at once.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > FLOATING_TRIGGER_AFTER);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Never "×3": check:copies-and-log asserts the editor's HTML carries no ×N
+  // notation, and both triggers render on the server.
+  const count = rows.length > 0 ? ` (${rows.length})` : "";
+
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-expanded={open}
-        className={`${btn.primary} fixed right-4 bottom-4 z-30 rounded-full shadow-lg`}
+        className={btn.primarySm}
       >
-        {/* Never "×3": check:copies-and-log asserts the editor's HTML carries no
-            ×N notation, and this button renders on the server. */}
-        Edit{rows.length > 0 ? ` (${rows.length})` : ""}
+        Edit cube{count}
       </button>
+
+      {scrolled && !open && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-expanded={open}
+          className={`${btn.primary} fixed right-4 bottom-4 z-30 rounded-full shadow-lg`}
+        >
+          Edit cube{count}
+        </button>
+      )}
 
       {open && (
         <div
@@ -118,6 +141,50 @@ export default function EditPanel({
   );
 }
 
+/**
+ * A suggestion list that floats over the panel rather than pushing it around.
+ *
+ * Absolutely positioned on purpose: growing the document as you type moved the
+ * Remove field down the panel while you were reaching for it. `onMouseDown`
+ * preventing default is what stops the input's blur firing before the click
+ * lands and closing the list out from under the cursor.
+ */
+function Suggestions<T>({
+  items,
+  render,
+  onPick,
+  keyOf,
+  listId,
+}: {
+  items: T[];
+  render: (item: T) => ReactNode;
+  onPick: (item: T) => void;
+  keyOf: (item: T, index: number) => string;
+  listId: string;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <ul
+      id={listId}
+      role="listbox"
+      className="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-line bg-raised shadow-lg"
+    >
+      {items.map((item, index) => (
+        <li key={keyOf(item, index)}>
+          <button
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => onPick(item)}
+            className="block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-hover"
+          >
+            {render(item)}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function PanelBody({
   cubeId,
   contents,
@@ -135,13 +202,18 @@ function PanelBody({
 }) {
   const [board, setBoard] = useState<EditBoard>("mainboard");
   const [specifyVersions, setSpecifyVersions] = useState(false);
+
   const [addQuery, setAddQuery] = useState("");
+  const [addChoice, setAddChoice] = useState<CardSuggestion | null>(null);
+  const [addDismissed, setAddDismissed] = useState(false);
+
   const [removeQuery, setRemoveQuery] = useState("");
-  const [pending, setPending] = useState<CardSuggestion | null>(null);
+  const [removeChoice, setRemoveChoice] = useState<HeldCard | null>(null);
+  const [removeDismissed, setRemoveDismissed] = useState(false);
+
   // What the last completed search answered, and for which term. "Is a search
-  // in flight" is then derived rather than stored, which keeps the previous
-  // matches on screen while you type instead of blinking to empty — the same
-  // shape the quick-add panel used before this replaced it.
+  // in flight" is then derived rather than stored, which keeps previous matches
+  // on screen while you type instead of blinking to empty.
   const [answered, setAnswered] = useState<{ key: string; items: CardSuggestion[] }>({
     key: "",
     items: [],
@@ -152,16 +224,31 @@ function PanelBody({
   const nextKey = useRef(0);
 
   const term = addQuery.trim();
-  const longEnough = term.length >= 2;
+  // A locked-in choice fills the box with its own label, so searching again
+  // would re-open the list over a field the reader has finished with.
+  const looking = addChoice === null && term.length >= 2;
   const wantKey = `${specifyVersions ? "all" : "one"}:${term}`;
-  const searching = longEnough && answered.key !== wantKey;
-  const matches = longEnough ? answered.items : [];
+  const searching = looking && answered.key !== wantKey;
+  const matches = looking && answered.key === wantKey ? answered.items : [];
+
+  /**
+   * Visibility is a *dismissal* flag, not a focus one.
+   *
+   * Gating on "is the field focused" fails closed: any path where React does
+   * not see the focus event leaves a filled box with no list under it, and the
+   * control looks broken. Starting from visible and closing on an explicit
+   * dismissal — blur, Escape, or picking something — fails open instead, which
+   * at worst shows a list a moment longer than needed. The list is empty until
+   * something is typed either way, so there is nothing to show unbidden.
+   */
+  const showAddList = !addDismissed && matches.length > 0;
 
   useEffect(() => {
     addRef.current?.focus();
   }, []);
 
   useEffect(() => {
+    if (addChoice !== null) return;
     const current = addQuery.trim();
     if (current.length < 2) return;
     const key = `${specifyVersions ? "all" : "one"}:${current}`;
@@ -175,31 +262,36 @@ function PanelBody({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [addQuery, cubeId, specifyVersions]);
+  }, [addQuery, addChoice, cubeId, specifyVersions]);
 
   /**
    * One entry per copy the cube still holds, minus whatever this batch has
    * already claimed. Two copies of one printing are two entries, so picking one
-   * stages exactly one removal and the other stays available — which is the
-   * same per-copy rule the cube list follows everywhere else.
+   * stages exactly one removal and the other stays available — the same
+   * per-copy rule the cube list follows everywhere else.
+   *
+   * Empty until something is typed: this is a picker for a card you already
+   * have in mind, not a second copy of the cube list.
    */
   const removable = useMemo(() => {
+    const query = removeQuery.trim().toLowerCase();
+    if (query.length === 0) return [];
     const claimed = new Map<string, number>();
     for (const row of rows) {
       if (row.op === "add") continue;
       const id = row.op === "replace" ? row.fromCardId! : row.cardId;
-      const key = `${id}|${row.section}`;
-      claimed.set(key, (claimed.get(key) ?? 0) + 1);
+      claimed.set(`${id}|${row.section}`, (claimed.get(`${id}|${row.section}`) ?? 0) + 1);
     }
     const copies: HeldCard[] = [];
     for (const held of contents) {
       const spare = held.quantity - (claimed.get(`${held.cardId}|${held.section}`) ?? 0);
       for (let n = 0; n < spare; n += 1) copies.push(held);
     }
-    const term = removeQuery.trim().toLowerCase();
-    if (term.length === 0) return copies.slice(0, 12);
-    return copies.filter((copy) => copy.name.toLowerCase().includes(term)).slice(0, 12);
+    return copies.filter((copy) => copy.name.toLowerCase().includes(query)).slice(0, 12);
   }, [contents, removeQuery, rows]);
+
+  const removeMatches = removeChoice === null ? removable : [];
+  const showRemoveList = !removeDismissed && removeMatches.length > 0;
 
   function stage(row: Omit<StagedRow, "key">) {
     if (rows.length >= MAX_STAGED_ROWS) {
@@ -211,38 +303,56 @@ function PanelBody({
     setRows((prev) => [...prev, { ...row, key: `staged-${nextKey.current}` }]);
   }
 
-  function stageAdd(result: CardSuggestion) {
+  function clearAdd() {
+    setAddChoice(null);
+    setAddQuery("");
+    setAddDismissed(false);
+  }
+
+  function clearRemove() {
+    setRemoveChoice(null);
+    setRemoveQuery("");
+    setRemoveDismissed(false);
+  }
+
+  /** Adds the queued card and nothing else — whatever sits in Remove stays. */
+  function commitAdd() {
+    if (!addChoice) return;
     stage({
       op: "add",
-      cardId: result.card.id,
-      section: sectionForBoard(board, result.card.type),
-      label: printingLabel(result.card),
+      cardId: addChoice.card.id,
+      section: sectionForBoard(board, addChoice.card.type),
+      label: printingLabel(addChoice.card),
     });
-    setAddQuery("");
+    clearAdd();
     addRef.current?.focus();
   }
 
-  /** Remove on its own; a replace when a card is queued on the add side. */
-  function stageRemoveOrReplace(copy: HeldCard) {
-    if (pending) {
+  /**
+   * A removal on its own, or a swap when a card is also queued to add — which
+   * is the only thing that consumes both fields.
+   */
+  function commitRemoveOrReplace() {
+    if (!removeChoice) return;
+    if (addChoice) {
       stage({
         op: "replace",
-        cardId: pending.card.id,
-        fromCardId: copy.cardId,
-        section: copy.section,
-        label: printingLabel(pending.card),
-        fromLabel: printingLabel(copy),
+        cardId: addChoice.card.id,
+        fromCardId: removeChoice.cardId,
+        section: removeChoice.section,
+        label: printingLabel(addChoice.card),
+        fromLabel: printingLabel(removeChoice),
       });
-      setPending(null);
+      clearAdd();
     } else {
       stage({
         op: "remove",
-        cardId: copy.cardId,
-        section: copy.section,
-        label: printingLabel(copy),
+        cardId: removeChoice.cardId,
+        section: removeChoice.section,
+        label: printingLabel(removeChoice),
       });
     }
-    setRemoveQuery("");
+    clearRemove();
   }
 
   async function save() {
@@ -262,7 +372,8 @@ function PanelBody({
       return;
     }
     setRows([]);
-    setPending(null);
+    clearAdd();
+    clearRemove();
     onClose();
   }
 
@@ -310,98 +421,118 @@ function PanelBody({
           <label className={labelClass} htmlFor="edit-add">
             Add card
           </label>
-          <input
-            id="edit-add"
-            ref={addRef}
-            value={addQuery}
-            onChange={(event) => setAddQuery(event.target.value)}
-            placeholder="Card to add"
-            autoComplete="off"
-            className={`${input} mt-1`}
-          />
-          {pending && (
-            <p className="mt-1 text-xs text-muted">
-              Queued to replace with: <span className="text-ink">{printingLabel(pending.card)}</span>{" "}
-              <button type="button" onClick={() => setPending(null)} className={btn.ghostSm}>
-                clear
-              </button>
-            </p>
-          )}
-          <p aria-live="polite" className="min-h-4 text-xs text-subtle">
-            {searching ? "Searching…" : ""}
-          </p>
-          {matches.length > 0 && (
-            <ul className="divide-y divide-line rounded-lg border border-line">
-              {matches.map((result) => (
-                <li key={result.card.id} className="flex items-center gap-2 px-3 py-2">
-                  <span className="min-w-0 flex-1 truncate text-sm">
-                    {printingLabel(result.card)}
+          <div className="relative mt-1">
+            <input
+              id="edit-add"
+              ref={addRef}
+              value={addQuery}
+              onChange={(event) => {
+                setAddQuery(event.target.value);
+                setAddChoice(null);
+                setAddDismissed(false);
+              }}
+              onBlur={() => setAddDismissed(true)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setAddDismissed(true);
+              }}
+              placeholder="Card to add"
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={showAddList}
+              aria-controls="edit-add-list"
+              className={input}
+            />
+            {showAddList && (
+              <Suggestions
+                listId="edit-add-list"
+                items={matches}
+                keyOf={(result) => result.card.id}
+                onPick={(result) => {
+                  setAddChoice(result);
+                  setAddQuery(printingLabel(result.card));
+                  setAddDismissed(true);
+                }}
+                render={(result) => (
+                  <>
+                    <span className="block truncate">{printingLabel(result.card)}</span>
                     <span className="block text-xs text-subtle">
                       {CUBE_SECTION_LABELS[sectionForBoard(board, result.card.type)]}
                     </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => stageAdd(result)}
-                    className={btn.primarySm}
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPending(result);
-                      setAddQuery("");
-                    }}
-                    title="Use this card to replace one already in the cube"
-                    className={btn.secondarySm}
-                  >
-                    Replace&hellip;
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                  </>
+                )}
+              />
+            )}
+          </div>
+          <p aria-live="polite" className="min-h-4 text-xs text-subtle">
+            {searching ? "Searching…" : ""}
+          </p>
+          <button
+            type="button"
+            onClick={commitAdd}
+            disabled={!addChoice}
+            className={`${btn.primary} w-full`}
+          >
+            Add
+          </button>
         </div>
 
         <div>
           <label className={labelClass} htmlFor="edit-remove">
-            {pending ? "Card to replace" : "Remove card"}
+            Remove/Replace card
           </label>
-          <input
-            id="edit-remove"
-            value={removeQuery}
-            onChange={(event) => setRemoveQuery(event.target.value)}
-            placeholder="Card already in the cube"
-            autoComplete="off"
-            className={`${input} mt-1`}
-          />
-          {removable.length > 0 ? (
-            <ul className="mt-1 divide-y divide-line rounded-lg border border-line">
-              {removable.map((copy, index) => (
-                <li
-                  key={`${copy.cardId}|${copy.section}|${index}`}
-                  className="flex items-center gap-2 px-3 py-2"
-                >
-                  <span className="min-w-0 flex-1 truncate text-sm">
-                    {printingLabel(copy)}
+          <div className="relative mt-1">
+            <input
+              id="edit-remove"
+              value={removeQuery}
+              onChange={(event) => {
+                setRemoveQuery(event.target.value);
+                setRemoveChoice(null);
+                setRemoveDismissed(false);
+              }}
+              onBlur={() => setRemoveDismissed(true)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setRemoveDismissed(true);
+              }}
+              placeholder="Card to remove"
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={showRemoveList}
+              aria-controls="edit-remove-list"
+              className={input}
+            />
+            {showRemoveList && (
+              <Suggestions
+                listId="edit-remove-list"
+                items={removeMatches}
+                keyOf={(copy, index) => `${copy.cardId}|${copy.section}|${index}`}
+                onPick={(copy) => {
+                  setRemoveChoice(copy);
+                  setRemoveQuery(printingLabel(copy));
+                  setRemoveDismissed(true);
+                }}
+                render={(copy) => (
+                  <>
+                    <span className="block truncate">{printingLabel(copy)}</span>
                     <span className="block text-xs text-subtle">
                       {CUBE_SECTION_LABELS[copy.section]}
                     </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => stageRemoveOrReplace(copy)}
-                    className={btn.secondarySm}
-                  >
-                    {pending ? "Replace" : "Remove"}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
+                  </>
+                )}
+              />
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={commitRemoveOrReplace}
+            disabled={!removeChoice}
+            className={`${btn.secondary} mt-2 w-full`}
+          >
+            {addChoice ? "Replace" : "Remove"}
+          </button>
+          {addChoice && removeChoice && (
             <p className="mt-1 text-xs text-subtle">
-              {removeQuery.trim() ? "No copies left matching that." : "Nothing in the cube yet."}
+              Replace swaps them. Add takes the card above on its own and leaves this one
+              here.
             </p>
           )}
         </div>
@@ -410,7 +541,10 @@ function PanelBody({
           <input
             type="checkbox"
             checked={specifyVersions}
-            onChange={(event) => setSpecifyVersions(event.target.checked)}
+            onChange={(event) => {
+              setSpecifyVersions(event.target.checked);
+              setAddChoice(null);
+            }}
             className={check}
           />
           Specify versions
@@ -456,7 +590,8 @@ function PanelBody({
             type="button"
             onClick={() => {
               setRows([]);
-              setPending(null);
+              clearAdd();
+              clearRemove();
               setError(null);
             }}
             disabled={rows.length === 0 || saving}

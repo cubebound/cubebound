@@ -706,6 +706,17 @@ a stale row — but it means a source switch leaves residue worth checking for.
   filter/grid browser **in place of** the cube list; `?mode=primer` and
   `?mode=log` are the Primer and Change log tabs. Browse mode is only rendered
   when active, so the unfiltered card query isn't paid for on every editor load.
+- **There is no "Browse cards" tab, deliberately.** Browse is the heaviest read
+  on the site, and leading with it is what turned a run of edits into a run of
+  round trips. Its slot in the tab row is the Edit trigger; browse is still
+  reachable from a link inside the panel and by URL, and **the route must keep
+  working** — `check:cube-ownership` and `check:browse-grid` both navigate
+  straight to `?mode=browse`, so removing the route (rather than the tab) fails
+  the build.
+- **Two triggers, never both at once.** The toolbar one is discoverable and sits
+  in the tab row; the floating one appears only once that has scrolled out of
+  view, which a 400-card cube does immediately. Showing both would read as a
+  bug rather than a convenience.
 - **The panel stages changes and writes them on Save**, which is both how people
   actually edit a cube and the fix for a real fault — the panel it replaces
   wrote once per click, so a run of edits was a run of round trips against a
@@ -720,6 +731,20 @@ a stale row — but it means a source switch leaves residue worth checking for.
   lists **one entry per copy** — two copies of a printing are two entries, and
   staging one leaves the other — so the reader picks the exact copy and there is
   no "which one did it mean" heuristic to get wrong.
+- **Both lists are dropdowns: empty until you type, floating over the panel, and
+  closed by picking.** Absolute positioning is load-bearing — growing the
+  document as you type moved the Remove field down the panel while you were
+  reaching for it. And **visibility is a *dismissal* flag, not a focus one.**
+  Gating on "is this field focused" fails closed: any path where React does not
+  see the focus event leaves a filled box with no list under it and the control
+  looks broken. That happened. Starting visible and closing on an explicit
+  dismissal — blur, Escape, or picking — fails open instead, which at worst
+  shows a list a moment longer than it needs to.
+- **Picking a suggestion fills the box; the button commits it.** Nothing is
+  staged by clicking a row. **Add takes only the card above it** and leaves
+  whatever sits in Remove alone; **Remove/Replace is a swap when both are
+  filled** and a plain removal when only it is. That asymmetry is the point:
+  queueing a replacement should not force you to go through with it.
 - **The Board control is Mainboard or Maybeboard, and Mainboard is not a
   section.** It means "file this the way the cube files things", so
   `sectionForBoard` sends a Legend to `legends` and a Rune to `runes` via the
@@ -753,6 +778,13 @@ a stale row — but it means a source switch leaves residue worth checking for.
   are tinted with their domain colour mixed against `--tint-base`, which flips
   between white and near-black so one mix percentage stays legible in both
   themes.
+- **A cube's visual view is image only** — no caption strip, no controls under
+  the tile. The art carries the name, cost and domain in a form people read
+  faster than a caption, and dropping it is what lets ten fit on a row and stay
+  legible. Per-copy controls live in the card detail modal one click away, which
+  is why `CubeSections` no longer takes a `copyAction`. `CardTile`'s `bare` prop
+  does this; the card browser and browse grid keep their captions, because there
+  you are scanning for a name you have not found yet.
 - **A text-view row shows its power cost as a count plus one domain dot**
   (`PowerCost` in `src/components/card-visuals.tsx`), right-aligned after the
   name. Power was invisible in both cube views before — it rendered only in the

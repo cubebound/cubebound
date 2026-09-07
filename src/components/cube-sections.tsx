@@ -8,7 +8,7 @@ import { useCardsPerRow } from "@/components/cards-per-row";
 import { cardGrid } from "@/lib/ui";
 import CubeTable from "@/components/cube-table";
 import type { CubeCardRow } from "@/db/queries/cubes";
-import { countCopies, expandCopies, type CopyOf } from "@/lib/cube-cards";
+import { countCopies, expandCopies } from "@/lib/cube-cards";
 import { compareForDisplay } from "@/lib/domain-columns";
 import type { CubeView } from "@/lib/cube-view";
 import {
@@ -31,7 +31,6 @@ import {
 export default function CubeSections({
   cards,
   view,
-  copyAction,
   onRemoveOne,
   busyKey,
   emptyMessage = "No cards yet.",
@@ -40,8 +39,6 @@ export default function CubeSections({
 }: {
   cards: CubeCardRow[];
   view: CubeView;
-  /** Editor controls under each copy in the visual view. */
-  copyAction?: (copy: CopyOf<CubeCardRow>) => ReactNode;
   /** Text view's per-row remove; omitted for read-only views. */
   onRemoveOne?: (card: CubeCardRow) => void;
   busyKey?: string | null;
@@ -129,15 +126,20 @@ export default function CubeSections({
                 <ul className={perRow ? cardGrid[perRow] : CARD_GRID_CLASS}>
                   {/* Domain, then cost, with the costless cards kept together
                       at the end — see compareForDisplay. Sorted here rather
-                      than in the query so both views order from one rule. */}
+                      than in the query so both views order from one rule.
+
+                      Tiles are image only, with no controls underneath: the art
+                      says what a card is faster than a caption does, and the
+                      per-copy controls live in the detail modal one click away.
+                      That is also what lets ten fit on a row and stay legible. */}
                   {expandCopies([...inSection].sort(compareForDisplay)).map((copy) => (
                     <CardTile
                       key={copy.key}
                       card={copy.card}
+                      bare
                       showPrintingCount={false}
                       wide={perRow !== undefined && perRow <= 4}
                       onOpen={() => setSelectedKey(rowKey(copy.card))}
-                      action={copyAction?.(copy)}
                     />
                   ))}
                 </ul>

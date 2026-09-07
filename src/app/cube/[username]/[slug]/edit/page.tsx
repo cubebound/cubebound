@@ -177,7 +177,24 @@ export default async function EditCubePage({
             basePath,
             !browsing && !writingPrimer && !viewingLog && !importing && !onMaybeboard,
           )}
-          {modeLink("Browse cards", `${basePath}?mode=browse`, browsing)}
+          {/* Editing is the point of this page, so its trigger sits in the tab
+              row where "Browse cards" used to. Browse is still reachable — from
+              inside the panel, and by URL — but it is no longer what the UI
+              points at first: it is the heaviest read on the site, and leading
+              with it is what made a run of edits a run of round trips. */}
+          <EditPanel
+            cubeId={cube.id}
+            browsePath={`${basePath}?mode=browse`}
+            contents={contents.map((card) => ({
+              cardId: card.id,
+              baseId: card.baseId,
+              name: card.name,
+              setCode: card.setCode,
+              collectorNo: card.collectorNo,
+              section: card.section,
+              quantity: card.quantity,
+            }))}
+          />
           {modeLink("Primer", `${basePath}?mode=primer`, writingPrimer)}
           {modeLink(
             `Maybeboard${maybeboard.length ? ` (${countCopies(maybeboard)})` : ""}`,
@@ -287,21 +304,6 @@ export default async function EditCubePage({
               printingsByBase={printingsByBase}
             />
           </section>
-          {/* The cube's own copies feed the remove/replace picker, so that
-              side of the panel costs no query however much is typed. */}
-          <EditPanel
-            cubeId={cube.id}
-            browsePath={`${basePath}?mode=browse`}
-            contents={contents.map((card) => ({
-              cardId: card.id,
-              baseId: card.baseId,
-              name: card.name,
-              setCode: card.setCode,
-              collectorNo: card.collectorNo,
-              section: card.section,
-              quantity: card.quantity,
-            }))}
-          />
         </div>
       )}
       </div>
