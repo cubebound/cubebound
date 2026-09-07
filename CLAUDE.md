@@ -388,6 +388,14 @@ row came from. Select with `CARD_SOURCE` env (default `riftcodex`).
   + `RIOT_API_KEY`, and re-verify the response against the adapter first:
   the docs' `art` object has been observed arriving as a `media` array instead
   (RiotGames/developer-relations#1093, unresolved).
+  **`public/riot.txt` is the domain verification for that application and has
+  to stay reachable.** It is a bare UUID served at `/riot.txt`, and Riot reads
+  it when they review the application — which has not happened yet, so a 404
+  there fails the review at a step that has nothing to do with the code. It
+  lived only on the retired `main` branch (see "Branching") and so was **not
+  served at all** until it was added to `public/` on 7 September 2026; the live
+  site had answered `/riot.txt` with the 404 page for as long as the app has
+  been deployed. Do not delete it because it looks like a stray file.
 
 **A card can have more than one domain** — 202 do, including nearly every
 legend, which determines two. Never assume a single domain anywhere: filters
