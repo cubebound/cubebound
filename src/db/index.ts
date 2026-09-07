@@ -28,7 +28,12 @@ function required(name: string): string {
  *
  * - `max` is 6 rather than 1 because pages deliberately run independent
  *   queries in `Promise.all`; one connection would serialise them and undo
- *   that. Six covers the widest fan-out we have.
+ *   that. It used to be sized to exactly the widest fan-out we had — the six
+ *   concurrent reads in `readFilterOptions` — which meant one cold card-browser
+ *   load could take the entire pool. That read is one statement now and the
+ *   widest fan-out is three, so six is deliberate slack rather than an exact
+ *   fit. Keep it that way: sizing the pool to the fan-out means the next `await
+ *   Promise.all` someone adds silently reintroduces the bug.
  * - `idle_timeout` is the one that actually fixes this: a frozen instance's
  *   connections are handed back after 20s instead of being held forever.
  * - `connect_timeout` turns exhaustion into a fast, visible error with a

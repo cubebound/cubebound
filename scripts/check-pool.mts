@@ -4,9 +4,11 @@
  * Adding cards quickly from the editor's browse tab took the whole site down.
  * The database stayed healthy — `/explore` answered in 240ms — but every
  * connection was held by a `/cards` request, so unrelated routes queued for one
- * with no deadline. Two causes: `getFilterOptions` fired six queries on every
- * card-browser load, and the pool was unbounded with no idle timeout, so each
- * frozen Vercel instance sat on up to ten connections forever.
+ * with no deadline. Two causes: `getFilterOptions` fired six concurrent queries
+ * on every card-browser load — against a pool of six — and the pool was
+ * unbounded with no idle timeout, so each frozen Vercel instance sat on up to
+ * ten connections forever. That read is a single statement now; the memo still
+ * has to exist, because a burst spins up cold instances that each pay it.
  *
  * **This replaces a load test, deliberately.** The first version fired 40
  * concurrent requests at `/cards`, and it worked — until it didn't: it drove
@@ -78,7 +80,7 @@ try {
   expect(
     optionsWarm < 5,
     `getFilterOptions took ${optionsWarm}ms on a second call (first ${optionsCold}ms) ` +
-      `— it must be memoised; it fires six queries and ran on every card-browser load`,
+      `— it must be memoised; it reads the whole card pool and ran on every card-browser load`,
   );
 
   const firstPage = Date.now();

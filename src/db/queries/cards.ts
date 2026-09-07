@@ -477,41 +477,91 @@ export async function getFilterOptions(): Promise<FilterOptions> {
   return value;
 }
 
+/**
+ * Every filter list, in one statement rather than six.
+ *
+ * These used to be six concurrent queries in a `Promise.all`, and that fan-out
+ * is what sized the connection pool: `max: 6` existed to cover exactly this, so
+ * one cold card-browser load could take the whole pool and everything else on
+ * that instance queued behind it. "It is memoised, so only a cold instance pays
+ * it" is backwards — a burst spins up many cold instances at once, and cold is
+ * the case that hung the site.
+ *
+ * The `kind` discriminator makes each row self-describing, which also retires
+ * the crossed-result hazard here rather than merely making it loud: there are no
+ * longer two concurrent reads that could come back attached to the wrong names.
+ *
+ * The champion classification folds into the trait rows as a label. That is what
+ * removes the sixth query rather than merely batching it.
+ */
 async function readFilterOptions(): Promise<FilterOptions> {
-  const [sets, domains, types, rarities, tags, championTags] = await Promise.all([
-    // The set's printed name comes out of the stored raw payload rather than a
-    // lookup table here, so a newly synced set names itself — the same rule the
-    // other dropdowns follow. `min()` because the grouping needs an aggregate;
-    // every set has exactly one label. The six retired-source token rows have a
-    // different payload shape and yield null, so the code stands in for them.
-    db.execute<{ code: string; label: string | null }>(
-      sql`select ${cards.setCode} as code,
-                 min(${cards.data}->'card'->'set'->>'label') as label
-          from ${cards}
-          group by ${cards.setCode}
-          order by ${cards.setCode}`,
-    ),
-    db.execute<{ value: string }>(
-      sql`select distinct unnest(${cards.domains}) as value from ${cards}`,
-    ),
-    db.selectDistinct({ value: cards.type }).from(cards),
-    db.selectDistinct({ value: cards.rarity }).from(cards),
-    db.execute<{ value: string }>(
-      sql`select distinct unnest(${cards.tags}) as value from ${cards}`,
-    ),
-    // A tag that names a champion is a champion tag. Derived rather than
-    // listed, so a new set's champions group themselves.
-    db.execute<{ value: string }>(
-      sql`select distinct tag as value from ${cards}, unnest(${cards.tags}) as tag
-          where tag in (select ${cards.champion} from ${cards} where ${cards.champion} is not null)`,
-    ),
-  ]);
+  // Notes on the statement below, kept out of the SQL so the template stays
+  // readable:
+  //  - the set's printed name comes from the stored raw payload rather than a
+  //    lookup table, so a newly synced set names itself. `min()` because the
+  //    grouping needs an aggregate; every set has exactly one label. The six
+  //    retired-source token rows have a different payload shape and yield null,
+  //    so the code stands in for them.
+  //  - a tag that names a champion is a champion tag, derived rather than listed
+  //    so a new set's champions group themselves.
+  //  - `champ` is aliased explicitly. The outer query has `cards` in scope too,
+  //    and Drizzle renders `${column}` unqualified, so an unaliased `champion`
+  //    is exactly the silent mis-binding that once 500'd every share preview.
+  //  - the first branch fixes each column's type, hence the casts after it.
+  const rows = await db.execute<{
+    kind: string;
+    value: string | null;
+    label: string | null;
+  }>(sql`
+    select 'set'::text as kind,
+           ${cards.setCode} as value,
+           min(${cards.data}->'card'->'set'->>'label') as label
+      from ${cards}
+     group by ${cards.setCode}
+    union all
+    select distinct 'domain'::text, d, null::text
+      from ${cards}, unnest(${cards.domains}) as d
+    union all
+    select distinct 'type'::text, ${cards.type}, null::text from ${cards}
+    union all
+    select distinct 'rarity'::text, ${cards.rarity}, null::text from ${cards}
+    union all
+    select distinct 'trait'::text, t,
+           (case when exists (
+              select 1 from ${cards} champ where champ.champion = t
+            ) then 'champion' end)::text
+      from ${cards}, unnest(${cards.tags}) as t
+  `);
 
-  const values = (rows: Iterable<{ value: string }>) =>
-    [...rows].map((r) => r.value).filter(Boolean);
+  const sets: SetOption[] = [];
+  const domains: string[] = [];
+  const types: string[] = [];
+  const rarities: string[] = [];
+  const allTags: string[] = [];
+  const champions = new Set<string>();
 
-  const allTags = values(tags);
-  const champions = new Set(values(championTags));
+  for (const row of rows) {
+    if (!row.value) continue;
+    switch (row.kind) {
+      case "set":
+        sets.push({ code: row.value, label: row.label || row.value });
+        break;
+      case "domain":
+        domains.push(row.value);
+        break;
+      case "type":
+        types.push(row.value);
+        break;
+      case "rarity":
+        rarities.push(row.value);
+        break;
+      case "trait":
+        allTags.push(row.value);
+        if (row.label === "champion") champions.add(row.value);
+        break;
+    }
+  }
+
   const regions = new Set<string>(REGIONS);
 
   return {
@@ -519,13 +569,10 @@ async function readFilterOptions(): Promise<FilterOptions> {
     // the real ones (JDG, OGN, OGS, OPP, PR…), which reads as no order at all;
     // by name the main sets and the "Riftbound … Promotional" ones fall into
     // their own runs.
-    sets: [...sets]
-      .filter((row) => row.code)
-      .map((row) => ({ code: row.code, label: row.label || row.code }))
-      .sort((a, b) => a.label.localeCompare(b.label)),
-    domains: sortByCanonical(values(domains), [...DOMAINS, COLORLESS]),
-    types: sortByCanonical(values(types), CARD_TYPES),
-    rarities: sortByCanonical(values(rarities), RARITIES),
+    sets: sets.sort((a, b) => a.label.localeCompare(b.label)),
+    domains: sortByCanonical(domains, [...DOMAINS, COLORLESS]),
+    types: sortByCanonical(types, CARD_TYPES),
+    rarities: sortByCanonical(rarities, RARITIES),
     traits: {
       regions: allTags.filter((t) => regions.has(t)).sort(),
       traits: allTags.filter((t) => !regions.has(t) && !champions.has(t)).sort(),

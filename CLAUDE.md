@@ -485,8 +485,13 @@ a stale row — but it means a source switch leaves residue worth checking for.
   `Sentry.captureMessage`. Serving it beats a 500 on the card browser; caching
   it does not.
 - **`getFilterOptions` is memoised in-process for five minutes**
-  (`CARD_POOL_TTL_MS`). Its six queries ran on every card-browser load and
-  exhausted the connection pool in production — see "Page speed". The values
+  (`CARD_POOL_TTL_MS`). It used to fire six concurrent queries on every
+  card-browser load and exhausted the connection pool in production — see
+  "Page speed". It is **one statement** now, a `union all` over a `kind`
+  discriminator, so a memo miss costs one connection rather than six; the memo
+  still earns its place, because a burst spins up cold instances that each pay
+  it. Fold new filter lists into that statement rather than adding a query
+  beside it. The values
   describe the card pool, so they only change when `sync-cards` runs and a new
   set appears within five minutes of a sync with nobody doing anything. It is a
   plain module-level memo rather than a framework cache deliberately: no
@@ -1933,11 +1938,18 @@ Two things dominate, and neither is the amount of data.
   Two causes, both since fixed and both worth not reintroducing:
   - `getFilterOptions` fired **six queries in one `Promise.all` on every card
     browser load**, including every re-render of the tab you sit in while
-    adding cards. A single request could take the entire pool. It is now
-    memoised in-process for five minutes, which is right because those values
-    describe the *card pool* and change only when `sync-cards` runs. **Any new
-    fan-out on a hot path needs the same scrutiny**: the number that matters is
-    queries × concurrent requests, not the cost of one query.
+    adding cards. A single request could take the entire pool — `max` was 6,
+    sized to exactly that fan-out. Two fixes, both needed: it is memoised
+    in-process for five minutes (right because those values describe the *card
+    pool* and change only when `sync-cards` runs), and it is now **one
+    statement** instead of six, so a memo miss on a cold instance costs one
+    connection. Measured identical output and the same latency — 223ms against
+    231ms — for a sixth of the pool pressure. "It's memoised so only cold
+    instances pay it" is backwards: a burst spins up *many* cold instances, and
+    cold is the case that hung the site. **Any new fan-out on a hot path needs
+    the same scrutiny**: the number that matters is queries × concurrent
+    requests, not the cost of one query, and sizing the pool to the fan-out
+    means the next `Promise.all` someone adds silently reintroduces this.
   - The pool was unbounded and never released. postgres-js defaults to `max`
     10 with no idle timeout, and **every Vercel instance builds its own pool**,
     so a burst spun up instances that each took ten connections and were then
