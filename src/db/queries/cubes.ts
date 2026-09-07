@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import { db } from "..";
@@ -309,6 +309,25 @@ export async function recordCubeChange(entry: NewCubeChange): Promise<void> {
   }
 }
 
+/**
+ * The same, for a batch. One insert rather than one per change.
+ *
+ * The edit panel saves a whole session at once and logs a row per card change,
+ * so a run of edits would otherwise be a run of round trips purely to write
+ * history — the fan-out rule under "Page speed" applies to the log as much as
+ * to the edit. Keeps `recordCubeChange`'s contract exactly: a failure here is
+ * reported and swallowed, never raised into a caller whose write already
+ * committed.
+ */
+export async function recordCubeChanges(entries: NewCubeChange[]): Promise<void> {
+  if (entries.length === 0) return;
+  try {
+    await db.insert(cubeChanges).values(entries);
+  } catch (error) {
+    console.error("failed to record cube changes", entries.length, error);
+  }
+}
+
 export async function listCubeChanges(
   cubeId: string,
   limit = 200,
@@ -479,6 +498,84 @@ export async function removeCubeCard(
     .returning({ quantity: cubeCards.quantity });
   await touchCube(cubeId);
   return removed.reduce((sum, row) => sum + row.quantity, 0);
+}
+
+/**
+ * Takes a given number of copies off each of several slots, in one statement.
+ *
+ * `adjustCubeCardQuantity` is the single-slot version, and it is a transaction
+ * of three statements plus a `touchCube` *each* — fine for one click, a fan-out
+ * when a saved batch removes a dozen cards. This decrements every named slot in
+ * one `UPDATE ... FROM (VALUES ...)`, then deletes whatever that took to zero.
+ *
+ * Returns what was **actually** removed per slot, which is not always what was
+ * asked: a slot may hold fewer copies than the batch was built against if
+ * something else edited the cube first. Every existing action logs only what
+ * really happened, and the change log has to keep doing that, so the caller
+ * reads its quantities from here rather than from its own request.
+ */
+export async function removeCubeCardCopies(
+  cubeId: string,
+  entries: { cardId: string; section: CubeSection; quantity: number }[],
+): Promise<{ cardId: string; section: CubeSection; removed: number }[]> {
+  if (entries.length === 0) return [];
+
+  const wanted = sql.join(
+    entries.map(
+      (entry) =>
+        sql`(${entry.cardId}::text, ${entry.section}::cube_section, ${entry.quantity}::int)`,
+    ),
+    sql`, `,
+  );
+
+  const removed = await db.transaction(async (tx) => {
+    // `held` snapshots what each slot holds *before* the update, which is the
+    // whole reason for the CTE: RETURNING hands back post-update values, so the
+    // original quantity is not recoverable from the UPDATE alone, and a slot
+    // holding one copy against a staged removal of three would otherwise report
+    // three. Every other action logs what really happened; so does this.
+    const rows = await tx.execute<{
+      card_id: string;
+      section: CubeSection;
+      removed: number;
+    }>(sql`
+      with wanted(card_id, section, quantity) as (values ${wanted}),
+      held as (
+        select target.card_id,
+               target.section,
+               target.quantity as held,
+               wanted.quantity as asked
+          from ${cubeCards} as target
+          join wanted
+            on wanted.card_id = target.card_id
+           and wanted.section = target.section
+         where target.cube_id = ${cubeId}
+      ),
+      updated as (
+        update ${cubeCards} as target
+           set quantity = target.quantity - least(target.quantity, held.asked)
+          from held
+         where target.cube_id = ${cubeId}
+           and target.card_id = held.card_id
+           and target.section = held.section
+        returning target.card_id
+      )
+      select card_id, section, least(held, asked) as removed from held
+    `);
+    // Separate statement, not another CTE: every CTE reads the same snapshot,
+    // so a delete inside that one would still see the pre-update quantities.
+    await tx
+      .delete(cubeCards)
+      .where(and(eq(cubeCards.cubeId, cubeId), lte(cubeCards.quantity, 0)));
+    return [...rows];
+  });
+
+  await touchCube(cubeId);
+  return removed.map((row) => ({
+    cardId: row.card_id,
+    section: row.section,
+    removed: Number(row.removed),
+  }));
 }
 
 /**

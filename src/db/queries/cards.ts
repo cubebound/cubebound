@@ -608,10 +608,14 @@ export async function getImportCatalog(): Promise<
 /** Looks up several cards by id, for validating a confirmed import. */
 export async function getCardsByIds(
   ids: string[],
-): Promise<{ id: string; name: string; type: string }[]> {
+): Promise<{ id: string; name: string; type: string; baseId: string }[]> {
   if (ids.length === 0) return [];
   return db
-    .select({ id: cards.id, name: cards.name, type: cards.type })
+    // `baseId` rides along so a caller can enforce the same-card rule without a
+    // second read: a staged swap between two printings is only a printing
+    // switch if both sides share a base, which is the same rule
+    // `swapPrintingAction` applies one edit at a time.
+    .select({ id: cards.id, name: cards.name, type: cards.type, baseId: cards.baseId })
     .from(cards)
     .where(inArray(cards.id, ids));
 }
