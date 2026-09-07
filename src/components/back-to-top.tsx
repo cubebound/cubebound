@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
  * Jumps back to the top of a long page.
  *
  * Appears only once there is something to go back to, so it never covers
- * content on a short cube. It sits above the editor's Quick add button rather
+ * content on a short cube. It sits above the editor's Edit button rather
  * than beside it — both are bottom-right, and stacking keeps either one from
  * moving depending on whether the other is rendered.
  */

@@ -7,7 +7,6 @@ import {
   getCardById,
   getCardsByIds,
   getImportCatalog,
-  getPrintingsForBases,
   quickSearchCards,
   type BrowseCard,
 } from "@/db/queries/cards";
@@ -20,7 +19,6 @@ import {
   deleteCube,
   getCubeById,
   getCubeByOwnerAndSlug,
-  getCubeCardQuantities,
   getPrintings,
   MAX_CARD_QUANTITY,
   moveCopyToSection,
@@ -498,47 +496,43 @@ export async function cloneCubeAction(
   redirect(editorPath(current.profile.username, clone.slug));
 }
 
-export interface QuickAddResult {
+export interface CardSuggestion {
   card: BrowseCard;
-  /** Every printing, base first. Length 1 for most cards. */
-  printings: BrowseCard[];
   defaultSection: CubeSection;
 }
 
 /**
- * Type-ahead for the quick-add panel. Returns each match's printings inline so
- * choosing an alternate costs no extra round trip, plus which cards are
- * already in the cube so rows can be marked without a page refresh.
+ * Type-ahead for the edit panel.
+ *
+ * Two round trips, and both are load-bearing. It used to make four: it also
+ * prefetched every printing of all twelve matches and re-read the whole cube's
+ * quantities, on every debounced keystroke. Neither is needed now.
+ *
+ * The printings are gone because each row already carries `printingCount`, so
+ * the panel knows whether an alternates control is worth offering and loads the
+ * list from `listPrintingsAction` when one is actually opened — a trip paid
+ * once, when someone looks, rather than on every keystroke for rows they never
+ * touch.
+ *
+ * The quantities are gone because the panel stages its edits: nothing writes
+ * between page load and Save, so the counts it was handed as props cannot go
+ * stale underneath it. That is only true of the staged panel, and re-reading
+ * them here would be correct again the moment anything writes per click.
  */
 export async function quickSearchAction(
   cubeId: string,
   query: string,
-): Promise<{ error?: string; results: QuickAddResult[]; inCube: Record<string, number> }> {
+  allPrintings = false,
+): Promise<{ error?: string; results: CardSuggestion[] }> {
   const owned = await requireOwnedCube(cubeId);
-  if ("error" in owned) return { error: owned.error, results: [], inCube: {} };
+  if ("error" in owned) return { error: owned.error, results: [] };
 
-  const matches = await quickSearchCards(query);
-  if (matches.length === 0) return { results: [], inCube: {} };
-
-  const [printings, inCube] = await Promise.all([
-    getPrintingsForBases(matches.map((m) => m.baseId)),
-    getCubeCardQuantities(owned.cube.id),
-  ]);
-
-  const byBase = new Map<string, BrowseCard[]>();
-  for (const printing of printings) {
-    const group = byBase.get(printing.baseId);
-    if (group) group.push(printing);
-    else byBase.set(printing.baseId, [printing]);
-  }
-
+  const matches = await quickSearchCards(query, { allPrintings: Boolean(allPrintings) });
   return {
     results: matches.map((card) => ({
       card,
-      printings: byBase.get(card.baseId) ?? [card],
       defaultSection: defaultSectionForType(card.type),
     })),
-    inCube,
   };
 }
 

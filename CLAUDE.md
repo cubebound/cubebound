@@ -12,8 +12,8 @@ anyone can browse and clone.
 Working: card ingestion (**production** 1,294 printings / 966 distinct cards
 across 8 sets; **dev** 1,288 / 960 — the difference is production's six
 riftscribe token rows, see "How the split happened"),
-`/cards` browser, magic-link auth with username claim, cube CRUD, the quick-add
-editor, visual and text views, primer, change log, the public cube view with
+`/cards` browser, magic-link auth with username claim, cube CRUD, the staged
+edit panel, visual and text views, primer, change log, the public cube view with
 Share and Clone, and CI.
 
 **Bulk import has shipped** — paste a card list on the editor's Import tab,
@@ -699,15 +699,40 @@ a stale row — but it means a source switch leaves residue worth checking for.
 ## Cubes
 
 - The editor has four tabs, all on `/edit` behind `?mode=`. Default (no param):
-  the cube is the page, and **quick add opens on demand** — a button, then a
-  right-hand drawer on desktop and a bottom sheet below `lg`. It used to hold a
-  permanent 20rem column, which taxed every visit for a panel you only want
-  while adding. Type-ahead, per-row section and printing selects, add without
-  navigating; Escape closes it. `?mode=browse` swaps in
-  the full filter/grid browser **in place of** the cube list, so the add
-  controls are never below it; `?mode=primer` and `?mode=log` are the Primer
-  and Change log tabs. Browse mode is only rendered when active, so the
-  unfiltered card query isn't paid for on every editor load.
+  the cube is the page, and **the edit panel opens on demand** — a prominent
+  Edit button, then a right-hand drawer on desktop and a bottom sheet below
+  `lg`. It used to hold a permanent 20rem column, which taxed every visit for a
+  panel you only want while editing. `?mode=browse` swaps in the full
+  filter/grid browser **in place of** the cube list; `?mode=primer` and
+  `?mode=log` are the Primer and Change log tabs. Browse mode is only rendered
+  when active, so the unfiltered card query isn't paid for on every editor load.
+- **The panel stages changes and writes them on Save**, which is both how people
+  actually edit a cube and the fix for a real fault — the panel it replaces
+  wrote once per click, so a run of edits was a run of round trips against a
+  pool of six. **Escape hides the panel and keeps the batch**; only Discard All
+  throws it away, and a `beforeunload` warns if you leave with one pending,
+  because staged work lives only in that tab.
+- **It has two type-aheads and only one of them touches the database.** Add
+  searches the whole card pool through `quickSearchAction` (two round trips per
+  debounced keystroke). Remove/Replace searches **the cube's own contents**,
+  which the page has already loaded to render the list, so it is passed down as
+  a prop and filtered client-side for **no query at all**. The remove picker
+  lists **one entry per copy** — two copies of a printing are two entries, and
+  staging one leaves the other — so the reader picks the exact copy and there is
+  no "which one did it mean" heuristic to get wrong.
+- **The Board control is Mainboard or Maybeboard, and Mainboard is not a
+  section.** It means "file this the way the cube files things", so
+  `sectionForBoard` sends a Legend to `legends` and a Rune to `runes` via the
+  existing `defaultSectionForType`. That is what lets a two-board control sit
+  over six sections; the staged row shows the section it resolved to, so it
+  never says one thing and does another.
+- **"Specify versions" is the printing picker.** Off, suggestions are one entry
+  per card (the `base_id` grouping); on, every printing is its own suggestion.
+  That is why the type-ahead no longer prefetches printings — the checkbox
+  *is* the mechanism, so there is nothing to lazy-load.
+- **The Edit trigger must never render `×N`.** `check:copies-and-log` asserts the
+  editor's HTML carries no ×N notation and the trigger renders server-side, so
+  the staged count reads `Edit (3)`.
 - The cube list renders in two views: `visual` (image tiles) and `text`
   (`src/components/cube-table.tsx`). The text view reads domain → type → cost:
   a column per domain, split into Units / Gear / Spells inside the main section
@@ -779,7 +804,7 @@ a stale row — but it means a source switch leaves residue worth checking for.
   cannot come to mean two different things.
 - The visual view carries a floating **Back to top** button, since image tiles
   make for a very long page. It appears only past 600px of scroll and sits
-  above the editor's Quick add button; both are bottom-right, and stacking
+  above the editor's Edit button; both are bottom-right, and stacking
   keeps either from shifting depending on whether the other is rendered.
 - View resolution is `?view=` first, then the
   `cubebound.cube-view2` cookie, then **text**; the toggle writes both, so a shared

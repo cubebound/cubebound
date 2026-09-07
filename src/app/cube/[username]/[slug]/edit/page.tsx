@@ -10,7 +10,6 @@ import CubeViewToggle from "@/components/cube-view-toggle";
 import { CardsPerRowProvider, CardsPerRowToggle } from "@/components/cards-per-row";
 import { getFilterOptions, PAGE_SIZE, searchCards } from "@/db/queries/cards";
 import {
-  getCubeCardQuantities,
   getCubeCards,
   getCubeHoldingsForBases,
   listCubeChanges,
@@ -30,7 +29,7 @@ import AddCards from "./add-cards";
 import CubeContents from "./cube-contents";
 import ImportCards from "./import-cards";
 import PrimerEditor from "./primer-editor";
-import QuickAdd from "./quick-add";
+import EditPanel from "./edit-panel";
 
 export const metadata: Metadata = {
   title: "Edit cube",
@@ -85,10 +84,8 @@ export default async function EditCubePage({
   // Mode-specific data joins this round rather than waiting for the cube's
   // cards, which it does not depend on — the browse grid and the change log
   // were each costing their own extra trip on top of everything above.
-  const [allContents, inCube, browse, changes] = await Promise.all([
+  const [allContents, browse, changes] = await Promise.all([
     getCubeCards(cube.id),
-    // Only the edit panel reads these, and it only opens in the default mode.
-    editing ? getCubeCardQuantities(cube.id) : {},
     // Only rendered in browse mode, so don't pay for it in the default view.
     browsing ? Promise.all([getFilterOptions(), searchCards(filters)]) : null,
     viewingLog ? listCubeChanges(cube.id) : [],
@@ -290,7 +287,21 @@ export default async function EditCubePage({
               printingsByBase={printingsByBase}
             />
           </section>
-          <QuickAdd cubeId={cube.id} inCube={inCube} />
+          {/* The cube's own copies feed the remove/replace picker, so that
+              side of the panel costs no query however much is typed. */}
+          <EditPanel
+            cubeId={cube.id}
+            browsePath={`${basePath}?mode=browse`}
+            contents={contents.map((card) => ({
+              cardId: card.id,
+              baseId: card.baseId,
+              name: card.name,
+              setCode: card.setCode,
+              collectorNo: card.collectorNo,
+              section: card.section,
+              quantity: card.quantity,
+            }))}
+          />
         </div>
       )}
       </div>

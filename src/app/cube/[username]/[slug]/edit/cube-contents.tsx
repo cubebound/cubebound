@@ -139,7 +139,7 @@ export default function CubeContents({
         {...(sections ? { sections } : {})}
         {...(emptyMessage ? { emptyMessage } : {})}
         busyKey={busy}
-        emptyMessage="No cards yet. Use quick add to build the list."
+        emptyMessage="No cards yet. Press Edit to start adding cards."
         onRemoveOne={removeCopy}
         copyAction={({ card }) => (
           <div className="space-y-1">

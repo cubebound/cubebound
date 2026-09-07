@@ -361,7 +361,10 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
  * row per card, with prefix matches ahead of substring matches so typing
  * "poro" surfaces "Poro Herder" before "Plundering Poro".
  */
-export async function quickSearchCards(query: string, limit = 12): Promise<BrowseCard[]> {
+export async function quickSearchCards(
+  query: string,
+  { allPrintings = false, limit = 12 }: { allPrintings?: boolean; limit?: number } = {},
+): Promise<BrowseCard[]> {
   const term = query.trim();
   if (term.length < 2) return [];
   const pattern = `%${escapeLike(term)}%`;
@@ -370,6 +373,18 @@ export async function quickSearchCards(query: string, limit = 12): Promise<Brows
   const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
     "printing_count",
   );
+
+  // "Specify versions" in the edit panel: on, every printing is its own
+  // suggestion and the reader picks the art directly; off, one entry per card,
+  // which is the `base_id` grouping the browse grid uses by the same rule.
+  if (allPrintings) {
+    return db
+      .select({ ...browseColumns, printingCount })
+      .from(cards)
+      .where(ilike(cards.name, pattern))
+      .orderBy(sql`(${cards.name} ilike ${prefix}) desc`, cards.name, cards.id)
+      .limit(limit);
+  }
 
   const grouped = db
     .selectDistinctOn([cards.baseId], { ...browseColumns, printingCount })
