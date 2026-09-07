@@ -90,7 +90,7 @@ export default function PrivacyPolicy() {
         </Section>
 
         <Section title="Cookies">
-          <p>We set four kinds of cookie, all of them functional:</p>
+          <p>We set five kinds of cookie, all of them functional:</p>
           <ul className="ml-5 list-disc space-y-1">
             <li>
               <strong className="font-medium">Sign-in cookies</strong>, set by
@@ -107,6 +107,14 @@ export default function PrivacyPolicy() {
                 <code className="font-mono text-xs">cubebound.cube-view2</code>
               </strong>:
               whether you prefer the list or image view of a cube.
+            </li>
+            <li>
+              <strong className="font-medium">
+                <code className="font-mono text-xs">
+                  cubebound.cards-per-row
+                </code>
+              </strong>:
+              how many card images you like on a row.
             </li>
             <li>
               <strong className="font-medium">

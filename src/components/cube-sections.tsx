@@ -4,6 +4,8 @@ import { useCallback, useState, type ReactNode } from "react";
 
 import BackToTop from "@/components/back-to-top";
 import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
+import { useCardsPerRow } from "@/components/cards-per-row";
+import { cardGrid } from "@/lib/ui";
 import CubeTable from "@/components/cube-table";
 import type { CubeCardRow } from "@/db/queries/cubes";
 import { countCopies, expandCopies, type CopyOf } from "@/lib/cube-cards";
@@ -58,6 +60,10 @@ export default function CubeSections({
    *  maybeboard, which has its own tab. */
   sections?: readonly CubeSection[];
 }) {
+  // Density comes from context, not a prop: the control that sets it lives in
+  // the toolbar, several components away. Undefined outside a provider, which
+  // is what keeps every other card grid on the responsive default.
+  const perRow = useCardsPerRow();
   // Track the selection by key, not by row: after an edit the page revalidates
   // and hands us new row objects, and a held reference would show stale data.
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -120,7 +126,7 @@ export default function CubeSections({
                   groupByType={section === "main"}
                 />
               ) : (
-                <ul className={CARD_GRID_CLASS}>
+                <ul className={perRow ? cardGrid[perRow] : CARD_GRID_CLASS}>
                   {/* Domain, then cost, with the costless cards kept together
                       at the end — see compareForDisplay. Sorted here rather
                       than in the query so both views order from one rule. */}
@@ -129,6 +135,7 @@ export default function CubeSections({
                       key={copy.key}
                       card={copy.card}
                       showPrintingCount={false}
+                      wide={perRow !== undefined && perRow <= 4}
                       onOpen={() => setSelectedKey(rowKey(copy.card))}
                       action={copyAction?.(copy)}
                     />

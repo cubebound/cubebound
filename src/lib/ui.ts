@@ -165,3 +165,29 @@ export const menu =
   "z-50 rounded-lg border border-line bg-raised p-1 shadow-lg shadow-black/5 dark:shadow-black/40";
 export const menuItem =
   "block w-full rounded px-3 py-2 text-left text-sm transition-colors hover:bg-hover";
+
+/* ── Card grids ───────────────────────────────────────────────────────── */
+
+/**
+ * Column layouts for a grid of card tiles.
+ *
+ * `auto` is the responsive default every card grid uses — the card browser, the
+ * editor's browse grid and a cube's visual view. The numbered entries are the
+ * cube visual view's density control, where the reader picks the count.
+ *
+ * **Every class here is a source literal, and must stay one.** Tailwind scans
+ * source text, so a computed `grid-cols-${n}` emits no CSS at all and the grid
+ * silently collapses to one column. That is why this is a map rather than a
+ * function.
+ *
+ * Each choice still steps down at narrow widths. The count is a desktop
+ * preference; ten columns on a phone is not a denser view, it is an unreadable
+ * one.
+ */
+export const cardGrid = {
+  auto: "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6",
+  4: "grid grid-cols-2 gap-x-3 gap-y-4 md:grid-cols-3 lg:grid-cols-4",
+  6: "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6",
+  8: "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8",
+  10: "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10",
+} as const;

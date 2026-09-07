@@ -9,6 +9,7 @@ import { cardFull, cardThumb } from "@/lib/card-images";
 import { domainDot } from "@/lib/domain-columns";
 import { aspectRatio, DOMAIN_COLORS, titleCase, totalPips } from "@/lib/riftbound";
 import { parseRulesText, type RulesSymbol } from "@/lib/rules-text";
+import { cardGrid } from "@/lib/ui";
 
 /* Shared between the card browser and the cube editor.
    Card images come straight from the source CDN — we deliberately do not proxy
@@ -346,6 +347,7 @@ export function CardTile({
   showPrintingCount = true,
   dimmed = false,
   quantity,
+  wide = false,
 }: {
   card: BrowseCard;
   onOpen: () => void;
@@ -355,8 +357,20 @@ export function CardTile({
   dimmed?: boolean;
   /** Copies of this printing in the cube; the badge shows only above one. */
   quantity?: number;
+  /**
+   * Ask the CDN for the larger rendition, for grids of four or fewer columns.
+   *
+   * THUMB_WIDTH is 512 because tiles normally render around 246 CSS px, and the
+   * rule in card-images.ts is that the source stays near 2x the rendered size.
+   * A four-column grid inside the 1600px container puts tiles at roughly 380px,
+   * where 512 is only 1.35x and reads as blurred card text on a 2x display —
+   * the exact failure that made 320 unusable. This is the same source the card
+   * detail modal already uses, so it is cached rather than newly fetched.
+   */
+  wide?: boolean;
 }) {
-  const thumb = cardThumb(card.imageThumb ?? card.imageFull);
+  const source = card.imageThumb ?? card.imageFull;
+  const thumb = wide ? cardFull(source) : cardThumb(source);
   return (
     <li className="self-start">
       <button
@@ -411,5 +425,8 @@ export function CardTile({
   );
 }
 
-export const CARD_GRID_CLASS =
-  "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6";
+/**
+ * The responsive default, defined once in `src/lib/ui.ts` beside the density
+ * variants so a change to one is a change to all of them.
+ */
+export const CARD_GRID_CLASS = cardGrid.auto;

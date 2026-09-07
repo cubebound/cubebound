@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import CubeAnalyticsView from "@/components/cube-analytics-view";
 import CubeSections from "@/components/cube-sections";
 import CubeViewToggle from "@/components/cube-view-toggle";
+import { CardsPerRowProvider, CardsPerRowToggle } from "@/components/cards-per-row";
 import FollowButton from "@/components/follow-button";
 import Primer from "@/components/primer";
 import { getCubeCards } from "@/db/queries/cubes";
@@ -15,6 +16,7 @@ import type { SearchParams } from "@/lib/card-search-params";
 import { CubeModerationPanel } from "@/components/moderation-panel";
 import { canEditCube, canViewCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
+import { CARDS_PER_ROW_COOKIE, resolveCardsPerRow } from "@/lib/cards-per-row";
 import { countCopies } from "@/lib/cube-cards";
 import {
   CUBE_LIST_SECTIONS,
@@ -133,6 +135,7 @@ export default async function CubePage({
   const showingMaybeboard = tab === "maybeboard";
   const showingAnalytics = tab === "analytics";
   const view = resolveCubeView(query.view, cookieStore.get(CUBE_VIEW_COOKIE)?.value);
+  const perRow = resolveCardsPerRow(cookieStore.get(CARDS_PER_ROW_COOKIE)?.value);
 
   // `cubeId` is hoisted because `isOwner` is an aliased type predicate: reading
   // `cube.id` under `!isOwner` narrows the cube to `never`.
@@ -179,7 +182,8 @@ export default async function CubePage({
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
+    <CardsPerRowProvider initial={perRow}>
+      <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
       {/* Above the header, not beside the owner's buttons: acting on someone
           else's cube by mistake is the failure to design against. */}
       {isAdmin && (
@@ -309,7 +313,10 @@ export default async function CubePage({
           {cards.length > 0 &&
             tabLink("Analytics", `${basePath}?tab=analytics`, showingAnalytics)}
           {!showingPrimer && !showingMaybeboard && !showingAnalytics && cards.length > 0 && (
-            <span className="ml-auto">
+            <span className="ml-auto flex items-center gap-2">
+              {/* Density only means something for image tiles; the list view
+                  sizes its own columns from the viewport. */}
+              {view === "visual" && <CardsPerRowToggle />}
               <CubeViewToggle active={view} />
             </span>
           )}
@@ -334,6 +341,7 @@ export default async function CubePage({
           emptyMessage="This cube doesn't have any cards yet."
         />
       )}
-    </div>
+      </div>
+    </CardsPerRowProvider>
   );
 }

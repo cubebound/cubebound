@@ -793,6 +793,28 @@ a stale row — but it means a source switch leaves residue worth checking for.
   the default from visual to text changed nothing for anyone who had ever
   touched the toggle — which is everyone who uses the site. `…-view2` retires
   those pins once; the next explicit choice re-pins under the new name.
+- **The visual view's density is a cookie and never a URL param**, which is the
+  opposite of `?view=` and for a reason worth keeping straight. The view toggle
+  selects what the *server* renders, so it belongs in a link. The column count
+  is only a CSS class on a list the server has already sent, so a param would
+  spend a round trip on a dynamic route to change a class. `cubebound.cards-per-row`
+  holds 4, 6, 8 or 10; the server reads it into the props and
+  `CardsPerRowProvider` holds it as client state so a click re-lays-out on its
+  own frame. Same versioning rule as `…-view2` applies if the default ever moves.
+- **The grid classes live in `cardGrid` in `src/lib/ui.ts`, and every one is a
+  source literal.** Tailwind scans source text, so a computed
+  `grid-cols-${n}` emits no CSS at all and the grid silently collapses to one
+  column — hence a map rather than a function. `CARD_GRID_CLASS` is just
+  `cardGrid.auto`, so the card browser and the editor's browse grid keep the
+  responsive default and are untouched by the density control, which reads
+  context and is `undefined` outside a provider.
+- **Below five columns a tile asks for the 744px source, not the 512px one.**
+  `THUMB_WIDTH` is 512 because tiles normally render near 246 CSS px and the
+  rule is that the source stays near 2x the rendered size; a four-column grid in
+  the 1600px container puts them at roughly 380px, where 512 is 1.35x and reads
+  as blurred card text on a 2x display. That is the same failure that made 320
+  unusable. It is the source the card detail modal already uses, so it is
+  usually cached rather than newly fetched.
 - `cubes.primer` is a long-form markdown write-up, separate from the one-line
   `description`, edited on the editor's Primer tab and rendered by
   `src/components/primer.tsx`. **Never render it as HTML.** `rehype-raw` is
@@ -1007,7 +1029,10 @@ a stale row — but it means a source switch leaves residue worth checking for.
   format rather than serving the tool — a crawler meeting only a login wall and
   a list of other people's cubes has nothing to understand the site by.
 - **`/privacy` describes what the code actually does, so it changes with the
-  code.** Its cookie list is `THEME_COOKIE` and `CUBE_VIEW_COOKIE`; "analytics"
+  code.** Its cookie list is `THEME_COOKIE`, `CUBE_VIEW_COOKIE` and
+  `CARDS_PER_ROW_COOKIE`, and the page states the count in prose ("we set five
+  kinds of cookie"), so **adding one is a two-line edit there, in the same
+  commit**; "analytics"
   is the Vercel Analytics component in the root layout; and it says plainly that
   account deletion is not yet self-serve, because promising a button that does
   not exist is the one genuinely dishonest thing that page could do. **When

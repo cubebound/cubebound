@@ -7,6 +7,7 @@ import CardFilterBar from "@/components/card-filter-bar";
 import CardPagination from "@/components/card-pagination";
 import ChangeLog from "@/components/change-log";
 import CubeViewToggle from "@/components/cube-view-toggle";
+import { CardsPerRowProvider, CardsPerRowToggle } from "@/components/cards-per-row";
 import { getFilterOptions, PAGE_SIZE, searchCards } from "@/db/queries/cards";
 import {
   getCubeCardQuantities,
@@ -20,6 +21,7 @@ import { loadCube, loadViewer } from "@/lib/cube-request";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
 import { canEditCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
+import { CARDS_PER_ROW_COOKIE, resolveCardsPerRow } from "@/lib/cards-per-row";
 import { countCopies } from "@/lib/cube-cards";
 import { resolveSiteUrl } from "@/lib/site-url";
 
@@ -72,6 +74,7 @@ export default async function EditCubePage({
   const importing = mode === "import";
   const onMaybeboard = mode === "maybeboard";
   const view = resolveCubeView(query.view, cookieStore.get(CUBE_VIEW_COOKIE)?.value);
+  const perRow = resolveCardsPerRow(cookieStore.get(CARDS_PER_ROW_COOKIE)?.value);
 
   // Which mode renders what, decided before the fetch rather than after it.
   // Every mode used to read the whole cube's quantities and every printing of
@@ -128,7 +131,8 @@ export default async function EditCubePage({
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
+    <CardsPerRowProvider initial={perRow}>
+      <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
       <header className="mb-5">
         <Link href="/cubes" className="text-sm text-subtle underline-offset-4 hover:underline">
           ← Your cubes
@@ -186,7 +190,10 @@ export default async function EditCubePage({
           {modeLink("Import", `${basePath}?mode=import`, importing)}
           {modeLink("Change log", `${basePath}?mode=log`, viewingLog)}
           {!browsing && !writingPrimer && !viewingLog && !importing && !onMaybeboard && contents.length > 0 && (
-            <span className="ml-auto">
+            <span className="ml-auto flex items-center gap-2">
+              {/* Density only means something for image tiles; the list view
+                  sizes its own columns from the viewport. */}
+              {view === "visual" && <CardsPerRowToggle />}
               <CubeViewToggle active={view} />
             </span>
           )}
@@ -286,6 +293,7 @@ export default async function EditCubePage({
           <QuickAdd cubeId={cube.id} inCube={inCube} />
         </div>
       )}
-    </div>
+      </div>
+    </CardsPerRowProvider>
   );
 }
