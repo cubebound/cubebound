@@ -73,12 +73,19 @@ export default async function EditCubePage({
   const onMaybeboard = mode === "maybeboard";
   const view = resolveCubeView(query.view, cookieStore.get(CUBE_VIEW_COOKIE)?.value);
 
+  // Which mode renders what, decided before the fetch rather than after it.
+  // Every mode used to read the whole cube's quantities and every printing of
+  // every card in it — on a 500-card cube that is a thousand-odd wide rows,
+  // paid for while showing the change log, which uses neither.
+  const editing = !browsing && !writingPrimer && !viewingLog && !importing && !onMaybeboard;
+
   // Mode-specific data joins this round rather than waiting for the cube's
   // cards, which it does not depend on — the browse grid and the change log
   // were each costing their own extra trip on top of everything above.
   const [allContents, inCube, browse, changes] = await Promise.all([
     getCubeCards(cube.id),
-    getCubeCardQuantities(cube.id),
+    // Only the edit panel reads these, and it only opens in the default mode.
+    editing ? getCubeCardQuantities(cube.id) : {},
     // Only rendered in browse mode, so don't pay for it in the default view.
     browsing ? Promise.all([getFilterOptions(), searchCards(filters)]) : null,
     viewingLog ? listCubeChanges(cube.id) : [],
@@ -89,20 +96,25 @@ export default async function EditCubePage({
   const maybeboard = allContents.filter((card) => card.section === "maybeboard");
   const totalCopies = countCopies(contents);
 
-  // Every printing of every card in the cube, so each copy can be switched
-  // without a round trip when the control is opened.
-  const printingRows = await getPrintingsForBases([
-    ...new Set(allContents.map((card) => card.baseId)),
+  // Printings for the cards actually on screen, and only where alternates
+  // exist. `cube-contents.tsx` renders a plain label rather than a select when
+  // a base has a single printing, so those rows never changed anything visible.
+  // `printingCount` rides along on getCubeCards, so knowing which qualify costs
+  // nothing, and an empty list short-circuits without a query.
+  const rendered = onMaybeboard ? maybeboard : editing ? contents : [];
+  const switchableBases = [
+    ...new Set(rendered.filter((card) => card.printingCount > 1).map((card) => card.baseId)),
+  ];
+
+  const [printingRows, holdings] = await Promise.all([
+    getPrintingsForBases(switchableBases),
+    // Which of the results the cube already holds, and in which printing.
+    browse ? getCubeHoldingsForBases(cube.id, browse[1].cards.map((c) => c.baseId)) : {},
   ]);
   const printingsByBase: Record<string, typeof printingRows> = {};
   for (const printing of printingRows) {
     (printingsByBase[printing.baseId] ??= []).push(printing);
   }
-
-  // Which of the results the cube already holds, and in which printing.
-  const holdings = browse
-    ? await getCubeHoldingsForBases(cube.id, browse[1].cards.map((c) => c.baseId))
-    : {};
 
   const modeLink = (label: string, href: string, active: boolean) => (
     <Link

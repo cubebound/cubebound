@@ -1985,6 +1985,21 @@ Two things dominate, and neither is the amount of data.
   Callers must pass rows already collapsed to one per (card, section) —
   `mergeImportRows` does that — because Postgres refuses to let a single
   `ON CONFLICT DO UPDATE` touch one row twice.
+- **A page must not fetch what its current mode does not render.** The editor
+  reads six different modes off `?mode=`, and it used to load the whole cube's
+  card quantities *and* every printing of every card in it on all six — a
+  500-card cube is a thousand-odd wide rows, paid for while showing the change
+  log, which uses neither. Both reads are now conditional on the mode that
+  consumes them, and the printings read is further bounded to bases where
+  `printingCount > 1`: `cube-contents.tsx` renders a plain label rather than a
+  select when a card has one printing, so those rows never changed anything on
+  screen. `printingCount` already rides along on `getCubeCards`, so knowing
+  which qualify costs nothing, and `getPrintingsForBases([])` returns without a
+  query — which is what lets the mode decide by passing an empty list. Browse
+  mode went from ten queries in its first wave to five, and primer/log/import
+  from four to two. **The number that matters is queries × concurrent
+  requests**, so a read that is merely unused is not free; it is a connection
+  someone else's request is waiting on.
 - **The cube listings are where the remaining time goes.** Measured in
   production, the three variants of `searchCubes` were 3,082ms of 3,790ms across
   every query touching `cubes` — 81% of the time from 1.7% of the calls, at
