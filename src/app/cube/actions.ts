@@ -25,7 +25,9 @@ import {
   MAX_CARD_QUANTITY,
   moveCopyToSection,
   recordCubeChange,
+  recordCubeChanges,
   removeCubeCard,
+  removeCubeCardCopies,
   countCubesForOwner,
   cubeHasCard,
   MAX_CUBES_PER_USER,
@@ -43,6 +45,11 @@ import {
   previewImport,
   type ImportPreview,
 } from "@/lib/import-list";
+import {
+  cardIdsInPlan,
+  planStagedEdits,
+  type StagedEditRow,
+} from "@/lib/staged-edit";
 import { defaultSectionForType, isCubeSection, type CubeSection } from "@/lib/riftbound";
 
 export interface ActionState {
@@ -615,4 +622,142 @@ export async function commitImportAction(
 
   revalidateCube(owned.profile.username, owned.cube.slug);
   return { added: copies };
+}
+
+
+/**
+ * Saves a whole editing session in one go.
+ *
+ * The edit panel stages changes and sends them here on Save. That is a product
+ * decision — it is how people actually edit a cube, and it is what makes
+ * "Discard All" possible — but it is also the fix for a real fault: the panel
+ * this replaces called `addCardAction` once per click, so a run of edits was a
+ * run of round trips against a pool of six. See "Page speed" in CLAUDE.md.
+ *
+ * Everything the client sends is re-derived here rather than trusted, the same
+ * way `commitImportAction` re-reads every card id: the rows arrive from a
+ * browser, and the client is choosing among options, not dictating them.
+ */
+export async function saveCubeEditsAction(
+  cubeId: string,
+  rows: StagedEditRow[],
+): Promise<ActionState & { applied?: number }> {
+  const owned = await requireOwnedCube(cubeId);
+  if ("error" in owned) return { error: owned.error };
+
+  const planned = planStagedEdits(rows, MAX_CARD_QUANTITY);
+  if (!planned.ok) return { error: planned.error };
+  const { plan } = planned;
+
+  // One read for every id the batch mentions. An unknown one would otherwise
+  // fail on the foreign key partway through, leaving the cube half-edited.
+  const known = await getCardsByIds(cardIdsInPlan(plan));
+  const byId = new Map(known.map((card) => [card.id, card]));
+  const missing = cardIdsInPlan(plan).find((id) => !byId.has(id));
+  if (missing) return { error: `That card no longer exists: ${missing}` };
+
+  const log: Omit<NewCubeChange, "cubeId" | "actorId" | "actorUsername">[] = [];
+
+  // Removes first: a remove must not consume a copy this same batch just added,
+  // or the log describes something that did not happen.
+  if (plan.removes.length > 0) {
+    const removed = await removeCubeCardCopies(owned.cube.id, plan.removes);
+    for (const row of removed) {
+      if (row.removed <= 0) continue;
+      log.push({
+        kind: "cards_removed",
+        cardId: row.cardId,
+        cardName: byId.get(row.cardId)?.name ?? row.cardId,
+        // What actually went, not what was asked for — a slot may hold fewer
+        // copies than the batch was built against.
+        quantity: row.removed,
+        fromSection: row.section,
+      });
+    }
+  }
+
+  // Replaces before adds. `moveOneCopy` decrements the source before merging
+  // with `least(99, …)`, so at the cap it silently loses a copy; running these
+  // first means an over-cap batch loses an *added* copy rather than an existing
+  // one. A knowing exception to the fan-out rule: this is a loop over a tested
+  // primitive because each replace is a distinct (from, to, section) triple and
+  // a set-based version is materially harder, while a real batch carries a
+  // handful at most.
+  for (const swap of plan.replaces) {
+    const from = byId.get(swap.fromCardId)!;
+    const to = byId.get(swap.toCardId)!;
+    // The same rule `swapPrintingAction` applies one edit at a time: a swap
+    // between printings of one card is a printing switch, anything else is a
+    // removal and an addition, and the log has to say which.
+    const samePrinting = from.baseId === to.baseId;
+    let moved = 0;
+    for (let copy = 0; copy < swap.quantity; copy += 1) {
+      const ok = await switchCopyPrinting(
+        owned.cube.id,
+        swap.fromCardId,
+        swap.toCardId,
+        swap.section,
+      );
+      if (!ok) break;
+      moved += 1;
+    }
+    if (moved === 0) continue;
+
+    if (samePrinting) {
+      log.push({
+        kind: "printing_switched",
+        cardId: swap.toCardId,
+        cardName: to.name,
+        quantity: moved,
+        toSection: swap.section,
+        fromValue: swap.fromCardId,
+        toValue: swap.toCardId,
+      });
+    } else {
+      log.push({
+        kind: "cards_removed",
+        cardId: swap.fromCardId,
+        cardName: from.name,
+        quantity: moved,
+        fromSection: swap.section,
+      });
+      log.push({
+        kind: "cards_added",
+        cardId: swap.toCardId,
+        cardName: to.name,
+        quantity: moved,
+        toSection: swap.section,
+      });
+    }
+  }
+
+  // Adds last, and in one statement: `planStagedEdits` has already collapsed to
+  // one row per (card, section), which is what lets a single `ON CONFLICT DO
+  // UPDATE` carry the lot. See `addCubeCards`.
+  if (plan.adds.length > 0) {
+    await addCubeCards(owned.cube.id, plan.adds);
+    for (const row of plan.adds) {
+      log.push({
+        kind: "cards_added",
+        cardId: row.cardId,
+        cardName: byId.get(row.cardId)?.name ?? row.cardId,
+        quantity: row.quantity,
+        toSection: row.section,
+      });
+    }
+  }
+
+  // One entry per card change, not one per batch: the log stays as granular as
+  // it is for single edits, and the batching is only how they were written.
+  await recordCubeChanges(
+    log.map((entry) => ({
+      ...entry,
+      cubeId: owned.cube.id,
+      actorId: owned.profile.id,
+      actorUsername: owned.profile.username,
+    })),
+  );
+
+  revalidateCube(owned.profile.username, owned.cube.slug);
+  return { applied: log.reduce((sum, entry) => sum + (entry.quantity ?? 0), 0) };
 }

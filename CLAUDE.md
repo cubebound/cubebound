@@ -866,6 +866,21 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - The text view labels rows with their printing id only when a card sits in one
   section under more than one printing (`ambiguousBaseIds`); otherwise the
   names alone are unambiguous and the ids are noise.
+- **A cube edit made in the panel is staged, and `saveCubeEditsAction` writes a
+  whole session at once.** One entry per card change still lands in the log,
+  using the existing kinds — the batching is how the writes happen, not how they
+  are recorded, so history stays as granular as it is for single edits and
+  `change-log.tsx` needed no change. Order is **removes, then replaces, then
+  adds**: a remove must not consume a copy the same batch just added, and
+  replaces go before adds because `moveOneCopy` decrements the source before
+  merging with `least(99, …)`, so at the cap it silently drops a copy — better
+  an added one than an existing one. Removes are one statement
+  (`removeCubeCardCopies`) and adds are one upsert; the replace loop is a
+  knowing exception to the fan-out rule, because each is a distinct
+  (from, to, section) triple and a batch carries a handful at most.
+  **A replace is only a `printing_switched` when both sides share a `base_id`** —
+  the same rule `swapPrintingAction` applies one edit at a time — and otherwise
+  logs as a removal plus an addition, because that is what it is.
 - **Bulk import never guesses.** The Import tab parses a pasted list
   (`src/lib/import-list.ts`, pure and catalog-driven): optional leading
   quantity (`2 Fury Rune` / `2x Fury Rune`), `#` and `//` comments, and
