@@ -184,7 +184,10 @@ function CostCell({
         {rows.map((row) => {
           const key = `${row.card.id}:${row.card.section}`;
           return (
-            <li key={row.key} className="group flex items-center gap-1 px-1.5">
+            // Padding is asymmetric on purpose: the power indicator sits
+            // hard against the right edge so the name gets every pixel the
+            // column can spare, and names are what this view exists to show.
+            <li key={row.key} className="group flex items-center gap-0.5 pl-1.5 pr-0.5">
               <button
                 type="button"
                 onClick={() => onSelect(row.card)}

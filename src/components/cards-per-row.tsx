@@ -118,7 +118,11 @@ export function CardsPerRowMenu() {
   if (!ctx) return null;
 
   return (
-    <details ref={ref} className="relative">
+    // Hidden below `sm`, where it does nothing: every option renders
+    // `grid-cols-2` at that width, so the menu would offer four choices with
+    // one outcome. The cube's own breakpoints already pick a sane count for a
+    // phone; density is a desktop preference.
+    <details ref={ref} className="relative hidden sm:block">
       <summary className="cursor-pointer list-none rounded-md border border-line px-3 py-1.5 text-sm text-muted select-none hover:bg-hover">
         Display
       </summary>

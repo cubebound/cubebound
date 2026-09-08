@@ -747,7 +747,10 @@ a stale row — but it means a source switch leaves residue worth checking for.
   chips beside a two-way view toggle is most of a phone's width, and it is a
   setting you change occasionally. Built on the same `<details>` pattern as the
   card browser's `FilterMenu`, so it needs no React state and survives JS being
-  off. **Nothing collapses into a JS-only menu**, because `check:public-cube`
+  off. **It is hidden below `sm`, where it does nothing**: every entry in
+  `cardGrid` is `grid-cols-2` at that width, so the menu would offer four
+  choices with one outcome. If a `cardGrid` entry ever differs below `sm`, that
+  breakpoint has to move with it. **Nothing collapses into a JS-only menu**, because `check:public-cube`
   requires `>Share<` and `>Clone<` in the served HTML.
 - **The trigger renders only on tabs that show cards.** The panel edits the card list,
   so on Primer or Change log it is a button that does nothing you came to that
@@ -833,6 +836,10 @@ a stale row — but it means a source switch leaves residue worth checking for.
   is why `CubeSections` no longer takes a `copyAction`. `CardTile`'s `bare` prop
   does this; the card browser and browse grid keep their captions, because there
   you are scanning for a name you have not found yet.
+- **The list view's power indicator sits hard against the right edge**
+  (`gap-0.5 pl-1.5 pr-0.5` on the row, measured at 2px of clearance). The
+  padding is asymmetric on purpose: a name has ~50px in a narrow column and
+  truncates, so every pixel the indicator does not take is a pixel of name.
 - **A text-view row shows its power cost as a count plus one domain dot**
   (`PowerCost` in `src/components/card-visuals.tsx`), right-aligned after the
   name. Power was invisible in both cube views before — it rendered only in the
