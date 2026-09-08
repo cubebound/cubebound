@@ -235,6 +235,10 @@ type CardSearchResult = {
  * `like '%(%'`: `Recruit (271) // Buff` and `Sprite (274) // Buff` are four
  * genuinely distinct cards that carry a parenthetical in the middle, and
  * collapsing those would merge cards the game keeps apart.
+ *
+ * Mirrors `collapseIdentityKey` in src/lib/card-ids.ts, which is what
+ * `check:printings` compares this against on every row — the same
+ * two-definitions-must-agree arrangement `assignBaseIds` has with `0003`.
  */
 const collapseKey = sql`(lower(regexp_replace(${cards.name}, '\\s*\\([^()]*\\)\\s*$', '')) || '|' || ${cards.type})`;
 

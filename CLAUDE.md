@@ -566,7 +566,12 @@ a stale row — but it means a source switch leaves residue worth checking for.
   groups were checked against the pool and agree on domains, energy, might,
   power cost and rules text: they are treatments, not cards.
   `collapseKey` in `src/db/queries/cards.ts` strips a **trailing** parenthetical
-  and groups on that instead. Trailing is the whole rule — `Recruit (271) //
+  and groups on that instead, mirrored by `nameWithoutTreatment` /
+  `collapseIdentityKey` in `src/lib/card-ids.ts` so `check:printings` can assert
+  Postgres and TypeScript agree on every row — the same two-definitions
+  arrangement `assignBaseIds` has with `0003`. The mirror lives in `card-ids.ts`
+  rather than beside the query because that module imports nothing, and
+  `check:printings` runs without `--env-file-if-exists`. Trailing is the whole rule — `Recruit (271) //
   Buff` and `Sprite (274) // Buff` are four genuinely distinct cards carrying a
   parenthetical mid-name, and a looser match would merge cards the game keeps
   apart. `canonicalFirst` picks the representative: a plainly-named printing
@@ -1778,7 +1783,7 @@ which is why they can create and delete accounts freely.
 | Script | Guards | Needs | Runs |
 | --- | --- | --- | --- |
 | `check:primer-safety` | hostile markdown renders inert through the real component | nothing | **CI** |
-| `check:printings` | the TS and SQL `base_id` rules agree on every row | DB (read-only) | manual gate |
+| `check:printings` | the TS and SQL `base_id` rules agree on every row; and separately that the browser's collapse rule agrees between `nameWithoutTreatment` and the `regexp_replace` in `collapseKey`, that every treatment printing folds onto the card it varies, and that a mid-name parenthetical never folds | DB (read-only) | manual gate |
 | `check:browse-grid` | a grouped tile is a card, an all-printings tile is itself | Supabase + dev server | manual gate |
 | `check:card-filters` | multi-select ORs within a filter and ANDs across; energy buckets partition the pool; sorting uses the game's order | DB (read-only) | manual gate |
 | `check:copies-and-log` | quantity 2 lists as two entries; per-copy edits move one copy; edits reach the log | Supabase + dev server | manual gate |

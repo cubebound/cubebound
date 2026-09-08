@@ -16,7 +16,14 @@ import postgres from "postgres";
 
 import { fromEnvFile } from "./lib/env";
 
-import { assignBaseIds, cardIdentityKey, composeCardId, provisionalBaseId } from "../src/lib/card-ids";
+import {
+  assignBaseIds,
+  cardIdentityKey,
+  collapseIdentityKey,
+  composeCardId,
+  nameWithoutTreatment,
+  provisionalBaseId,
+} from "../src/lib/card-ids";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 const failures: string[] = [];
@@ -140,9 +147,63 @@ try {
     `${notSelfBased.length} canonical row(s) do not point at themselves: ${notSelfBased.slice(0, 5).join(", ")}`,
   );
 
+  // --- what the card browser actually collapses on --------------------------
+  // `base_id` is right for every card whose printings share a name, and wrong
+  // for the ones whose treatment the source spells *in* the name. The browser
+  // groups on `collapseKey` instead (src/db/queries/cards.ts); these assert the
+  // TypeScript mirror of that regex agrees with Postgres on every row, and that
+  // the rule does what it was added to do.
+  const strippedInSql = await sql<{ id: string; stripped: string }[]>`
+    select id, regexp_replace(name, '\\s*\\([^()]*\\)\\s*$', '') as stripped from cards`;
+  const sqlStrip = new Map(strippedInSql.map((r) => [r.id, r.stripped.trim()]));
+  const stripMismatches = rows.filter(
+    (r) => sqlStrip.get(r.id) !== nameWithoutTreatment(r.name),
+  );
+  expect(
+    stripMismatches.length === 0,
+    `SQL and nameWithoutTreatment disagree on ${stripMismatches.length} row(s): ` +
+      stripMismatches
+        .slice(0, 5)
+        .map((m) => `${m.id} sql="${sqlStrip.get(m.id)}" ts="${nameWithoutTreatment(m.name)}"`)
+        .join("; "),
+  );
+
+  const collapsed = new Set(rows.map((r) => collapseIdentityKey(r)));
+
+  // The bug this rule exists for: a promo whose name carries its treatment must
+  // land on the same entry as the card it varies, not beside it.
+  const treated = rows.filter((r) => nameWithoutTreatment(r.name) !== r.name.trim());
+  expect(treated.length > 0, "no treatment-suffixed rows found — has the source changed?");
+  const orphaned = treated.filter(
+    (r) => !rows.some((o) => o !== r && collapseIdentityKey(o) === collapseIdentityKey(r)),
+  );
+  expect(
+    orphaned.length === 0,
+    `${orphaned.length} treatment printing(s) collapse to an entry of their own: ` +
+      orphaned.slice(0, 5).map((o) => `${o.id} "${o.name}"`).join("; "),
+  );
+
+  // And the other half: a parenthetical that is *not* trailing is part of the
+  // name. `Recruit (271) // Buff` and its three siblings are distinct cards.
+  const midName = rows.filter((r) => /\([^()]*\)/.test(r.name) && !/\([^()]*\)\s*$/.test(r.name));
+  expect(
+    midName.length > 0 && midName.every((r) => nameWithoutTreatment(r.name) === r.name.trim()),
+    `a mid-name parenthetical was stripped: ` +
+      midName
+        .filter((r) => nameWithoutTreatment(r.name) !== r.name.trim())
+        .map((r) => `${r.id} "${r.name}"`)
+        .join("; "),
+  );
+  expect(
+    new Set(midName.map((r) => collapseIdentityKey(r))).size === midName.length,
+    `mid-name parenthetical cards collapsed together: ` +
+      midName.map((r) => `${r.id} "${r.name}"`).join("; "),
+  );
+
   console.log(
-    `printings: ${rows.length} rows -> ${canonicals.size} entries when collapsed ` +
-      `(${byIdentity.size} distinct cards by name+type)`,
+    `printings: ${rows.length} rows -> ${canonicals.size} base_id group(s), ` +
+      `${collapsed.size} entries as the browser collapses them ` +
+      `(${treated.length} treatment printing(s) folded in)`,
   );
 } catch (error) {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);

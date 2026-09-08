@@ -59,6 +59,32 @@ export function composeCardId(
 }
 
 /**
+ * A card's name with a trailing printing treatment removed.
+ *
+ * The source spells some treatments in the name rather than the id, so 34 rows
+ * read "Nine-Tailed Fox (Metal)", "Dark Child (Starter)", "Teemo, Scout
+ * (GG EZ)". Identity being (name, type), each of those became its own canonical
+ * printing and showed up as a second entry in the collapsed browser.
+ *
+ * **Only a trailing parenthetical.** `Recruit (271) // Buff` and `Sprite (274)
+ * // Buff` are four genuinely distinct cards carrying one mid-name, and a
+ * looser match would merge cards the game keeps apart.
+ *
+ * Mirrors the `regexp_replace` inside `collapseKey` in
+ * src/db/queries/cards.ts; `check:printings` asserts the two agree on every
+ * row. It lives here rather than beside that query because this module imports
+ * nothing — see the note on scripts/lib/env.ts.
+ */
+export function nameWithoutTreatment(name: string): string {
+  return name.replace(/\s*\([^()]*\)\s*$/, "").trim();
+}
+
+/** How the card browser groups printings: the stripped name plus the type. */
+export function collapseIdentityKey(card: Pick<PrintingLike, "name" | "type">): string {
+  return `${nameWithoutTreatment(card.name).toLowerCase()}|${card.type}`;
+}
+
+/**
  * The treatment of one printing in words — "Signature", "Metal", "Alt art" —
  * or null when it is an ordinary printing.
  *
