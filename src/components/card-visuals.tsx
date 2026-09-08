@@ -6,6 +6,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import type { BrowseCard } from "@/db/queries/cards";
 import CardArt from "@/components/card-art";
 import { cardFull, cardThumb } from "@/lib/card-images";
+import { printingTreatment } from "@/lib/card-ids";
 import { domainDot } from "@/lib/domain-columns";
 import { aspectRatio, DOMAIN_COLORS, titleCase, totalPips } from "@/lib/riftbound";
 import { parseRulesText, type RulesSymbol } from "@/lib/rules-text";
@@ -220,6 +221,7 @@ export function CardDetail({
   footer?: ReactNode;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const treatment = printingTreatment(card);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -263,8 +265,17 @@ export function CardDetail({
               <h2 className="text-xl font-semibold text-ink">
                 {card.name}
               </h2>
+              {/* The printing **id**, not `SET · #number`. 170 rows across 85
+                  pairs share a name, set, collector number and rarity with a
+                  sibling — every alt art and every signature print — so that
+                  line described two different cards identically and the modal
+                  looked broken when you opened SFD-227 and SFD-227-star in
+                  turn. The id is the one thing two printings never share, and
+                  it is already how the editor's printing dropdown names them,
+                  so the two agree. `treatment` puts it in words. */}
               <p className="mt-1 text-sm text-subtle">
-                {card.setCode} · #{card.collectorNo} · {card.rarity}
+                {card.id} · {card.rarity}
+                {treatment && ` · ${treatment}`}
               </p>
             </div>
             <button

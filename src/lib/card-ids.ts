@@ -58,6 +58,31 @@ export function composeCardId(
   return `${set}-${num}-${suffix.toLowerCase()}`;
 }
 
+/**
+ * The treatment of one printing in words — "Signature", "Metal", "Alt art" —
+ * or null when it is an ordinary printing.
+ *
+ * Two printings of a card routinely agree on set, collector number and rarity,
+ * so nothing in the line the card detail modal used to render told them apart.
+ * The discriminator lives in two different places depending on the treatment:
+ * the source spells some of them in the *name* ("Nine-Tailed Fox (Metal)") and
+ * leaves the rest to the *id* suffix (`OGN-303-star`, `OGN-066a`). This reads
+ * both, name first, because a name that says "GG EZ" is more use to a reader
+ * than the `b` its id happens to carry.
+ *
+ * Purely descriptive: no grouping decision reads this. The rule that collapses
+ * printings is `collapseKey` in src/db/queries/cards.ts.
+ */
+export function printingTreatment(card: Pick<PrintingLike, "id" | "name">): string | null {
+  const named = /\(([^()]+)\)\s*$/.exec(card.name);
+  if (named) return named[1].trim();
+  if (/-star$/.test(card.id)) return "Signature";
+  // A letter glued to the collector number, never the `-star` above nor a
+  // token / promo id like `UNL-T01` or `VEN-SP3`, which end in a digit.
+  if (/-\d+[a-z]$/.test(card.id)) return "Alt art";
+  return null;
+}
+
 export interface PrintingLike {
   id: string;
   name: string;
