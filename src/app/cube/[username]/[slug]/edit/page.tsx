@@ -171,7 +171,11 @@ export default async function EditCubePage({
             </Link>
           </div>
         </div>
-        <nav className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+          {/* One scrolling line on a phone rather than three stacked rows.
+              The scrollbar is hidden because the strip is short and an
+              always-visible bar under six tabs reads as broken chrome. */}
+          <nav className="-mx-4 flex flex-nowrap items-center gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
           {modeLink(
             "Cube",
             basePath,
@@ -181,20 +185,30 @@ export default async function EditCubePage({
               row where "Browse cards" used to. Browse is still reachable — from
               inside the panel, and by URL — but it is no longer what the UI
               points at first: it is the heaviest read on the site, and leading
-              with it is what made a run of edits a run of round trips. */}
-          <EditPanel
-            cubeId={cube.id}
-            browsePath={`${basePath}?mode=browse`}
-            contents={contents.map((card) => ({
-              cardId: card.id,
-              baseId: card.baseId,
-              name: card.name,
-              setCode: card.setCode,
-              collectorNo: card.collectorNo,
-              section: card.section,
-              quantity: card.quantity,
-            }))}
-          />
+              with it is what made a run of edits a run of round trips.
+
+              Only on the cube list, though. The panel edits the card list, so
+              on the Primer or Change log tab it is a button that does nothing
+              you came to that tab to do — and its remove picker reads the cube,
+              which the maybeboard tab is not showing. */}
+          {editing && (
+            <EditPanel
+              cubeId={cube.id}
+              browsePath={`${basePath}?mode=browse`}
+              contents={contents.map((card) => ({
+                cardId: card.id,
+                baseId: card.baseId,
+                name: card.name,
+                setCode: card.setCode,
+                collectorNo: card.collectorNo,
+                section: card.section,
+                quantity: card.quantity,
+                type: card.type,
+                imageThumb: card.imageThumb,
+                imageFull: card.imageFull,
+              }))}
+            />
+          )}
           {modeLink("Primer", `${basePath}?mode=primer`, writingPrimer)}
           {modeLink(
             `Maybeboard${maybeboard.length ? ` (${countCopies(maybeboard)})` : ""}`,
@@ -203,15 +217,16 @@ export default async function EditCubePage({
           )}
           {modeLink("Import", `${basePath}?mode=import`, importing)}
           {modeLink("Change log", `${basePath}?mode=log`, viewingLog)}
+          </nav>
           {!browsing && !writingPrimer && !viewingLog && !importing && !onMaybeboard && contents.length > 0 && (
-            <span className="ml-auto flex items-center gap-2">
+            <span className="flex shrink-0 items-center justify-end gap-2 sm:ml-auto">
               {/* Density only means something for image tiles; the list view
                   sizes its own columns from the viewport. */}
               {view === "visual" && <CardsPerRowToggle />}
               <CubeViewToggle active={view} />
             </span>
           )}
-        </nav>
+        </div>
       </header>
 
       {onMaybeboard ? (

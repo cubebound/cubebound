@@ -299,7 +299,11 @@ export default async function CubePage({
           </ul>
         )}
 
-        <nav className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+          {/* One scrolling line on a phone rather than three stacked rows.
+              The scrollbar is hidden because the strip is short and an
+              always-visible bar under six tabs reads as broken chrome. */}
+          <nav className="-mx-4 flex flex-nowrap items-center gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
           {tabLink("Cube", basePath, !showingPrimer && !showingMaybeboard && !showingAnalytics)}
           {hasPrimer && tabLink("Primer", `${basePath}?tab=primer`, showingPrimer)}
           {/* Only advertised when it holds something: an empty shortlist is
@@ -312,15 +316,16 @@ export default async function CubePage({
             )}
           {cards.length > 0 &&
             tabLink("Analytics", `${basePath}?tab=analytics`, showingAnalytics)}
+          </nav>
           {!showingPrimer && !showingMaybeboard && !showingAnalytics && cards.length > 0 && (
-            <span className="ml-auto flex items-center gap-2">
+            <span className="flex shrink-0 items-center justify-end gap-2 sm:ml-auto">
               {/* Density only means something for image tiles; the list view
                   sizes its own columns from the viewport. */}
               {view === "visual" && <CardsPerRowToggle />}
               <CubeViewToggle active={view} />
             </span>
           )}
-        </nav>
+        </div>
       </header>
 
       {showingPrimer ? (

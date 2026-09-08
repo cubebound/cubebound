@@ -717,6 +717,17 @@ a stale row — but it means a source switch leaves residue worth checking for.
   in the tab row; the floating one appears only once that has scrolled out of
   view, which a 400-card cube does immediately. Showing both would read as a
   bug rather than a convenience.
+- **The trigger renders only on the cube list.** The panel edits the card list,
+  so on Primer or Change log it is a button that does nothing you came to that
+  tab to do, and its remove picker reads the cube, which the maybeboard tab is
+  not showing.
+- **Both cube pages put their tabs on one scrolling line below `sm`**, with the
+  view and density controls dropping to their own row. Six wrapped tabs plus two
+  toggles stacked into four rows on a phone, which is most of a screen before
+  any cards. The scrollbar is hidden on that strip: it is short, and a permanent
+  bar under six tabs reads as broken chrome. **`check:public-cube` needs
+  `>Share<` and `>Clone<` in the HTML**, so anything that collapses these rows
+  further has to keep those labels rendered, not mount them on open.
 - **The panel stages changes and writes them on Save**, which is both how people
   actually edit a cube and the fix for a real fault — the panel it replaces
   wrote once per click, so a run of edits was a run of round trips against a
@@ -740,6 +751,13 @@ a stale row — but it means a source switch leaves residue worth checking for.
   looks broken. That happened. Starting visible and closing on an explicit
   dismissal — blur, Escape, or picking — fails open instead, which at worst
   shows a list a moment longer than it needs to.
+- **Hovering a suggestion floats the card art**, through the same
+  `useCardPreview` / `CardHoverPreview` pair the text view uses. It is `fixed`,
+  so the drawer's own overflow cannot clip it, and it is why `HeldCard` carries
+  `type`, `imageThumb` and `imageFull` — `type` decides portrait against
+  landscape. Note React synthesises `onMouseEnter` from `mouseover`, so a test
+  that dispatches a native `mouseenter` will never reach it; dispatch
+  `mousemove`.
 - **Picking a suggestion fills the box; the button commits it.** Nothing is
   staged by clicking a row. **Add takes only the card above it** and leaves
   whatever sits in Remove alone; **Remove/Replace is a swap when both are

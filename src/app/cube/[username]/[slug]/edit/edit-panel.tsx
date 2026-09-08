@@ -9,6 +9,10 @@ import {
   type CardSuggestion,
 } from "@/app/cube/actions";
 import StagedList, { type StagedRow } from "./staged-list";
+import CardHoverPreview, {
+  useCardPreview,
+  type PreviewCard,
+} from "@/components/card-hover-preview";
 import { CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
 import {
   EDIT_BOARDS,
@@ -35,6 +39,10 @@ export interface HeldCard {
   collectorNo: string | null;
   section: CubeSection;
   quantity: number;
+  /** For the hover preview. `type` decides portrait against landscape. */
+  type: string;
+  imageThumb: string | null;
+  imageFull: string | null;
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -155,12 +163,17 @@ function Suggestions<T>({
   onPick,
   keyOf,
   listId,
+  previewOf,
+  preview,
 }: {
   items: T[];
   render: (item: T) => ReactNode;
   onPick: (item: T) => void;
   keyOf: (item: T, index: number) => string;
   listId: string;
+  /** The art to float beside the row under the cursor. */
+  previewOf: (item: T) => PreviewCard;
+  preview: ReturnType<typeof useCardPreview>;
 }) {
   if (items.length === 0) return null;
   return (
@@ -175,6 +188,11 @@ function Suggestions<T>({
             type="button"
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onPick(item)}
+            onMouseEnter={(event) => preview.show(previewOf(item), event)}
+            onMouseMove={(event) => preview.show(previewOf(item), event)}
+            onMouseLeave={preview.hide}
+            onFocus={(event) => preview.showAt(previewOf(item), event.currentTarget)}
+            onBlur={preview.hide}
             className="block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-hover"
           >
             {render(item)}
@@ -222,6 +240,7 @@ function PanelBody({
   const [error, setError] = useState<string | null>(null);
   const addRef = useRef<HTMLInputElement>(null);
   const nextKey = useRef(0);
+  const preview = useCardPreview();
 
   const term = addQuery.trim();
   // A locked-in choice fills the box with its own label, so searching again
@@ -383,6 +402,10 @@ function PanelBody({
 
   return (
     <>
+      {/* Rendered once for the whole panel, and `fixed`, so the drawer's own
+          overflow cannot clip it. */}
+      <CardHoverPreview target={preview.target} />
+
       <header className="flex items-center gap-2 border-b border-line px-4 py-3">
         <h2 className="text-base font-semibold">Edit</h2>
         <button type="button" onClick={onClose} className={`${btn.ghostSm} ml-auto`}>
@@ -446,6 +469,8 @@ function PanelBody({
               <Suggestions
                 listId="edit-add-list"
                 items={matches}
+                preview={preview}
+                previewOf={(result) => result.card}
                 keyOf={(result) => result.card.id}
                 onPick={(result) => {
                   setAddChoice(result);
@@ -504,6 +529,14 @@ function PanelBody({
               <Suggestions
                 listId="edit-remove-list"
                 items={removeMatches}
+                preview={preview}
+                previewOf={(copy) => ({
+                  id: copy.cardId,
+                  name: copy.name,
+                  type: copy.type,
+                  imageThumb: copy.imageThumb,
+                  imageFull: copy.imageFull,
+                })}
                 keyOf={(copy, index) => `${copy.cardId}|${copy.section}|${index}`}
                 onPick={(copy) => {
                   setRemoveChoice(copy);
