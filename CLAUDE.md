@@ -9,9 +9,12 @@ deploy included — and **the MVP loop is closed**: sign in → create a cube �
 search and add cards → view it by domain/cost/type → share a public URL that
 anyone can browse and clone.
 
-Working: card ingestion (**production** 1,294 printings / 966 distinct cards
+Working: card ingestion (**production** 1,294 printings / 966 `base_id` groups
 across 8 sets; **dev** 1,288 / 960 — the difference is production's six
-riftscribe token rows, see "How the split happened"),
+riftscribe token rows, see "How the split happened"). **The card browser
+collapses to fewer than that** — 935 production / 929 dev — because 31 of those
+groups are promo treatments the source spells in the name; see the `collapseKey`
+bullet under "Conventions". Also working:
 `/cards` browser, magic-link auth with username claim, cube CRUD, the staged
 edit panel, visual and text views, primer, change log, the public cube view with
 Share and Clone, and CI.
@@ -239,9 +242,12 @@ counts appear where you will actually look.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-**There is no branch in flight.** Discord and Google sign-in have merged — see
-"Sign-in methods". A gate run is sixteen scripts, `check:oauth-buttons` being
-the sixteenth; `check:oauth` is pure and runs in CI instead.
+**`printing-treatments` is in flight**: the browser's printing collapse and the
+card detail modal's printing label, described under "Conventions". It changes no
+data, adds no migration and needs no re-sync, so it is a code-only deploy.
+Discord and Google sign-in have merged — see "Sign-in methods". A gate run is
+sixteen scripts, `check:oauth-buttons` being the sixteenth; `check:oauth` is
+pure and runs in CI instead.
 
 **A preview deployment is not automatically a dev environment.** Vercel injects
 whichever environment variables are configured for Preview, and unless those
@@ -550,6 +556,41 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - **A card tile shows its name until the art covers it, and retries before giving up.** Art arrives over the network and a blank tile is indistinguishable from a bug — that confusion has been reported twice. `src/components/card-art.tsx` is the one implementation: the name underneath, the art painting over it, **two retries** with a short backoff, then the name for good. The first version failed permanently on the first `onError`, which assumed a failure meant a bad URL; in practice the URLs are fine and the failures are transient — one card came back blank in a draft pack while its image served a normal 200 throughout, and appeared once the pack came round and the tile re-rendered. Two details make it work and are easy to leave out. The attempt number rides in the `src` as a cache-buster, because re-assigning an identical `src` does not make a browser fetch again. And a `ref` checks `complete && !naturalWidth` on mount, because **an image that fails before hydration never fires `onError`** — the browser requested it from the server-rendered HTML and the event was over before React attached a listener. Without that check the retry never ran on the card browser's sixty-tile grid, which is where it matters most; with it, 20 forced failures all recovered.
 - Rules text contains symbol tokens (`:rb_energy_1:`, `:rb_rune_fury:`). Never render `rules_text` raw — go through `parseRulesText` in `src/lib/rules-text.ts`, which resolves the tokens to badges and degrades unknown ones to readable words. Note the source names domain symbols `rune_*` but they are **Power** costs; runes are the resource cards you exhaust or recycle to produce Energy and Power.
 - Printings: `cards.base_id` is the id of the **canonical printing** of a card, resolved from card data — not from the id string. Sets reprint cards in their high-numbered showcase slots, within a set (`SFD-049` → `SFD-224`) and across sets (`OGN-013` "Pouty Poro" → `UNL-220`), so no amount of suffix-stripping can group them. Identity is `(lower(name), type)`; see `assignBaseIds` in `src/lib/card-ids.ts` and the matching SQL in `drizzle/0003_base_id_print_groups.sql`, which must stay in step. Because identity is name-based, different cards sharing a collector number (`UNL-T01` "Baron Pit" vs `UNL-001` "Arena Kingpin") never group. `npm run check:printings` asserts all of this.
+- **`base_id` is not what the card browser collapses on, because the source
+  puts some treatments in the *name*.** 34 rows are spelled
+  "Nine-Tailed Fox (Metal)", "Ahri, Alluring (Launch Exclusive)",
+  "Dark Child (Starter)", "Teemo, Scout (GG EZ)", "Baron Nashor (Ultimate)".
+  Identity being name-based, each became its own canonical printing and so
+  survived the collapse — 31 phantom entries in a browser promising one row per
+  card, which is how a search for "ahri" returned six cards for four. All 31
+  groups were checked against the pool and agree on domains, energy, might,
+  power cost and rules text: they are treatments, not cards.
+  `collapseKey` in `src/db/queries/cards.ts` strips a **trailing** parenthetical
+  and groups on that instead, mirrored by `nameWithoutTreatment` /
+  `collapseIdentityKey` in `src/lib/card-ids.ts` so `check:printings` can assert
+  Postgres and TypeScript agree on every row — the same two-definitions
+  arrangement `assignBaseIds` has with `0003`. The mirror lives in `card-ids.ts`
+  rather than beside the query because that module imports nothing, and
+  `check:printings` runs without `--env-file-if-exists`. Trailing is the whole rule — `Recruit (271) //
+  Buff` and `Sprite (274) // Buff` are four genuinely distinct cards carrying a
+  parenthetical mid-name, and a looser match would merge cards the game keeps
+  apart. `canonicalFirst` picks the representative: a plainly-named printing
+  beats a treatment-named one, then the sequence `comparePrintings` uses. That
+  first rule is load-bearing rather than cosmetic — Dark Child, Wuju Bladesman,
+  Might of Demacia and Lady of Luminosity exist only as an OGS "(Starter)"
+  printing and an OPP plain one, and OGS sorts first, so without it the
+  collapsed row would be titled "Dark Child (Starter)".
+- **The fix is in the two queries that collapse printings, and nowhere else.**
+  Deliberately: `base_id` is stored and read by the printing picker, the
+  contents switcher, the swap guard, the import catalog and the Draftmancer
+  rarity resolution, so rewriting it is a migration plus a re-sync per
+  environment. The cost of not doing that is recorded where it bites — the tile's
+  printing badge stays partitioned by `base_id` so it agrees with what the
+  picker will offer, which means those 31 cards undercount by one and their
+  treatment printing is reachable only through "All printings". If the deeper
+  unification is ever wanted, it is `cardIdentityKey` in `src/lib/card-ids.ts`,
+  the recompute SQL in `scripts/sync-cards.ts` and a migration mirroring `0003`,
+  all three in step, with `check:printings` asserting they agree.
 - Do **not** use rules text as card identity: showcase reprints drop the parenthetical reminder text and sometimes reword the ability outright.
 - **The filter bar's controls are fixed-width, and the page always reserves a
   scrollbar.** Both exist because adjusting a filter made the whole page
@@ -815,6 +856,15 @@ a stale row — but it means a source switch leaves residue worth checking for.
   rows, which is precisely what Specify versions exists to tell apart. The id
   already *is* set-collector plus the variant suffix, so it reads the same and
   is unique.
+  **The card detail modal follows the same rule**, and did not used to: it
+  rendered `SET · #number · rarity`, which is identical for 170 rows across 85
+  pairs — every alt art, every signature print, and the base printing each one
+  varies. Opening `SFD-227` and then `SFD-227-star`, whose art differs only by a
+  signature, showed the same picture under the same words and read as a bug.
+  It now shows the id, the rarity and `printingTreatment` from
+  `src/lib/card-ids.ts`, which puts the variant in words — "Signature",
+  "Alt art", or the name's own parenthetical ("Metal", "Launch Exclusive").
+  That helper is **descriptive only**; no grouping decision reads it.
 - **Hovering a suggestion floats the card art**, through the same
   `useCardPreview` / `CardHoverPreview` pair the text view uses. It is `fixed`,
   so the drawer's own overflow cannot clip it, and it is why `HeldCard` carries
@@ -1733,7 +1783,7 @@ which is why they can create and delete accounts freely.
 | Script | Guards | Needs | Runs |
 | --- | --- | --- | --- |
 | `check:primer-safety` | hostile markdown renders inert through the real component | nothing | **CI** |
-| `check:printings` | the TS and SQL `base_id` rules agree on every row | DB (read-only) | manual gate |
+| `check:printings` | the TS and SQL `base_id` rules agree on every row; and separately that the browser's collapse rule agrees between `nameWithoutTreatment` and the `regexp_replace` in `collapseKey`, that every treatment printing folds onto the card it varies, and that a mid-name parenthetical never folds | DB (read-only) | manual gate |
 | `check:browse-grid` | a grouped tile is a card, an all-printings tile is itself | Supabase + dev server | manual gate |
 | `check:card-filters` | multi-select ORs within a filter and ANDs across; energy buckets partition the pool; sorting uses the game's order | DB (read-only) | manual gate |
 | `check:copies-and-log` | quantity 2 lists as two entries; per-copy edits move one copy; edits reach the log | Supabase + dev server | manual gate |

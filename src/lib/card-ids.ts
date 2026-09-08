@@ -58,6 +58,57 @@ export function composeCardId(
   return `${set}-${num}-${suffix.toLowerCase()}`;
 }
 
+/**
+ * A card's name with a trailing printing treatment removed.
+ *
+ * The source spells some treatments in the name rather than the id, so 34 rows
+ * read "Nine-Tailed Fox (Metal)", "Dark Child (Starter)", "Teemo, Scout
+ * (GG EZ)". Identity being (name, type), each of those became its own canonical
+ * printing and showed up as a second entry in the collapsed browser.
+ *
+ * **Only a trailing parenthetical.** `Recruit (271) // Buff` and `Sprite (274)
+ * // Buff` are four genuinely distinct cards carrying one mid-name, and a
+ * looser match would merge cards the game keeps apart.
+ *
+ * Mirrors the `regexp_replace` inside `collapseKey` in
+ * src/db/queries/cards.ts; `check:printings` asserts the two agree on every
+ * row. It lives here rather than beside that query because this module imports
+ * nothing — see the note on scripts/lib/env.ts.
+ */
+export function nameWithoutTreatment(name: string): string {
+  return name.replace(/\s*\([^()]*\)\s*$/, "").trim();
+}
+
+/** How the card browser groups printings: the stripped name plus the type. */
+export function collapseIdentityKey(card: Pick<PrintingLike, "name" | "type">): string {
+  return `${nameWithoutTreatment(card.name).toLowerCase()}|${card.type}`;
+}
+
+/**
+ * The treatment of one printing in words — "Signature", "Metal", "Alt art" —
+ * or null when it is an ordinary printing.
+ *
+ * Two printings of a card routinely agree on set, collector number and rarity,
+ * so nothing in the line the card detail modal used to render told them apart.
+ * The discriminator lives in two different places depending on the treatment:
+ * the source spells some of them in the *name* ("Nine-Tailed Fox (Metal)") and
+ * leaves the rest to the *id* suffix (`OGN-303-star`, `OGN-066a`). This reads
+ * both, name first, because a name that says "GG EZ" is more use to a reader
+ * than the `b` its id happens to carry.
+ *
+ * Purely descriptive: no grouping decision reads this. The rule that collapses
+ * printings is `collapseKey` in src/db/queries/cards.ts.
+ */
+export function printingTreatment(card: Pick<PrintingLike, "id" | "name">): string | null {
+  const named = /\(([^()]+)\)\s*$/.exec(card.name);
+  if (named) return named[1].trim();
+  if (/-star$/.test(card.id)) return "Signature";
+  // A letter glued to the collector number, never the `-star` above nor a
+  // token / promo id like `UNL-T01` or `VEN-SP3`, which end in a digit.
+  if (/-\d+[a-z]$/.test(card.id)) return "Alt art";
+  return null;
+}
+
 export interface PrintingLike {
   id: string;
   name: string;

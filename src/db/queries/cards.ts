@@ -217,6 +217,51 @@ type CardSearchResult = {
 };
 
 /**
+ * What "the same card" means when printings are collapsed, as SQL.
+ *
+ * `cards.base_id` is the stored answer, and it is right for every card whose
+ * printings share a name. It is wrong for 31 of them, because the source puts
+ * the *treatment* in the name — "Nine-Tailed Fox (Metal)", "Ahri, Alluring
+ * (Launch Exclusive)", "Dark Child (Starter)". Identity in `assignBaseIds` is
+ * (name, type), so those names never match the plain card and each promo
+ * became its own canonical printing, showing up as a second entry in a
+ * collapsed browser that had promised one row per card.
+ *
+ * Stripping the suffix here rather than rewriting `base_id` keeps the fix to
+ * the two queries that collapse printings — no migration, and nothing stored
+ * changes. See the limits recorded on `printingCount` below.
+ *
+ * **Only a trailing parenthetical**, which is why this cannot be a plain
+ * `like '%(%'`: `Recruit (271) // Buff` and `Sprite (274) // Buff` are four
+ * genuinely distinct cards that carry a parenthetical in the middle, and
+ * collapsing those would merge cards the game keeps apart.
+ *
+ * Mirrors `collapseIdentityKey` in src/lib/card-ids.ts, which is what
+ * `check:printings` compares this against on every row — the same
+ * two-definitions-must-agree arrangement `assignBaseIds` has with `0003`.
+ */
+const collapseKey = sql`(lower(regexp_replace(${cards.name}, '\\s*\\([^()]*\\)\\s*$', '')) || '|' || ${cards.type})`;
+
+/**
+ * Which printing represents a collapsed group — the `DISTINCT ON` tie-break.
+ *
+ * The same sequence `comparePrintings` applies in src/lib/card-ids.ts, plus a
+ * new first rule: a plainly-named printing beats a treatment-named one. That
+ * rule is load-bearing rather than cosmetic. Four starter legends — Dark
+ * Child, Wuju Bladesman, Might of Demacia, Lady of Luminosity — exist only as
+ * an OGS "(Starter)" printing and an OPP plain one, and OGS sorts first, so
+ * without it the collapsed row would be titled "Dark Child (Starter)".
+ */
+const canonicalFirst = [
+  sql`(${cards.name} ~ '\\([^()]*\\)\\s*$')`, // plain name before a treatment name
+  sql`(${cards.rarity} = 'Showcase')`, // a real printing before a reprint
+  cards.setCode, // earliest set
+  sql`length(${cards.collectorNo})`, // numeric order without a cast
+  cards.collectorNo,
+  cards.id, // plain id before its a / -star variants
+];
+
+/**
  * The unfiltered first page, memoised.
  *
  * `/cards` with nothing set is the same 60 rows for every visitor and is the
@@ -273,7 +318,7 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
   // do not prevent that; they make it fail loudly instead of silently, which is
   // the difference between a Sentry trace and squinting at one screenshot.
   const [{ total }] = await db
-    .select({ total: grouped ? countDistinct(cards.baseId) : count() })
+    .select({ total: grouped ? countDistinct(collapseKey) : count() })
     .from(cards)
     .where(where);
 
@@ -283,6 +328,13 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
 
   // Printings matching the current filters, so a tile can say "2 printings".
   // Needs an explicit alias to be referenced back out of the subquery below.
+  //
+  // **Partitioned by `base_id`, not by `collapseKey`.** The badge has to agree
+  // with what the printing picker will offer, and the picker reads `base_id`
+  // (`getPrintings`). Counting the collapsed group would promise a printing
+  // the picker then could not list. So for those 31 cards the badge undercounts
+  // by one, and the treatment printing stays reachable through "All printings"
+  // — the honest reading of a `base_id` this query no longer groups by.
   const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
     "printing_count",
   );
@@ -340,15 +392,15 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
     return { cards: rows, total, page, pageCount };
   }
 
-  // One row per base printing. DISTINCT ON requires its own leading ORDER BY,
-  // so the display ordering happens in the outer query. Preferring the row
-  // where id = base_id keeps the base printing as the representative, and
-  // still yields a row if a set ever ships a variant without its base.
+  // One row per card. DISTINCT ON requires its own leading ORDER BY, so the
+  // display ordering happens in the outer query; `canonicalFirst` decides which
+  // printing stands for the group. It never needs the group's base printing to
+  // have survived the filter — "Fury commons" collapses whatever it matched.
   const representative = db
-    .selectDistinctOn([cards.baseId], { ...browseColumns, printingCount })
+    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
     .from(cards)
     .where(where)
-    .orderBy(cards.baseId, sql`(${cards.id} = ${cards.baseId}) desc`, cards.id)
+    .orderBy(collapseKey, ...canonicalFirst)
     .as("representative");
 
   const rows = await db
@@ -398,7 +450,7 @@ export async function quickSearchCards(
 
   // "Specify versions" in the edit panel: on, every printing is its own
   // suggestion and the reader picks the art directly; off, one entry per card,
-  // which is the `base_id` grouping the browse grid uses by the same rule.
+  // which is the `collapseKey` grouping the browse grid uses by the same rule.
   if (allPrintings) {
     return db
       .select({ ...browseColumns, printingCount })
@@ -409,10 +461,10 @@ export async function quickSearchCards(
   }
 
   const grouped = db
-    .selectDistinctOn([cards.baseId], { ...browseColumns, printingCount })
+    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
     .from(cards)
     .where(matches)
-    .orderBy(cards.baseId, sql`(${cards.id} = ${cards.baseId}) desc`, cards.id)
+    .orderBy(collapseKey, ...canonicalFirst)
     .as("grouped");
 
   return db
