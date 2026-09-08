@@ -138,9 +138,7 @@ export default function CubeContents({
         view={view}
         {...(sections ? { sections } : {})}
         {...(emptyMessage ? { emptyMessage } : {})}
-        busyKey={busy}
         emptyMessage="No cards yet. Press Edit to start adding cards."
-        onRemoveOne={removeCopy}
         detailFooter={(card, retarget) => (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">

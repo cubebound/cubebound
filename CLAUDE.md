@@ -735,9 +735,10 @@ a stale row — but it means a source switch leaves residue worth checking for.
   working** — `check:cube-ownership` and `check:browse-grid` both navigate
   straight to `?mode=browse`, so removing the route (rather than the tab) fails
   the build.
-- **One Edit button, in the action bar directly above the list**, on Mainboard
-  and Maybeboard. The floating twin is gone: it existed because the toolbar one
-  scrolled away, and a button sitting on the thing it edits does not need one.
+- **Two Edit triggers, never both on screen.** One sits in the action bar above
+  the list; a floating one takes over past 400px of scroll, which a 400-card
+  cube passes immediately. Showing both at once would read as a bug, so the
+  floating one is conditional rather than always present.
   **It opens on the board whose tab you are on** — editing from Maybeboard and
   defaulting to Mainboard would file cards into a section you are not looking at.
 - **No pending count on the button and no count in the tab labels.** The staged
@@ -851,10 +852,16 @@ a stale row — but it means a source switch leaves residue worth checking for.
   is why `CubeSections` no longer takes a `copyAction`. `CardTile`'s `bare` prop
   does this; the card browser and browse grid keep their captions, because there
   you are scanning for a name you have not found yet.
-- **The list view's power indicator sits hard against the right edge**
-  (`gap-0.5 pl-1.5 pr-0.5` on the row, measured at 2px of clearance). The
-  padding is asymmetric on purpose: a name has ~50px in a narrow column and
-  truncates, so every pixel the indicator does not take is a pixel of name.
+- **The list view's power indicator sits hard against the right edge** and is
+  the last thing in the row (`gap-0.5 pl-1.5 pr-0.5`, measured at 2px of
+  clearance, with the name taking ~81% of the row). A hover-revealed `×` used
+  to follow it, and **an `opacity-0` control still holds its width** — so it
+  cost about sixteen pixels of name on every row to show something that was
+  invisible most of the time, in the view whose entire job is showing names.
+  Removing a copy is a click on the card and **"Remove this copy"** in the panel
+  that opens, which is where the section and printing controls already live.
+  That is why `CubeSections` and `CubeTable` no longer take `onRemoveOne` or
+  `busyKey`.
 - **A text-view row shows its power cost as a count plus one domain dot**
   (`PowerCost` in `src/components/card-visuals.tsx`), right-aligned after the
   name. Power was invisible in both cube views before — it rendered only in the

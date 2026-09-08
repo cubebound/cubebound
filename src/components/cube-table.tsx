@@ -153,16 +153,12 @@ function CostCell({
   rows,
   background,
   onSelect,
-  onRemove,
-  busyKey,
   preview,
 }: {
   cost: string;
   rows: CopyRow[];
   background: string;
   onSelect: (card: CubeCardRow) => void;
-  onRemove?: (card: CubeCardRow) => void;
-  busyKey?: string | null;
   preview: {
     show: (card: PreviewCard, event: { clientX: number; clientY: number }) => void;
     showAt: (card: PreviewCard, element: HTMLElement) => void;
@@ -182,7 +178,6 @@ function CostCell({
       </p>
       <ul style={{ background }}>
         {rows.map((row) => {
-          const key = `${row.card.id}:${row.card.section}`;
           return (
             // Padding is asymmetric on purpose: the power indicator sits
             // hard against the right edge so the name gets every pixel the
@@ -215,20 +210,15 @@ function CostCell({
               </button>
               {/* Outside the name button, so the button's accessible name stays
                   the card name, and `shrink-0` so the indicator never
-                  compresses — the name absorbs the width through `truncate`. */}
+                  compresses — the name absorbs the width through `truncate`.
+
+                  It is the last thing in the row on purpose. A hover-revealed
+                  × used to sit here; it held its width even while invisible,
+                  which pushed this off the edge and cost the name about
+                  sixteen pixels on every row, in the view whose entire job is
+                  showing names. Removing a copy is a click on the card and
+                  "Remove this copy" in the panel that opens. */}
               <PowerCost powerCost={row.card.powerCost} domains={row.card.domains} />
-              {onRemove && (
-                <button
-                  type="button"
-                  onClick={() => onRemove(row.card)}
-                  disabled={busyKey === key}
-                  aria-label={`Remove one ${row.card.name}`}
-                  title="Remove this copy"
-                  className="shrink-0 rounded px-0.5 text-xs text-black/25 opacity-0 transition hover:text-red-700 focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-40 dark:text-white/30 dark:hover:text-red-400"
-                >
-                  ×
-                </button>
-              )}
             </li>
           );
         })}
@@ -240,15 +230,10 @@ function CostCell({
 export default function CubeTable({
   cards,
   onSelect,
-  onRemove,
-  busyKey,
   groupByType = false,
 }: {
   cards: CubeCardRow[];
   onSelect: (card: CubeCardRow) => void;
-  /** Omitted for read-only views. */
-  onRemove?: (card: CubeCardRow) => void;
-  busyKey?: string | null;
   /** Split each column into Units / Gear / Spells. Only the main section
    *  mixes types; the others are single-type already. */
   groupByType?: boolean;
@@ -339,8 +324,6 @@ export default function CubeTable({
                         rows={toCopyRows(byCost.get(cost)!, ambiguous)}
                         background={background}
                         onSelect={onSelect}
-                        onRemove={onRemove}
-                        busyKey={busyKey}
                         preview={preview}
                       />
                     ))}

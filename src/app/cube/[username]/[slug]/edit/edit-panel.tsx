@@ -46,6 +46,8 @@ export interface HeldCard {
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
+/** Past this the floating trigger appears; above it the toolbar one is in view. */
+const FLOATING_TRIGGER_AFTER = 400;
 const BOARD_LABELS: Record<EditBoard, string> = {
   mainboard: "Mainboard",
   maybeboard: "Maybeboard",
@@ -71,6 +73,7 @@ export default function EditPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<StagedRow[]>([]);
+  const [scrolled, setScrolled] = useState(false);
 
   // Escape hides the panel; it deliberately does not discard the batch. The
   // whole point of staging is that your work survives until you say otherwise.
@@ -92,9 +95,19 @@ export default function EditPanel({
     return () => window.removeEventListener("beforeunload", warn);
   }, [rows.length]);
 
-  // No pending count on the button, and no second floating trigger: the staged
-  // list inside the panel already says what is pending, and one Edit button
-  // sitting directly above the list it edits needs no twin.
+  // The toolbar trigger sits above the list and scrolls away with it, which on
+  // a 400-card cube happens immediately — so a floating one takes over once it
+  // is gone. They are never both on screen: two identical buttons read as a
+  // bug rather than a convenience.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > FLOATING_TRIGGER_AFTER);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // No pending count on either button: the staged list inside the panel already
+  // says what is pending, and check:copies-and-log forbids ×N in this HTML.
   return (
     <>
       <button
@@ -105,6 +118,17 @@ export default function EditPanel({
       >
         Edit
       </button>
+
+      {scrolled && !open && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-expanded={open}
+          className={`${btn.primary} fixed right-4 bottom-4 z-30 rounded-full shadow-lg`}
+        >
+          Edit
+        </button>
+      )}
 
       {open && (
         <div

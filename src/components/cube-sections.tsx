@@ -31,17 +31,12 @@ import {
 export default function CubeSections({
   cards,
   view,
-  onRemoveOne,
-  busyKey,
   emptyMessage = "No cards yet.",
   detailFooter,
   sections = CUBE_LIST_SECTIONS,
 }: {
   cards: CubeCardRow[];
   view: CubeView;
-  /** Text view's per-row remove; omitted for read-only views. */
-  onRemoveOne?: (card: CubeCardRow) => void;
-  busyKey?: string | null;
   emptyMessage?: string;
   /**
    * `retarget` follows the open card after an edit made from inside the modal.
@@ -116,9 +111,7 @@ export default function CubeSections({
               {view === "text" ? (
                 <CubeTable
                   cards={inSection}
-                  busyKey={busyKey}
                   onSelect={(card) => setSelectedKey(rowKey(card))}
-                  onRemove={onRemoveOne}
                   // Only main mixes card types; the rest are single-type.
                   groupByType={section === "main"}
                 />
