@@ -175,6 +175,12 @@ function Suggestions<T>({
   previewOf: (item: T) => PreviewCard;
   preview: ReturnType<typeof useCardPreview>;
 }) {
+  // Clear any floating art when this list goes away. Picking a row unmounts the
+  // list, so the row never sees `mouseleave` and the preview would otherwise
+  // stay on screen until another hover replaced it.
+  const { hide } = preview;
+  useEffect(() => hide, [hide]);
+
   if (items.length === 0) return null;
   return (
     <ul
@@ -187,7 +193,10 @@ function Suggestions<T>({
           <button
             type="button"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => onPick(item)}
+            onClick={() => {
+              preview.hide();
+              onPick(item);
+            }}
             onMouseEnter={(event) => preview.show(previewOf(item), event)}
             onMouseMove={(event) => preview.show(previewOf(item), event)}
             onMouseLeave={preview.hide}

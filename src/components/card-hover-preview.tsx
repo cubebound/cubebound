@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { cardThumb } from "@/lib/card-images";
 import { aspectRatio, isLandscape } from "@/lib/riftbound";
@@ -36,16 +36,24 @@ const GAP = 16;
 export function useCardPreview() {
   const [target, setTarget] = useState<PreviewTarget | null>(null);
 
-  const show = (card: PreviewCard, event: { clientX: number; clientY: number }) =>
-    setTarget({ card, x: event.clientX, y: event.clientY });
+  // All three are memoised so a caller can put `hide` in an effect's
+  // dependencies. A list that vanishes under the cursor — picked from, or
+  // closed by Escape — never fires `mouseleave` on the row it removed, so the
+  // preview would hang there until some other hover replaced it. Clearing it
+  // on unmount is the fix, and that needs a stable reference to depend on.
+  const show = useCallback(
+    (card: PreviewCard, event: { clientX: number; clientY: number }) =>
+      setTarget({ card, x: event.clientX, y: event.clientY }),
+    [],
+  );
 
   /** For keyboard focus, which has no cursor: anchor to the element instead. */
-  const showAt = (card: PreviewCard, element: HTMLElement) => {
+  const showAt = useCallback((card: PreviewCard, element: HTMLElement) => {
     const rect = element.getBoundingClientRect();
     setTarget({ card, x: rect.right, y: rect.top + rect.height / 2 });
-  };
+  }, []);
 
-  const hide = () => setTarget(null);
+  const hide = useCallback(() => setTarget(null), []);
 
   return { target, show, showAt, hide };
 }
