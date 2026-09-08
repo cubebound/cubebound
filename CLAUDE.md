@@ -608,6 +608,21 @@ a stale row — but it means a source switch leaves residue worth checking for.
   primary buttons stay high-contrast neutral (`bg-ink text-surface`). A page
   with three orange buttons reads as three warnings. Warnings are amber and
   deliberately a different hue; do not reach for the accent for them.
+- **Fields are floored at 16px below `sm`, in one rule in `globals.css`.** iOS
+  Safari zooms the whole page in when you focus a control whose text is under
+  16px, and every field here is `text-sm` (14px) or smaller — so tapping the
+  edit panel's Add field jumped the viewport and tapping away left it zoomed.
+  **The fix is the font size, never `maximum-scale=1` on the viewport**: that
+  stops the zoom by disabling pinch-zoom, which takes the page below the 200%
+  WCAG asks for and breaks it for anyone who needs to magnify. It is one global
+  rule for the same reason `:focus-visible` is — `card-filter-bar.tsx` and
+  `cube-contents.tsx` both hand-roll their own control classes, and the next
+  field someone adds cannot forget it. `!important` is deliberate: a bare
+  element selector loses to a Tailwind utility. Checkboxes and radios are
+  excluded, and above `sm` the designed sizes apply again. Verified that the
+  larger text does not overflow 320px on the editor, browse, a cube page,
+  `/cards` or `/login` — the filter bar's controls are fixed-width, so bigger
+  text there could push the page sideways rather than reflow.
 - **One `:focus-visible` rule in `globals.css` covers the whole site.** Before
   it there were two `focus-visible` rules in total and eight fields setting
   `focus:outline-none` with only a border tint to replace it, so keyboard users

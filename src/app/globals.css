@@ -133,6 +133,30 @@ h3 {
   outline-offset: 2px;
 }
 
+/* iOS Safari zooms the whole page in when you focus a control whose text is
+   under 16px, and every field here is `text-sm` (14px) or smaller — so tapping
+   the edit panel's Add field jumped the viewport, and tapping away left it
+   zoomed. The fix is a floor on the font size, not `maximum-scale=1` on the
+   viewport: that stops the zoom by disabling pinch-zoom entirely, which takes
+   the page below the 200% zoom WCAG asks for and breaks it for everyone who
+   needs to magnify.
+
+   One rule here rather than a variant on each field, for the same reason
+   `:focus-visible` is global: it reaches the fields no component file owns —
+   `card-filter-bar.tsx` and `cube-contents.tsx` both hand-roll their own — and
+   the next field someone adds cannot forget it. `!important` because a bare
+   element selector loses to a Tailwind utility class, and this has to win.
+   Checkboxes and radios are excluded: font size does not affect them.
+
+   Above `sm` the designed sizes apply again, so nothing changes on a desktop. */
+@media (width < 40rem) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 ::selection {
   background: color-mix(in srgb, var(--accent-strong) 28%, transparent);
 }
