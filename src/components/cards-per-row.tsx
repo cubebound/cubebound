@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
   CARDS_PER_ROW,
@@ -8,7 +8,7 @@ import {
   CARDS_PER_ROW_COOKIE_MAX_AGE,
   type CardsPerRow,
 } from "@/lib/cards-per-row";
-import { segment } from "@/lib/ui";
+import { menu, menuItem, segment } from "@/lib/ui";
 
 /**
  * How many tiles a cube's visual view puts on a row, shared between the control
@@ -81,5 +81,65 @@ export function CardsPerRowToggle() {
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * The same choice, folded into a menu.
+ *
+ * Four visible chips plus a two-way view toggle is most of a phone's width, and
+ * the density is a setting you change occasionally rather than a control you
+ * reach for — so it earns a menu, not a permanent row. Built on `<details>`
+ * like the card browser's filter menus: it opens and closes with no React state
+ * and keeps working with JavaScript off.
+ */
+export function CardsPerRowMenu() {
+  const ctx = useContext(Ctx);
+  const ref = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    const close = (event: Event) => {
+      const el = ref.current;
+      if (!el?.open) return;
+      if (event.target instanceof Node && el.contains(event.target)) return;
+      el.open = false;
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && ref.current?.open) ref.current.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  if (!ctx) return null;
+
+  return (
+    <details ref={ref} className="relative">
+      <summary className="cursor-pointer list-none rounded-md border border-line px-3 py-1.5 text-sm text-muted select-none hover:bg-hover">
+        Display
+      </summary>
+      <div className={`${menu} absolute right-0 mt-1 w-44`}>
+        <p className="px-3 py-1.5 text-xs text-subtle">Cards per row</p>
+        {CARDS_PER_ROW.map((count) => (
+          <button
+            key={count}
+            type="button"
+            onClick={() => {
+              ctx.choose(count);
+              if (ref.current) ref.current.open = false;
+            }}
+            aria-pressed={count === ctx.perRow}
+            className={`${menuItem} ${count === ctx.perRow ? "text-accent" : ""}`}
+          >
+            {count}
+            {count === ctx.perRow ? " ✓" : ""}
+          </button>
+        ))}
+      </div>
+    </details>
   );
 }

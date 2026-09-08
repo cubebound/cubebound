@@ -7,20 +7,27 @@ import CardFilterBar from "@/components/card-filter-bar";
 import CardPagination from "@/components/card-pagination";
 import ChangeLog from "@/components/change-log";
 import CubeViewToggle from "@/components/cube-view-toggle";
-import { CardsPerRowProvider, CardsPerRowToggle } from "@/components/cards-per-row";
+import { CardsPerRowMenu, CardsPerRowProvider } from "@/components/cards-per-row";
 import { getFilterOptions, PAGE_SIZE, searchCards } from "@/db/queries/cards";
 import {
   getCubeCards,
   getCubeHoldingsForBases,
   listCubeChanges,
 } from "@/db/queries/cubes";
-import { tab } from "@/lib/ui";
+import { tab as tabStyle } from "@/lib/ui";
 import { getPrintingsForBases } from "@/db/queries/cards";
 import { loadCube, loadViewer } from "@/lib/cube-request";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
 import { canEditCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
 import { CARDS_PER_ROW_COOKIE, resolveCardsPerRow } from "@/lib/cards-per-row";
+import {
+  CUBE_TAB_LABELS,
+  CUBE_TABS,
+  DEFAULT_CUBE_TAB,
+  resolveCubeTab,
+  tabShowsCards,
+} from "@/lib/cube-tabs";
 import { countCopies } from "@/lib/cube-cards";
 import { resolveSiteUrl } from "@/lib/site-url";
 
@@ -30,6 +37,7 @@ import CubeContents from "./cube-contents";
 import ImportCards from "./import-cards";
 import PrimerEditor from "./primer-editor";
 import EditPanel from "./edit-panel";
+import CubeAnalyticsView from "@/components/cube-analytics-view";
 
 export const metadata: Metadata = {
   title: "Edit cube",
@@ -67,11 +75,16 @@ export default async function EditCubePage({
   // links use, so a copied link is never relative or pinned to the wrong host.
   const shareUrl = `${resolveSiteUrl(requestHeaders)}${publicPath}`;
   const mode = Array.isArray(query.mode) ? query.mode[0] : query.mode;
+  // `browse` and `import` are modes, not tabs: nothing in the tab row points at
+  // them, they are reached from inside the edit panel and by URL, and two check
+  // scripts navigate straight to them. Everything else is one of the five tabs.
   const browsing = mode === "browse";
-  const writingPrimer = mode === "primer";
-  const viewingLog = mode === "log";
   const importing = mode === "import";
-  const onMaybeboard = mode === "maybeboard";
+  const tab = browsing || importing ? null : resolveCubeTab(mode);
+  const writingPrimer = tab === "primer";
+  const viewingLog = tab === "log";
+  const onMaybeboard = tab === "maybeboard";
+  const onAnalytics = tab === "analytics";
   const view = resolveCubeView(query.view, cookieStore.get(CUBE_VIEW_COOKIE)?.value);
   const perRow = resolveCardsPerRow(cookieStore.get(CARDS_PER_ROW_COOKIE)?.value);
 
@@ -79,7 +92,7 @@ export default async function EditCubePage({
   // Every mode used to read the whole cube's quantities and every printing of
   // every card in it — on a 500-card cube that is a thousand-odd wide rows,
   // paid for while showing the change log, which uses neither.
-  const editing = !browsing && !writingPrimer && !viewingLog && !importing && !onMaybeboard;
+  const editing = tab === "cube";
 
   // Mode-specific data joins this round rather than waiting for the cube's
   // cards, which it does not depend on — the browse grid and the change log
@@ -102,6 +115,9 @@ export default async function EditCubePage({
   // `printingCount` rides along on getCubeCards, so knowing which qualify costs
   // nothing, and an empty list short-circuits without a query.
   const rendered = onMaybeboard ? maybeboard : editing ? contents : [];
+  // Analytics is pure over the cards already loaded, so it adds no query — but
+  // it must not look like the cube tab, or it would pull every printing to
+  // render a bar chart.
   const switchableBases = [
     ...new Set(rendered.filter((card) => card.printingCount > 1).map((card) => card.baseId)),
   ];
@@ -116,12 +132,15 @@ export default async function EditCubePage({
     (printingsByBase[printing.baseId] ??= []).push(printing);
   }
 
+  // `key` lives here rather than at the call site because these are rendered
+  // from CUBE_TABS.map, and the returned element *is* the array item.
   const modeLink = (label: string, href: string, active: boolean) => (
     <Link
+      key={href}
       href={href}
       scroll={false}
       aria-current={active ? "page" : undefined}
-      className={active ? tab.active : tab.inactive}
+      className={active ? tabStyle.active : tabStyle.inactive}
     >
       {label}
     </Link>
@@ -158,12 +177,6 @@ export default async function EditCubePage({
               Draft
             </Link>
             <Link
-              href={`${publicPath}`}
-              className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-hover"
-            >
-              View
-            </Link>
-            <Link
               href={`${publicPath}/settings`}
               className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-hover"
             >
@@ -171,31 +184,28 @@ export default async function EditCubePage({
             </Link>
           </div>
         </div>
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-          {/* One scrolling line on a phone rather than three stacked rows.
-              The scrollbar is hidden because the strip is short and an
-              always-visible bar under six tabs reads as broken chrome. */}
-          <nav className="-mx-4 flex flex-nowrap items-center gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
-          {modeLink(
-            "Cube",
-            basePath,
-            !browsing && !writingPrimer && !viewingLog && !importing && !onMaybeboard,
+        <nav className="mt-4 flex flex-wrap items-center gap-2">
+          {CUBE_TABS.map((name) =>
+            modeLink(
+              CUBE_TAB_LABELS[name],
+              name === DEFAULT_CUBE_TAB ? basePath : `${basePath}?mode=${name}`,
+              name === tab,
+            ),
           )}
-          {/* Editing is the point of this page, so its trigger sits in the tab
-              row where "Browse cards" used to. Browse is still reachable — from
-              inside the panel, and by URL — but it is no longer what the UI
-              points at first: it is the heaviest read on the site, and leading
-              with it is what made a run of edits a run of round trips.
+        </nav>
 
-              Only on the cube list, though. The panel edits the card list, so
-              on the Primer or Change log tab it is a button that does nothing
-              you came to that tab to do — and its remove picker reads the cube,
-              which the maybeboard tab is not showing. */}
-          {editing && (
+        {/* Editing and the view controls belong to the card lists, so they sit
+            with the list rather than in the tab row. Density folds into a menu:
+            four visible chips beside a two-way toggle is most of a phone's
+            width, and it is a setting you change occasionally. */}
+        {tab !== null && tabShowsCards(tab) && (
+          <div className="mt-3 flex items-center gap-2">
             <EditPanel
               cubeId={cube.id}
               browsePath={`${basePath}?mode=browse`}
-              contents={contents.map((card) => ({
+              importPath={`${basePath}?mode=import`}
+              board={onMaybeboard ? "maybeboard" : "mainboard"}
+              contents={(onMaybeboard ? maybeboard : contents).map((card) => ({
                 cardId: card.id,
                 baseId: card.baseId,
                 name: card.name,
@@ -208,25 +218,12 @@ export default async function EditCubePage({
                 imageFull: card.imageFull,
               }))}
             />
-          )}
-          {modeLink("Primer", `${basePath}?mode=primer`, writingPrimer)}
-          {modeLink(
-            `Maybeboard${maybeboard.length ? ` (${countCopies(maybeboard)})` : ""}`,
-            `${basePath}?mode=maybeboard`,
-            onMaybeboard,
-          )}
-          {modeLink("Import", `${basePath}?mode=import`, importing)}
-          {modeLink("Change log", `${basePath}?mode=log`, viewingLog)}
-          </nav>
-          {!browsing && !writingPrimer && !viewingLog && !importing && !onMaybeboard && contents.length > 0 && (
-            <span className="flex shrink-0 items-center justify-end gap-2 sm:ml-auto">
-              {/* Density only means something for image tiles; the list view
-                  sizes its own columns from the viewport. */}
-              {view === "visual" && <CardsPerRowToggle />}
+            <span className="ml-auto flex items-center gap-2">
+              {view === "visual" && <CardsPerRowMenu />}
               <CubeViewToggle active={view} />
             </span>
-          )}
-        </div>
+          </div>
+        )}
       </header>
 
       {onMaybeboard ? (
@@ -254,6 +251,8 @@ export default async function EditCubePage({
           </p>
           <ImportCards cubeId={cube.id} editorPath={basePath} />
         </section>
+      ) : onAnalytics ? (
+        <CubeAnalyticsView cards={contents} />
       ) : viewingLog ? (
         <section>
           <p className="mb-4 max-w-3xl text-sm text-muted">

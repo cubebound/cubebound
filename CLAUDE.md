@@ -698,6 +698,28 @@ a stale row — but it means a source switch leaves residue worth checking for.
 
 ## Cubes
 
+- **Both cube pages have the same five tabs, always all of them**, defined once
+  in `src/lib/cube-tabs.ts`: **Mainboard · Maybeboard · Primer · Analytics ·
+  Change log**. Nothing is hidden and nothing depends on who is looking, so the
+  row is a constant — it used to change shape from cube to cube, with Primer
+  third on one and absent on the next, because the public page hid empty tabs
+  and the editor did not. Each tab carries its own empty state instead, which
+  every one of them needed anyway. Editing is not a tab: it lives in the action
+  bar above the list, which is what keeps the row identical for owners and
+  visitors. The two pages keep their own query parameter — the editor is on
+  `?mode=` because `browse` and `import` share it — so that module owns *which
+  tabs exist and in what order*, and the pages own their URLs.
+- **`browse` and `import` are modes, not tabs.** Nothing points at them from the
+  tab row; they are reached from links inside the edit panel and by URL.
+  **Both routes must keep working**: `check:cube-ownership` and
+  `check:browse-grid` navigate straight to `?mode=browse`.
+- **Tab links are built from `CUBE_TABS.map`, so `modeLink`/`tabLink` set `key`
+  on the element they return.** Missing it is a React warning rather than a
+  crash, and the way that surfaced is worth knowing: in dev it makes Next POST
+  to `/__nextjs_original-stack-frames`, which `check:cube-ownership` then
+  captures instead of the Add server action, and the check fails with
+  "replay is not exercising the action". A key warning presenting as a
+  replay failure is not a connection anyone makes twice.
 - The editor has four tabs, all on `/edit` behind `?mode=`. Default (no param):
   the cube is the page, and **the edit panel opens on demand** — a prominent
   Edit button, then a right-hand drawer on desktop and a bottom sheet below
@@ -713,21 +735,29 @@ a stale row — but it means a source switch leaves residue worth checking for.
   working** — `check:cube-ownership` and `check:browse-grid` both navigate
   straight to `?mode=browse`, so removing the route (rather than the tab) fails
   the build.
-- **Two triggers, never both at once.** The toolbar one is discoverable and sits
-  in the tab row; the floating one appears only once that has scrolled out of
-  view, which a 400-card cube does immediately. Showing both would read as a
-  bug rather than a convenience.
-- **The trigger renders only on the cube list.** The panel edits the card list,
+- **One Edit button, in the action bar directly above the list**, on Mainboard
+  and Maybeboard. The floating twin is gone: it existed because the toolbar one
+  scrolled away, and a button sitting on the thing it edits does not need one.
+  **It opens on the board whose tab you are on** — editing from Maybeboard and
+  defaulting to Mainboard would file cards into a section you are not looking at.
+- **No pending count on the button and no count in the tab labels.** The staged
+  list inside the panel already says what is pending. `check:copies-and-log`
+  separately forbids `×N` anywhere in the editor's HTML.
+- **Density folds into a `Display` menu** rather than four visible chips: four
+  chips beside a two-way view toggle is most of a phone's width, and it is a
+  setting you change occasionally. Built on the same `<details>` pattern as the
+  card browser's `FilterMenu`, so it needs no React state and survives JS being
+  off. **Nothing collapses into a JS-only menu**, because `check:public-cube`
+  requires `>Share<` and `>Clone<` in the served HTML.
+- **The trigger renders only on tabs that show cards.** The panel edits the card list,
   so on Primer or Change log it is a button that does nothing you came to that
   tab to do, and its remove picker reads the cube, which the maybeboard tab is
   not showing.
-- **Both cube pages put their tabs on one scrolling line below `sm`**, with the
-  view and density controls dropping to their own row. Six wrapped tabs plus two
-  toggles stacked into four rows on a phone, which is most of a screen before
-  any cards. The scrollbar is hidden on that strip: it is short, and a permanent
-  bar under six tabs reads as broken chrome. **`check:public-cube` needs
-  `>Share<` and `>Clone<` in the HTML**, so anything that collapses these rows
-  further has to keep those labels rendered, not mount them on open.
+- **Nothing scrolls sideways.** An earlier pass put the tabs on a horizontally
+  scrolling strip, which traded four stacked rows for a hidden-content gesture
+  and was worse. The row is twelve controls fighting for one header, so the fix
+  was subtraction — View, the Import tab, the Browse tab and every count — not
+  layout. Five tabs wrap to two rows at 320px and one row from `sm` up.
 - **The panel stages changes and writes them on Save**, which is both how people
   actually edit a cube and the fix for a real fault — the panel it replaces
   wrote once per click, so a run of edits was a run of round trips against a
@@ -1000,6 +1030,15 @@ a stale row — but it means a source switch leaves residue worth checking for.
   anyone including signed-out visitors; private 404s for non-owners, the same
   convention the mutations use. `canViewCube` in `src/lib/cube-access.ts` is the
   single definition, next to `canEditCube`.
+- **There is no "View" button on the editor.** It went to the public page to
+  show the same list read-only, and now that Analytics and the change log are on
+  the editor too there is nothing over there an owner needs. The consequence to
+  know: an owner has no one-click preview of how the cube looks to a visitor.
+  Share already states who can open the link, which is the question that was
+  actually being asked.
+- **The change log is public.** It records card names, dates and actor usernames
+  on a cube that is already public, so nothing new is disclosed, and seeing how
+  a cube has evolved is a reason to follow it.
 - The public page's actions are ordered by who is looking: a visitor's primary
   action is **Clone** (filled), the owner's is **Edit**, and Clone steps down to
   a quiet button on your own cube. **Share** sits on both the public page and

@@ -46,8 +46,6 @@ export interface HeldCard {
 }
 
 const SEARCH_DEBOUNCE_MS = 300;
-/** Past this the floating trigger appears; above it the toolbar one is in view. */
-const FLOATING_TRIGGER_AFTER = 400;
 const BOARD_LABELS: Record<EditBoard, string> = {
   mainboard: "Mainboard",
   maybeboard: "Maybeboard",
@@ -57,14 +55,22 @@ export default function EditPanel({
   cubeId,
   contents,
   browsePath,
+  importPath,
+  board,
 }: {
   cubeId: string;
   contents: HeldCard[];
   browsePath: string;
+  importPath: string;
+  /**
+   * Which board this tab is showing, so the panel opens on it. Editing from the
+   * Maybeboard tab and having it default to Mainboard would file cards into a
+   * section you are not looking at.
+   */
+  board: EditBoard;
 }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<StagedRow[]>([]);
-  const [scrolled, setScrolled] = useState(false);
 
   // Escape hides the panel; it deliberately does not discard the batch. The
   // whole point of staging is that your work survives until you say otherwise.
@@ -86,20 +92,9 @@ export default function EditPanel({
     return () => window.removeEventListener("beforeunload", warn);
   }, [rows.length]);
 
-  // The toolbar trigger is the discoverable one and sits at the top of the
-  // page; the floating one appears only once that has scrolled away, so a long
-  // cube always has Edit within reach without ever showing two at once.
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > FLOATING_TRIGGER_AFTER);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // Never "×3": check:copies-and-log asserts the editor's HTML carries no ×N
-  // notation, and both triggers render on the server.
-  const count = rows.length > 0 ? ` (${rows.length})` : "";
-
+  // No pending count on the button, and no second floating trigger: the staged
+  // list inside the panel already says what is pending, and one Edit button
+  // sitting directly above the list it edits needs no twin.
   return (
     <>
       <button
@@ -108,19 +103,8 @@ export default function EditPanel({
         aria-expanded={open}
         className={btn.primarySm}
       >
-        Edit cube{count}
+        Edit
       </button>
-
-      {scrolled && !open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-expanded={open}
-          className={`${btn.primary} fixed right-4 bottom-4 z-30 rounded-full shadow-lg`}
-        >
-          Edit cube{count}
-        </button>
-      )}
 
       {open && (
         <div
@@ -138,6 +122,8 @@ export default function EditPanel({
               cubeId={cubeId}
               contents={contents}
               browsePath={browsePath}
+              importPath={importPath}
+              initialBoard={board}
               rows={rows}
               setRows={setRows}
               onClose={() => setOpen(false)}
@@ -216,6 +202,8 @@ function PanelBody({
   cubeId,
   contents,
   browsePath,
+  importPath,
+  initialBoard,
   rows,
   setRows,
   onClose,
@@ -223,11 +211,13 @@ function PanelBody({
   cubeId: string;
   contents: HeldCard[];
   browsePath: string;
+  importPath: string;
+  initialBoard: EditBoard;
   rows: StagedRow[];
   setRows: (next: StagedRow[] | ((prev: StagedRow[]) => StagedRow[])) => void;
   onClose: () => void;
 }) {
-  const [board, setBoard] = useState<EditBoard>("mainboard");
+  const [board, setBoard] = useState<EditBoard>(initialBoard);
   const [specifyVersions, setSpecifyVersions] = useState(false);
 
   const [addQuery, setAddQuery] = useState("");
@@ -609,11 +599,13 @@ function PanelBody({
         </div>
 
         <p className="text-xs text-subtle">
-          Looking for something specific?{" "}
           <Link href={browsePath} className="underline underline-offset-2">
             Browse the full card pool
           </Link>
-          .
+          {" · "}
+          <Link href={importPath} className="underline underline-offset-2">
+            Import a list
+          </Link>
         </p>
       </div>
 

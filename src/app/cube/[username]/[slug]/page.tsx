@@ -6,10 +6,11 @@ import { notFound } from "next/navigation";
 import CubeAnalyticsView from "@/components/cube-analytics-view";
 import CubeSections from "@/components/cube-sections";
 import CubeViewToggle from "@/components/cube-view-toggle";
-import { CardsPerRowProvider, CardsPerRowToggle } from "@/components/cards-per-row";
+import { CardsPerRowMenu, CardsPerRowProvider } from "@/components/cards-per-row";
+import ChangeLog from "@/components/change-log";
 import FollowButton from "@/components/follow-button";
 import Primer from "@/components/primer";
-import { getCubeCards } from "@/db/queries/cubes";
+import { getCubeCards, listCubeChanges } from "@/db/queries/cubes";
 import { getFollowState } from "@/db/queries/discovery";
 import { loadCube, loadViewer } from "@/lib/cube-request";
 import type { SearchParams } from "@/lib/card-search-params";
@@ -17,6 +18,13 @@ import { CubeModerationPanel } from "@/components/moderation-panel";
 import { canEditCube, canViewCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
 import { CARDS_PER_ROW_COOKIE, resolveCardsPerRow } from "@/lib/cards-per-row";
+import {
+  CUBE_TAB_LABELS,
+  CUBE_TABS,
+  DEFAULT_CUBE_TAB,
+  resolveCubeTab,
+  tabShowsCards,
+} from "@/lib/cube-tabs";
 import { countCopies } from "@/lib/cube-cards";
 import {
   CUBE_LIST_SECTIONS,
@@ -24,7 +32,7 @@ import {
   type CubeSection,
 } from "@/lib/riftbound";
 import { resolveSiteUrl } from "@/lib/site-url";
-import { btn, tab as tabStyle } from "@/lib/ui";
+import { btn, panelEmpty, tab as tabStyle } from "@/lib/ui";
 
 import CloneButton from "./clone-button";
 import ShareButton from "./share-button";
@@ -129,11 +137,8 @@ export default async function CubePage({
   const hiddenAt = cube.hiddenAt;
   const hiddenReason = cube.hiddenReason;
   const cubeName = cube.name;
-  const tab = Array.isArray(query.tab) ? query.tab[0] : query.tab;
+  const tab = resolveCubeTab(query.tab);
   const hasPrimer = Boolean(cube.primer?.trim());
-  const showingPrimer = tab === "primer" && hasPrimer;
-  const showingMaybeboard = tab === "maybeboard";
-  const showingAnalytics = tab === "analytics";
   const view = resolveCubeView(query.view, cookieStore.get(CUBE_VIEW_COOKIE)?.value);
   const perRow = resolveCardsPerRow(cookieStore.get(CARDS_PER_ROW_COOKIE)?.value);
 
@@ -144,9 +149,11 @@ export default async function CubePage({
 
   // Second round: the cards and the follow state need the cube's id, but not
   // each other.
-  const [allCards, follows] = await Promise.all([
+  const [allCards, follows, changes] = await Promise.all([
     getCubeCards(cubeId),
     getFollowState(cubeId, isOwner ? null : viewerId),
+    // Only the Change log tab reads this, so it is not paid for on the others.
+    tab === "log" ? listCubeChanges(cubeId) : [],
   ]);
 
   // The maybeboard is a shortlist, not part of the cube: counting it would make
@@ -170,8 +177,11 @@ export default async function CubePage({
   // use), so the copied link is absolute and stable rather than depending on
   // where the client happens to be.
   const shareUrl = `${resolveSiteUrl(await headers())}${basePath}`;
+  // `key` lives here rather than at the call site because these are rendered
+  // from CUBE_TABS.map, and the returned element *is* the array item.
   const tabLink = (label: string, href: string, active: boolean) => (
     <Link
+      key={href}
       href={href}
       scroll={false}
       aria-current={active ? "page" : undefined}
@@ -299,40 +309,44 @@ export default async function CubePage({
           </ul>
         )}
 
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-          {/* One scrolling line on a phone rather than three stacked rows.
-              The scrollbar is hidden because the strip is short and an
-              always-visible bar under six tabs reads as broken chrome. */}
-          <nav className="-mx-4 flex flex-nowrap items-center gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden">
-          {tabLink("Cube", basePath, !showingPrimer && !showingMaybeboard && !showingAnalytics)}
-          {hasPrimer && tabLink("Primer", `${basePath}?tab=primer`, showingPrimer)}
-          {/* Only advertised when it holds something: an empty shortlist is
-              noise on someone else's cube. */}
-          {maybeboard.length > 0 &&
+        <nav className="mt-4 flex flex-wrap items-center gap-2">
+          {CUBE_TABS.map((name) =>
             tabLink(
-              `Maybeboard (${countCopies(maybeboard)})`,
-              `${basePath}?tab=maybeboard`,
-              showingMaybeboard,
-            )}
-          {cards.length > 0 &&
-            tabLink("Analytics", `${basePath}?tab=analytics`, showingAnalytics)}
-          </nav>
-          {!showingPrimer && !showingMaybeboard && !showingAnalytics && cards.length > 0 && (
-            <span className="flex shrink-0 items-center justify-end gap-2 sm:ml-auto">
-              {/* Density only means something for image tiles; the list view
-                  sizes its own columns from the viewport. */}
-              {view === "visual" && <CardsPerRowToggle />}
+              CUBE_TAB_LABELS[name],
+              name === DEFAULT_CUBE_TAB ? basePath : `${basePath}?tab=${name}`,
+              name === tab,
+            ),
+          )}
+        </nav>
+
+        {/* View controls belong to the card lists, so they sit with the list
+            rather than with the tabs. Density folds into a menu: four visible
+            chips plus a two-way toggle is most of a phone's width. */}
+        {tabShowsCards(tab) && cards.length > 0 && (
+          <div className="mt-3 flex items-center gap-2">
+            <span className="ml-auto flex items-center gap-2">
+              {view === "visual" && <CardsPerRowMenu />}
               <CubeViewToggle active={view} />
             </span>
-          )}
-        </div>
+          </div>
+        )}
       </header>
 
-      {showingPrimer ? (
-        <Primer markdown={cube.primer!} />
-      ) : showingAnalytics ? (
+      {tab === "primer" ? (
+        hasPrimer ? (
+          <Primer markdown={cube.primer!} />
+        ) : (
+          <p className={panelEmpty}>
+            {isOwner
+              ? "No primer yet. Write one from the editor's Primer tab."
+              : "This cube's owner hasn't written a primer yet."}
+          </p>
+        )
+      ) : tab === "analytics" ? (
         <CubeAnalyticsView cards={cards} />
-      ) : showingMaybeboard ? (
+      ) : tab === "log" ? (
+        <ChangeLog changes={changes} />
+      ) : tab === "maybeboard" ? (
         <CubeSections
           cards={maybeboard}
           view={view}
