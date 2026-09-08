@@ -250,14 +250,29 @@ expect(
 
 /* ── printingLabel ────────────────────────────────────────────────────── */
 expect(
-  "a printing reads as name plus set and number",
-  printingLabel({ name: "Mother of Runes", setCode: "CMA", collectorNo: "17" }),
-  "Mother of Runes [cma-17]",
+  "a printing reads as its name plus its id",
+  printingLabel({ id: "OGN-241", name: "Shen, Kinkou" }),
+  "Shen, Kinkou [ogn-241]",
+);
+// Alt arts share a collector number with the printing they vary, so the id is
+// what keeps two versions of one card from rendering as identical rows - which
+// is the whole point of "Specify versions".
+expect(
+  "an alt art is distinguishable from its base printing",
+  printingLabel({ id: "VEN-138a", name: "Shen, Leader of the Kinkou Order" }),
+  "Shen, Leader of the Kinkou Order [ven-138a]",
+);
+// A legend stores only its title; without the champion two of them read alike
+// and neither says whose legend it is.
+expect(
+  "a legend is named the way people read it",
+  printingLabel({ id: "VEN-193", name: "Eye of Twilight", champion: "Shen", type: "Legend" }),
+  "Shen, Eye of Twilight [ven-193]",
 );
 expect(
-  "a card with no printing data is just its name",
-  printingLabel({ name: "Mother of Runes", setCode: null, collectorNo: null }),
-  "Mother of Runes",
+  "a champion unit is not given a doubled prefix",
+  printingLabel({ id: "OGN-241", name: "Shen, Kinkou", champion: "Shen", type: "Unit" }),
+  "Shen, Kinkou [ogn-241]",
 );
 
 if (failures.length > 0) {

@@ -35,12 +35,12 @@ export interface HeldCard {
   cardId: string;
   baseId: string;
   name: string;
-  setCode: string | null;
-  collectorNo: string | null;
   section: CubeSection;
   quantity: number;
-  /** For the hover preview. `type` decides portrait against landscape. */
+  /** For the hover preview. `type` decides portrait against landscape, and
+   *  with `champion` it also rebuilds a legend's full name. */
   type: string;
+  champion: string | null;
   imageThumb: string | null;
   imageFull: string | null;
 }
@@ -359,7 +359,7 @@ function PanelBody({
         fromCardId: removeChoice.cardId,
         section: removeChoice.section,
         label: printingLabel(addChoice.card),
-        fromLabel: printingLabel(removeChoice),
+        fromLabel: printingLabel({ ...removeChoice, id: removeChoice.cardId }),
       });
       clearAdd();
     } else {
@@ -367,7 +367,7 @@ function PanelBody({
         op: "remove",
         cardId: removeChoice.cardId,
         section: removeChoice.section,
-        label: printingLabel(removeChoice),
+        label: printingLabel({ ...removeChoice, id: removeChoice.cardId }),
       });
     }
     clearRemove();
@@ -539,12 +539,12 @@ function PanelBody({
                 keyOf={(copy, index) => `${copy.cardId}|${copy.section}|${index}`}
                 onPick={(copy) => {
                   setRemoveChoice(copy);
-                  setRemoveQuery(printingLabel(copy));
+                  setRemoveQuery(printingLabel({ ...copy, id: copy.cardId }));
                   setRemoveDismissed(true);
                 }}
                 render={(copy) => (
                   <>
-                    <span className="block truncate">{printingLabel(copy)}</span>
+                    <span className="block truncate">{printingLabel({ ...copy, id: copy.cardId })}</span>
                     <span className="block text-xs text-subtle">
                       {CUBE_SECTION_LABELS[copy.section]}
                     </span>

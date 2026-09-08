@@ -16,6 +16,7 @@
  * production.
  */
 
+import { withChampionPrefix } from "@/lib/deck-export";
 import { defaultSectionForType, isCubeSection, type CubeSection } from "@/lib/riftbound";
 
 /**
@@ -74,14 +75,31 @@ export function sectionForBoard(board: EditBoard, cardType: string): CubeSection
   return board === "maybeboard" ? "maybeboard" : defaultSectionForType(cardType);
 }
 
-/** `Name [set-collector]`, the way Cube Cobra writes a specific printing. */
+/**
+ * `Name [set-collector]`, the way Cube Cobra writes a specific printing.
+ *
+ * The name goes through `withChampionPrefix` because a legend is stored as its
+ * title alone — `Eye of Twilight`, champion `Shen`. Without it two printings of
+ * one legend render as two identical rows with nothing to tell them apart but a
+ * set code, and neither says whose legend it is.
+ */
 export function printingLabel(card: {
+  id: string;
   name: string;
-  setCode: string | null;
-  collectorNo: string | null;
+  champion?: string | null;
+  type?: string;
 }): string {
-  const code = [card.setCode, card.collectorNo].filter(Boolean).join("-").toLowerCase();
-  return code ? `${card.name} [${code}]` : card.name;
+  const full = withChampionPrefix(card.name, {
+    name: card.name,
+    champion: card.champion ?? null,
+    type: card.type ?? "",
+  });
+  // The card id, not set + collector number. An alt art shares its collector
+  // number with the printing it varies (`VEN-138` and `VEN-138a` are both 138),
+  // so the obvious label renders them as two identical rows — which is exactly
+  // what "Specify versions" exists to tell apart. The id already *is*
+  // set-collector plus the variant suffix, so it reads the same and is unique.
+  return `${full} [${card.id.toLowerCase()}]`;
 }
 
 function quantityOf(value: unknown, maxQuantity: number): number | null {

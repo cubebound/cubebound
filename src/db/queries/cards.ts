@@ -75,6 +75,11 @@ export const browseColumns = {
   // Unit" is `type` Unit plus `supertype` Champion, and analytics that grouped
   // by `type` alone would fold 323 champions in with ordinary units.
   supertype: cards.supertype,
+  // A **legend stores only its title** — `Eye of Twilight`, champion `Shen` —
+  // so without this a legend cannot be named the way anyone reads it, and two
+  // printings of one legend are two identical rows. `withChampionPrefix` puts
+  // it back. Unlike `keywords`, this column is populated and now read.
+  champion: cards.champion,
   domains: cards.domains,
   energyCost: cards.energyCost,
   powerCost: cards.powerCost,
@@ -370,6 +375,23 @@ export async function quickSearchCards(
   const pattern = `%${escapeLike(term)}%`;
   const prefix = `${escapeLike(term)}%`;
 
+  // The name a person types is not always the name we store. A legend keeps
+  // only its title, so "Shen, Eye of Twilight" matched nothing at all while the
+  // card sat there under "Eye of Twilight". This rebuilds the spelling rather
+  // than loosening the match — the same rule `withChampionPrefix` renders with
+  // and `aliasesFor` matches on for imports, so the two add paths now agree.
+  //
+  // The guard mirrors `withChampionPrefix`: champion *units* already carry the
+  // champion (`Shen, Kinkou`), and prefixing blindly would build
+  // "Shen, Shen, Kinkou".
+  const fullName = sql<string>`(case
+      when ${cards.champion} is not null
+       and ${cards.name} not ilike ${cards.champion} || ',%'
+      then ${cards.champion} || ', ' || ${cards.name}
+      else ${cards.name}
+    end)`;
+  const matches = or(ilike(cards.name, pattern), ilike(fullName, pattern));
+
   const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
     "printing_count",
   );
@@ -381,15 +403,15 @@ export async function quickSearchCards(
     return db
       .select({ ...browseColumns, printingCount })
       .from(cards)
-      .where(ilike(cards.name, pattern))
-      .orderBy(sql`(${cards.name} ilike ${prefix}) desc`, cards.name, cards.id)
+      .where(matches)
+      .orderBy(sql`(${fullName} ilike ${prefix}) desc`, cards.name, cards.id)
       .limit(limit);
   }
 
   const grouped = db
     .selectDistinctOn([cards.baseId], { ...browseColumns, printingCount })
     .from(cards)
-    .where(ilike(cards.name, pattern))
+    .where(matches)
     .orderBy(cards.baseId, sql`(${cards.id} = ${cards.baseId}) desc`, cards.id)
     .as("grouped");
 

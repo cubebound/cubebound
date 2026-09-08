@@ -209,11 +209,10 @@ export default async function EditCubePage({
                 cardId: card.id,
                 baseId: card.baseId,
                 name: card.name,
-                setCode: card.setCode,
-                collectorNo: card.collectorNo,
                 section: card.section,
                 quantity: card.quantity,
                 type: card.type,
+                champion: card.champion,
                 imageThumb: card.imageThumb,
                 imageFull: card.imageFull,
               }))}

@@ -784,6 +784,21 @@ a stale row — but it means a source switch leaves residue worth checking for.
   looks broken. That happened. Starting visible and closing on an explicit
   dismissal — blur, Escape, or picking — fails open instead, which at worst
   shows a list a moment longer than it needs to.
+- **The type-ahead searches the name a person types, not only the one we
+  store.** A legend keeps just its title (`Eye of Twilight`, champion `Shen`),
+  so "Shen, Eye of Twilight" matched nothing while the card sat there — no
+  legend could be found by its full spelling, with or without Specify versions.
+  `quickSearchCards` now also matches the rebuilt `champion, name`, guarded the
+  way `withChampionPrefix` is so a champion *unit* does not become
+  "Shen, Shen, Kinkou". This is the rule `aliasesFor` already applied to
+  imports, so the two add paths finally agree; **`champion` is in
+  `browseColumns` for it**, unlike `keywords`, because two things now read it.
+- **A printing is labelled by its card id, not set + collector number.** An alt
+  art shares a collector number with the printing it varies — `VEN-138` and
+  `VEN-138a` are both 138 — so the obvious label renders them as two identical
+  rows, which is precisely what Specify versions exists to tell apart. The id
+  already *is* set-collector plus the variant suffix, so it reads the same and
+  is unique.
 - **Hovering a suggestion floats the card art**, through the same
   `useCardPreview` / `CardHoverPreview` pair the text view uses. It is `fixed`,
   so the drawer's own overflow cannot clip it, and it is why `HeldCard` carries
