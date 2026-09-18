@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  mainSlotsPerPack,
-  reservedSlotsPerPack,
-  type DraftConfig,
-} from "@/lib/draft/config";
+import { type DraftConfig } from "@/lib/draft/config";
 import { btn } from "@/lib/ui";
 
 /**
@@ -34,9 +30,6 @@ export default function DraftmancerExport({
   /** Set when the config is incoherent — the route would 400 on it anyway. */
   disabled: boolean;
 }) {
-  const reserved = reservedSlotsPerPack(config);
-  const mainPerPack = mainSlotsPerPack(config);
-
   // Every field by name, so this and `readDraftConfig` cannot drift about what
   // a config is. The route re-reads and re-validates all of it.
   const href = `${exportPath}?${new URLSearchParams({
@@ -52,7 +45,10 @@ export default function DraftmancerExport({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+      {/* No pack summary beside the button. It read
+          "12-card packs · 11 main + 1 reserved", which is the sentence directly
+          above it in the settings panel, in different words. */}
+      <div>
         {disabled ? (
           <span className="text-sm text-subtle">
             Fix the settings above to download.
@@ -66,10 +62,6 @@ export default function DraftmancerExport({
             Download cube file
           </a>
         )}
-        <span className="text-sm tabular-nums text-subtle">
-          {config.packSize}-card packs · {mainPerPack} main
-          {reserved > 0 && ` + ${reserved} reserved`}
-        </span>
       </div>
 
       <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
@@ -93,15 +85,13 @@ export default function DraftmancerExport({
         </li>
       </ol>
 
-      <p className="text-xs text-subtle">
-        Main, legends and battlefields are exported.{" "}
-        <strong className="font-medium">
-          Runes, sideboard and maybeboard are not
-        </strong>
-        . Those are the same sections our own draft leaves out. Draftmancer bots
-        have never seen a Riftbound card, so each one carries a 0–5 rating
-        derived from its rarity to give them something to pick on.
-      </p>
+      <div className="text-xs text-subtle">
+        <p>
+          Draftmancer&rsquo;s bots have never seen a Riftbound card, so each one
+          carries a 0&ndash;5 rating from its rarity to give them something to
+          pick on.
+        </p>
+      </div>
     </div>
   );
 }

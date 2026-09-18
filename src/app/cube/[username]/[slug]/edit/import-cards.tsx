@@ -60,14 +60,23 @@ export default function ImportCards({
     setError(null);
     setDone(null);
     startTransition(async () => {
-      const result = await previewImportAction(cubeId, text);
-      if (result.error) {
-        setError(result.error);
+      try {
+        const result = await previewImportAction(cubeId, text);
+        if (result.error) {
+          setError(result.error);
+          setPreview(null);
+          return;
+        }
+        setPreview(result.preview ?? null);
+        setChoices({});
+      } catch {
+        // A dropped request rejects the action, and React rethrows that during
+        // the next render — which takes out the whole editor through error.tsx
+        // and loses the pasted list with it. Nothing reached the cube on a
+        // preview, so a retry is safe to offer outright.
+        setError("Couldn't reach the server. Your list is still here — try again.");
         setPreview(null);
-        return;
       }
-      setPreview(result.preview ?? null);
-      setChoices({});
     });
   }
 
@@ -98,16 +107,26 @@ export default function ImportCards({
     }
     setError(null);
     startTransition(async () => {
-      const result = await commitImportAction(cubeId, rows);
-      if (result.error) {
-        setError(result.error);
-        return;
+      try {
+        const result = await commitImportAction(cubeId, rows);
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        setDone(result.added ?? 0);
+        setPreview(null);
+        setText("");
+        setChoices({});
+        router.refresh();
+      } catch {
+        // Same rethrow as the preview, but this call mutates: a request that
+        // dies in flight may still have been applied on the server. Reporting
+        // it as failed would walk the user into a second import, so say only
+        // what is actually known.
+        setError(
+          "Lost contact with the server. The import may or may not have gone through — reload the cube and check before trying again.",
+        );
       }
-      setDone(result.added ?? 0);
-      setPreview(null);
-      setText("");
-      setChoices({});
-      router.refresh();
     });
   }
 

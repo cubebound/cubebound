@@ -39,7 +39,8 @@
     "check:oauth-buttons": "tsx scripts/check-oauth-buttons.mts",
     "check:moderation": "tsx --env-file-if-exists=.env.local scripts/check-moderation.mts",
     "check:draftmancer": "tsx scripts/check-draftmancer.mts",
-    "check:staged-edit": "tsx scripts/check-staged-edit.mts"
+    "check:staged-edit": "tsx scripts/check-staged-edit.mts",
+    "check:pack-image": "tsx scripts/check-pack-image.mts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.70.0",
@@ -53,7 +54,8 @@
     "react-dom": "19.2.8",
     "react-markdown": "^10.1.0",
     "rehype-sanitize": "^6.0.0",
-    "remark-gfm": "^4.0.1"
+    "remark-gfm": "^4.0.1",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

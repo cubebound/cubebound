@@ -44,6 +44,18 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   /**
+   * The pack image's wordmark font.
+   *
+   * `renderPackImage` reads it with a path built at runtime, which the tracer
+   * cannot follow, so without this the file is simply absent from the function
+   * bundle and the wordmark renders as nothing in production while every local
+   * test passes.
+   */
+  outputFileTracingIncludes: {
+    "/cube/[username]/[slug]/pack.png": ["./src/lib/pack-image/fonts/**"],
+  },
+
+  /**
    * `npm run build` and `npm run dev` share `.next` by default, and a build
    * **overwrites the dev server's client chunks** — the browser then asks for
    * `/_next/static/development/...` files that no longer exist and the page

@@ -15,7 +15,11 @@
  *
  *   npm run check:draftmancer
  */
-import { DEFAULT_DRAFT_CONFIG, type DraftConfig } from "../src/lib/draft/config";
+import {
+  DEFAULT_DRAFT_CONFIG,
+  draftmancerSheetNeeded,
+  type DraftConfig,
+} from "../src/lib/draft/config";
 import { deckListName } from "../src/lib/deck-export";
 import {
   draftmancerName,
@@ -533,6 +537,58 @@ const sheetNamed = (sheets: { name: string; lines: string[] }[], name: string) =
   );
   expect(plan.mainCount === 2, `main copies should be 2, got ${plan.mainCount}`);
   expect(plan.legendPerPack === 1, "the legend slot survives into the plan");
+}
+
+// --- a weighted sheet must cover its own share, with headroom ----------------
+// Draftmancer picks the sheet before the card and cannot fall back to the other
+// one, so the pooled question this used to ask was the wrong one. Every row here
+// is a real session that was run by hand against draftmancer.com; the comment
+// records what it did, because nothing in CI can talk to them.
+{
+  scenario();
+  const at = (seats: number, either: number): DraftConfig => ({
+    ...DEFAULT_DRAFT_CONFIG,
+    seats,
+    legendOrBattlefieldSlots: either,
+  });
+  const ok = (config: DraftConfig, legends: number, battlefields: number) =>
+    legends >= draftmancerSheetNeeded(config, "legends") &&
+    battlefields >= draftmancerSheetNeeded(config, "battlefields");
+
+  // 8 seats x 3 packs x 4 either-slots = 96 draws, so each sheet's share is 48
+  // and the headroom puts the bar at 60.
+  expect(draftmancerSheetNeeded(at(8, 4), "legends") === 60, "96 draws should ask for 60 a sheet");
+  expect(!ok(at(8, 4), 2, 140), "2 legends against 96 draws never generated");
+  expect(!ok(at(8, 4), 24, 140), "24 legends against 96 draws never generated");
+  expect(!ok(at(8, 4), 48, 140), "48 is the bare share and generated about half the time");
+  expect(ok(at(8, 4), 60, 60), "60 legends against 96 draws generated first try");
+
+  // The same bar has to scale with the session, not sit at a fixed number.
+  expect(draftmancerSheetNeeded(at(2, 4), "legends") === 18, "24 draws should ask for 18 a sheet");
+  expect(!ok(at(2, 4), 12, 140), "12 is the bare share at 2 seats and was flaky");
+  expect(!ok(at(2, 4), 2, 30), "2 legends against 24 draws never generated");
+
+  // The pooled check this replaced would have passed three of those five.
+  expect(
+    2 + 140 >= 96 && 24 + 140 >= 96 && 48 + 140 >= 96,
+    "the old pooled check really did call those cubes healthy",
+  );
+
+  // Dedicated slots are deterministic and add on top of the random share.
+  expect(
+    draftmancerSheetNeeded({ ...at(8, 4), legendSlots: 1 }, "legends") === 60 + 24,
+    "a dedicated legend slot adds its whole demand",
+  );
+  // No either-slot means no randomness, so no headroom is added.
+  expect(
+    draftmancerSheetNeeded({ ...at(8, 0), legendSlots: 1 }, "legends") === 24,
+    "without the either-slot the bar is just the dedicated slots",
+  );
+  // A narrowed slot draws every time, so the survivor carries the whole slot.
+  expect(
+    draftmancerSheetNeeded(at(8, 4), "battlefields", 1) === 96,
+    "a slot narrowed to one sheet needs the whole count, with no spread",
+  );
 }
 
 // --- an empty cube must not throw --------------------------------------------

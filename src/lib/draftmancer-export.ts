@@ -66,6 +66,7 @@ import { withChampionPrefix } from "./deck-export";
 import {
   canUseEitherSlot,
   DEFAULT_DRAFT_CONFIG,
+  draftmancerSheetNeeded,
   type DraftConfig,
 } from "./draft/config";
 import { titleCase } from "./riftbound";
@@ -461,13 +462,36 @@ export function draftmancerPlan(
     }
   };
   shortfall("Main section", copies(main), mainPerPack);
-  shortfall("Legends", copies(legends), legendPerPack);
-  shortfall("Battlefields", copies(battlefields), battlefieldPerPack);
-  shortfall(
-    "Legends and battlefields together",
-    copies(legends) + copies(battlefields),
-    eitherPerPack,
-  );
+
+  // The either-slot is deliberately **not** checked against the two sections
+  // pooled, which is what this did at first. A slot that has already chosen
+  // Legends cannot spend a battlefield, so "legends plus battlefields cover the
+  // slot total" is true of cubes Draftmancer refuses outright: 27 legends and
+  // 56 battlefields against 96 either-slots reads as 83 spare and fails every
+  // time. Each sheet has to carry its own share, with headroom, because the
+  // share is a mean and the draw is binomial. `draftmancerSheetNeeded` is the
+  // one definition, shared with the settings panel so the screen and the file
+  // cannot come to disagree.
+  if (eitherPerPack > 0) {
+    const share = eitherSources.length > 1 ? 0.5 : 1;
+    for (const [label, have, type] of [
+      ["Legends", copies(legends), "legends"],
+      ["Battlefields", copies(battlefields), "battlefields"],
+    ] as const) {
+      if (!eitherSources.includes(type === "legends" ? LEGEND_SHEET : BATTLEFIELD_SHEET)) {
+        continue;
+      }
+      const need = draftmancerSheetNeeded(config, type, share);
+      if (have < need) {
+        warnings.push(
+          `${label}: ${config.seats} players × ${config.packsPerPlayer} packs needs about ${need} on this sheet, and this cube has ${have}. Draftmancer chooses the sheet before the card and cannot fall back to the other one, so generation fails.`,
+        );
+      }
+    }
+  } else {
+    shortfall("Legends", copies(legends), legendPerPack);
+    shortfall("Battlefields", copies(battlefields), battlefieldPerPack);
+  }
 
   return {
     cardCount: copies(drafted),

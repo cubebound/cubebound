@@ -22,6 +22,7 @@ import {
 import DraftSettings, { type PoolCounts } from "@/components/draft-settings";
 import { btn, cardTab } from "@/lib/ui";
 import DeckExport from "./deck-export";
+import CrackAPack from "./crack-a-pack";
 import DraftmancerExport from "./draftmancer-export";
 import PoolPiles, { type PoolCard } from "./pool-piles";
 
@@ -68,14 +69,14 @@ async function runAction<T extends { error?: string }>(
 }
 
 /**
- * Start screen: how this cube gets drafted, either way.
+ * Start screen: everything you can do with this cube's pack template.
  *
- * Two tabs over **one** settings form. Drafting against our bots and exporting
- * to Draftmancer differ only in where the draft happens — a legend slot means
- * the same thing in both — so the pack template is configured once above the
- * tabs and each tab only carries its own action. Two screens would have meant
- * two copies of that form and, before long, two answers to what a reserved slot
- * is.
+ * Three tabs over **one** settings form. Drafting against our bots, exporting to
+ * Draftmancer and drawing a pack as an image all start from the same question —
+ * what goes in a pack — and a legend slot means the same thing in all three, so
+ * the template is configured once above the tabs and each tab carries only its
+ * own action. Separate screens would have meant three copies of that form and,
+ * before long, three answers to what a reserved slot is.
  *
  * The tab is **client state, not a URL parameter**, unlike the tabs on the cube
  * page. Those select what to read and are worth linking to; this one sits over
@@ -86,21 +87,23 @@ export function StartDraft({
   cubeId,
   returnPath,
   exportPath,
+  imagePath,
   pools,
-  currentDraftPath,
   signedIn,
 }: {
   cubeId: string;
   returnPath: string;
   /** The cube's `draftmancer.txt` route, for the export tab. */
   exportPath: string;
+  /** The cube's `pack.png` route, for the crack-a-pack tab. */
+  imagePath: string;
   pools: PoolCounts;
-  /** Set when a draft of this cube already exists, so the screen can say it
-   *  survives. Starting another never destroys one. */
-  currentDraftPath?: string | null;
-  /** Signed out, the export tab works as it does for anyone and the bots tab
-   *  says why it cannot: a solo draft is persisted, so it needs an owner. The
-   *  server action refuses regardless — this only decides what is offered. */
+  /** Signed out, only the Draftmancer export works: that file is assembled from
+   *  rows we already hold. The bots tab needs an owner for a draft it persists,
+   *  and Crack-A-Pack needs one because it renders server-side and is the most
+   *  expensive thing here. Each says so in place of its button rather than
+   *  replacing the screen, so the tab that works stays reachable. The server
+   *  refuses either way — this only decides what is offered. */
   signedIn: boolean;
 }) {
   const router = useRouter();
@@ -111,7 +114,7 @@ export function StartDraft({
   // the thing people want; the bots are what we can offer on our own, and
   // milestone A calls them deliberately dumb. Whichever tab is first should be
   // the one that opens, or the highlighted tab is the second one.
-  const [tab, setTab] = useState<"bots" | "draftmancer">("draftmancer");
+  const [tab, setTab] = useState<"bots" | "draftmancer" | "pack">("draftmancer");
 
   // The settings panel computes this too, but the button needs its own answer:
   // an incoherent config must not be submittable at all. Pool sufficiency is
@@ -140,48 +143,28 @@ export function StartDraft({
 
   return (
     <div className="max-w-2xl space-y-4">
-      {currentDraftPath && (
-        <p className="rounded-md border border-line p-3 text-sm text-muted">
-          Starting a new draft keeps the current one. It stays in{" "}
-          <a href="/drafts" className="underline underline-offset-2">
-            your drafts
-          </a>
-          .{" "}
-          <a href={currentDraftPath} className="underline underline-offset-2">
-            Back to it
-          </a>
-          .
-        </p>
-      )}
-
-      <div className="flex gap-2">
+      {/* Three tabs wrap to two rows below `sm` rather than scrolling sideways,
+          which is the rule the cube page's tab row already follows. */}
+      <div className="flex flex-wrap gap-2">
         {tabButton("draftmancer", "Export to Draftmancer", "Draft with other people")}
         {tabButton("bots", "Draft against bots", "Solo, here, right now")}
+        {tabButton("pack", "Crack-A-Pack", "Generate a P1P1 to share")}
       </div>
 
-      {/* Above the form rather than below it, because it explains fields you
-          are about to read. Players and packs mean different things per tab and
-          saying so afterwards is saying so too late. */}
-      <p className="text-sm text-muted">
-        {tab === "draftmancer" ? (
-          <>
-            These settings become the pack template in the file.{" "}
-            <strong className="font-medium">Players</strong> only checks that the
-            cube is big enough, since Draftmancer&rsquo;s host sets the real
-            number. <strong className="font-medium">Packs each</strong> goes in
-            as their default.
-          </>
-        ) : (
-          <>
-            Empty seats are filled by bots, and the draft is saved as you pick, so
-            you can leave and come back to it.
-          </>
-        )}
-      </p>
+      {/* The fields used to be introduced by a paragraph here, because Players
+          and Packs each mean different things per tab. It was read once and then
+          forgotten while the eye was on the fields, so each qualification now
+          rides on the field it qualifies and `mode` carries which tab is open. */}
+      <DraftSettings pools={pools} mode={tab} onChange={setConfig} />
 
-      <DraftSettings pools={pools} onChange={setConfig} />
-
-      {tab === "draftmancer" ? (
+      {tab === "pack" ? (
+        <CrackAPack
+          imagePath={imagePath}
+          config={config}
+          disabled={problems.length > 0}
+          signedIn={signedIn}
+        />
+      ) : tab === "draftmancer" ? (
         <DraftmancerExport
           exportPath={exportPath}
           config={config}
@@ -241,7 +224,15 @@ function SignInToDraft() {
   );
 }
 
-/** The bots tab's action: one button and whatever went wrong. */
+/**
+ * The bots tab's action: one button, what pressing it gets you, and whatever
+ * went wrong.
+ *
+ * The line under the button was part of the paragraph that used to introduce the
+ * form. It describes the *action* rather than any field, so it belongs here; the
+ * signed-out branch says the same thing in its own words, and the two never
+ * render together.
+ */
 function BotDraftAction({
   pending,
   disabled,
@@ -255,14 +246,19 @@ function BotDraftAction({
 }) {
   return (
     <div className="space-y-4">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={onStart}
-        className={btn.primary}
-      >
-        {pending ? "Dealing…" : "Start draft"}
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onStart}
+          className={btn.primary}
+        >
+          {pending ? "Dealing…" : "Start draft"}
+        </button>
+        <span className="text-sm text-subtle">
+          Saved as you pick, so you can leave and come back to it.
+        </span>
+      </div>
 
       {error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">

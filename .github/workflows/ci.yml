@@ -89,6 +89,15 @@ jobs:
       - name: Check Draftmancer export
         run: npm run check:draftmancer
 
+      # The pack image's layout solver, which decides where every card lands.
+      # Pure arithmetic, so it runs here rather than in the manual gate, and it
+      # already caught the prototype returning no grid at all for a one-card
+      # pack. It also asserts the vendored wordmark font rasterises: a Vercel
+      # function carries almost no fonts, so a family that falls back locally
+      # renders as nothing in production.
+      - name: Check pack image layout
+        run: npm run check:pack-image
+
       # The edit panel batches a session of changes into one write, so one
       # function decides what a run of clicks does to the cube. Its failures are
       # all silent: a dropped edit, a doubled one, or two rows for the same

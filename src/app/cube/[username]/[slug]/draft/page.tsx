@@ -120,6 +120,7 @@ export default async function DraftPage({
           cubeId={cube.id}
           returnPath={draftPath}
           exportPath={`${publicPath}/draftmancer.txt`}
+          imagePath={`${publicPath}/pack.png`}
           pools={await poolCounts(cube.id)}
           signedIn={false}
         />
@@ -150,8 +151,8 @@ export default async function DraftPage({
           cubeId={cube.id}
           returnPath={draftPath}
           exportPath={`${publicPath}/draftmancer.txt`}
+          imagePath={`${publicPath}/pack.png`}
           pools={await poolCounts(cube.id)}
-          currentDraftPath={draft ? `${draftPath}?draft=${draft.id}` : null}
           signedIn
         />
       </div>
