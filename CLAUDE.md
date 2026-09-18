@@ -357,6 +357,26 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 Server Actions live in `src/app/cube/actions.ts`, `src/app/auth/actions.ts`,
 `src/app/cube/[username]/[slug]/draft/actions.ts` and `src/app/explore/actions.ts`.
 
+- **A client call of an action must handle the promise rejecting, not just an
+  `{ error }` coming back.** A dropped request rejects it, React marks the
+  action rejected and rethrows that reason during the next render, and with
+  nothing in between it reaches `error.tsx` — so a lost packet replaces the
+  whole page with "Something broke". That is what Sentry `JAVASCRIPT-NEXTJS-7`
+  (`TypeError: Load failed`, WebKit's wording for a failed `fetch`) is.
+  `follow-button.tsx`, `cover-picker.tsx`, `import-cards.tsx` and
+  `draft-client.tsx`'s `runAction` each catch it.
+- **The two call shapes do not cost the same to guard.** A `startTransition`
+  call site is free to wrap. Wrapping a `useActionState` action in a client
+  closure is not: React's SSR only emits a form's no-JS submit fields when the
+  action carries `$$FORM_ACTION`, which a wrapper drops — so guarding one
+  trades a dropped-request failure for a pre-hydration one. `clone-button.tsx`
+  and `primer-editor.tsx` are knowingly still bare for that reason; a local
+  error boundary, not a wrapper, is the fix if they start firing.
+- **An action ending in `redirect()` rejects too**, with a `NEXT_REDIRECT`
+  digest, so any guard around one must re-throw it. Next performs the SPA
+  navigation itself either way, so swallowing it flashes a wrong error rather
+  than stranding the user.
+
 ## Card data sources
 
 The sync is a source-adapter design: `scripts/sync-cards.ts` owns idempotent
