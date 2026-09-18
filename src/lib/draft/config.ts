@@ -139,9 +139,17 @@ export function canUseEitherSlot(config: DraftConfig): boolean {
  * The start action takes these numbers from a client, so the form is a
  * convenience and this is the rule. Two seats is the floor because passing has
  * no meaning with one.
+ *
+ * Sixteen is the ceiling, and it is a sanity bound on input from a browser
+ * rather than a product opinion. It used to be eight, which was the Legacy
+ * booster's pod size read as a limit: nothing in the engine cares how many
+ * seats there are, and for a Draftmancer export `seats` is never written to the
+ * file at all — it only sizes the "is this cube big enough" arithmetic, so
+ * capping it at eight meant a twelve-person pod could not even be checked for.
+ * A cube too small for the seats asked for still blocks, with the real numbers.
  */
 export const DRAFT_LIMITS = {
-  seats: { min: 2, max: 8 },
+  seats: { min: 2, max: 16 },
   packsPerPlayer: { min: 1, max: 6 },
   packSize: { min: 1, max: 24 },
   slots: { min: 0, max: 24 },
@@ -264,4 +272,64 @@ export function passDirectionForRound(config: DraftConfig, round: number): PassD
   const stored = config.passDirections?.[round];
   if (stored) return stored;
   return round % 2 === 0 ? "left" : "right";
+}
+
+/**
+ * How many cards a Draftmancer sheet needs, which is **not** what our own
+ * engine needs.
+ *
+ * Draftmancer's legend-or-battlefield slot is a weighted slot: it picks a
+ * *sheet* 50/50 and then takes a card off it. There is no fallback. If the
+ * chosen sheet is empty the whole booster generation fails, and the session
+ * reports "Make sure there are enough cards in the list" with nothing to say
+ * which sheet ran dry. Our engine does the opposite: `generatePacks` takes the
+ * other type, then main, and only warns. So the same cube can draft here and
+ * refuse to start there, which is why this lives beside the pool math rather
+ * than inside the exporter.
+ *
+ * That makes the pooled question the wrong one. Legends plus battlefields
+ * covering the slot total says nothing, because a slot that has already chosen
+ * Legends cannot spend a battlefield. Each sheet has to cover **its own half**.
+ *
+ * And the half is a mean, not a bound. Legend draws across the draft are
+ * binomial, so a cube holding exactly half the slot count fails about half the
+ * time — measured, not theorised: 48 legends against 96 slots generated on
+ * roughly one attempt in two, and 12 against 24 did the same. Draftmancer
+ * retries, so that reads as "it errored a few times and then worked", which is
+ * a worse thing to hand someone than a clean refusal. `SHEET_CONFIDENCE_Z`
+ * buys the headroom that turns a coin flip into a near-certainty: 2.33 standard
+ * deviations is about 99% per attempt, and it is what makes 96 slots ask for 59
+ * rather than 48.
+ */
+const SHEET_CONFIDENCE_Z = 2.33;
+
+/** Packs opened across the whole draft. */
+export function totalPacks(config: DraftConfig): number {
+  return config.seats * config.packsPerPlayer;
+}
+
+/**
+ * Cards the named type needs on its own sheet for a Draftmancer export to
+ * generate reliably.
+ *
+ * `share` is the slot's chance of choosing this sheet: 0.5 for the ordinary
+ * either-slot, and 1 when the cube holds none of the other type, since the
+ * exporter narrows the slot to a single sheet in that case.
+ */
+export function draftmancerSheetNeeded(
+  config: DraftConfig,
+  type: "legends" | "battlefields",
+  share = 0.5,
+): number {
+  const packs = totalPacks(config);
+  const dedicated =
+    (type === "legends" ? config.legendSlots : config.battlefieldSlots) * packs;
+  const flexible = config.legendOrBattlefieldSlots * packs;
+  if (flexible === 0) return dedicated;
+  // Binomial: the slot picks this sheet `share` of the time, so the draw count
+  // has this mean and this spread. Dedicated slots are deterministic and add on
+  // top rather than varying.
+  const mean = flexible * share;
+  const spread = Math.sqrt(flexible * share * (1 - share));
+  return dedicated + Math.ceil(mean + SHEET_CONFIDENCE_Z * spread);
 }

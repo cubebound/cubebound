@@ -340,10 +340,15 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /cube/{username}/{slug}/settings      rename, visibility, delete
 /cube/{username}/{slug}/draft         solo draft against bots — any viewer, not just the owner
                                       ?draft={id} opens a specific one, else the latest
-                                      ?new=1 is the settings screen: Draftmancer export | bots
+                                      ?new=1 is the settings screen:
+                                      Draftmancer export | bots | Crack-A-Pack
 /cube/{username}/{slug}/draftmancer.txt  the cube as a Draftmancer Custom Card List
                                       ?packSize= &legendSlots= &… is the pack template;
                                       a route handler, so it gates itself — see "Exports"
+/cube/{username}/{slug}/pack.png      one pack drawn as an image — see "Crack-A-Pack"
+                                      ?seed= &packSize= &… regenerates it deterministically;
+                                      ?tier=preview is the on-page size, ?dl=1 downloads;
+                                      needs an account, unlike the export beside it
 /drafts                               every draft the signed-in user has sat in
 /robots.txt  /sitemap.xml             crawl rules; static pages + public cubes and profiles
 /opengraph-image                      share previews — also under /cube/… and /u/…
@@ -547,9 +552,16 @@ a stale row — but it means a source switch leaves residue worth checking for.
   which ~170KB is URL text. Every card image is served browser-to-Riot from
   `cmsassets.rgpub.io` — measured, not assumed: loading `/cards` pulls ~2.5MB
   of art across 60 requests, **all of it** from Riot's CDN and none from our
-  origin. Card art therefore costs us no bandwidth and no storage. The one
-  exception is the share-preview images, which fetch the cover art server-side
-  to embed it in the PNG; they're CDN-cached for a day for exactly that reason.
+  origin. Card art therefore costs us no bandwidth and no storage **on the
+  pages**, which is the claim that matters for the browser and the cube views.
+  There are now **two exceptions, and the second one is not small.** The
+  share-preview images fetch the cover art server-side to embed it in the PNG;
+  they're CDN-cached for a day for exactly that reason. The pack image
+  (`pack.png`, see "Crack-A-Pack") fetches **every card in the pack** and
+  composites them: roughly 290KB inbound for a preview and 920KB for a download,
+  measured. It cannot be done in the browser — see that section for why — so it
+  is the first feature where card art is genuinely our bandwidth, and the reason
+  it requires an account.
 - Card images render with a plain `<img>`, never `next/image`: optimizing through Vercel would proxy and cache them, which we are deliberately not doing yet — and would turn the line above from true into false.
 - **`image_thumb` and `image_full` are the same URL on every row** — the source has no thumbnail rendition, so a grid of tiles was pulling a ~875KB PNG per card and a twelve-card draft pack came to roughly 10MB. Riot's CDN is Sanity and resizes on request, so `cardThumb`/`cardFull` in `src/lib/card-images.ts` append `?w=…&fm=webp`. This is still the source CDN serving its own asset, so it stays inside the no-proxy rule. It happens at render time rather than in the sync so it applies to rows already stored, and an unrecognised host passes through untouched.
 - **`THUMB_WIDTH` is a source width, and must stay near 2× the rendered one.** Tiles render at 246 CSS px everywhere they appear, so it is 512: ~48KB, still roughly 18× lighter than the PNG. 320 was tried first and looked blurry — an undersized image on a 2× display reads as *unreadable card text*, not merely as a small picture, so trading further down the size is a false economy.
@@ -1435,6 +1447,13 @@ smart; C adds the deck builder.
   the server** — the config arrives from a browser, so `readDraftConfig` rebuilds
   it field by field rather than spreading it, which also stops a caller
   smuggling in `passDirections` and pinning the passing order.
+  **Seats run 2 to 16, and the ceiling is a sanity bound rather than a product
+  opinion.** It was 8, which was the Legacy booster's pod size mistaken for a
+  limit: nothing in the engine cares how many seats there are, and for an export
+  `seats` never reaches the file at all, so the old cap meant a twelve-person pod
+  could not even be checked for. A cube too small for the seats asked for still
+  blocks, with the real numbers. `check:draft` asserts both ends of the range, so
+  moving it again is a two-file change.
 - **Passing direction is derived, not stored.** It used to be a fixed
   `["left","right","left"]` array that `directionForRound` threw on past round
   three — so more than three packs was impossible, and the failure landed
@@ -1586,10 +1605,14 @@ smart; C adds the deck builder.
 - Generic page controls live in `src/components/pagination.tsx`; the card
   browser's `CardPagination` wraps them to carry its filters through the link,
   which is the only part that differs between the two.
-- **The settings screen is two tabs, not one form, and the Draftmancer export
-  is the one that opens.** Drafting against bots and exporting to Draftmancer
-  are the same cube dealt the same way in two places, so `DraftSettings` renders
-  once above both and only the action differs. See "Exports".
+- **The settings screen is three tabs over one form, and the Draftmancer export
+  is the one that opens.** Drafting against bots, exporting to Draftmancer and
+  drawing a pack as an image all start from the same question — what goes in a
+  pack — so `DraftSettings` renders once above all three and only the action
+  differs. See "Exports" and "Crack-A-Pack". `mode` changes what the fields
+  *say*, except on the pack tab, where Players and Packs each are hidden
+  outright: a single pack has no seats and no rounds, so they are not merely
+  worded differently there, they are meaningless.
 - **"Draft" on a cube means "set one up", so both Draft buttons link to
   `?new=1`.** Resuming the latest draft made the settings unreachable from a
   cube for anyone who had drafted it before, which is everyone after the first
@@ -1666,6 +1689,33 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
   battlefield, where the engine chooses the type 50/50 per slot. Reserved
   legend and battlefield slots are ordinary slots against their own sheets, and
   a shuffled type has no slot and no sheet because it is part of the main pile.
+- **A weighted sheet has no fallback, so each one has to cover its own share
+  with headroom.** Picking the sheet first is what makes this bite: a slot that
+  has chosen Legends cannot spend a battlefield, and if that sheet is empty
+  Draftmancer fails the whole booster generation with "Make sure there are
+  enough cards in the list", naming no sheet. **Our engine does the opposite** —
+  `generatePacks` takes the other type, then main, and only warns — so the same
+  cube genuinely drafts here and refuses to start there. The panel and
+  `draftmancerPlan` both used to check legends *plus* battlefields against the
+  slot total, which is the wrong quantity and reads healthy on cubes Draftmancer
+  rejects outright.
+  **And the share is a mean, not a bound.** Draws across a draft are binomial,
+  so a sheet holding exactly half the slot count generates about half the time,
+  and because Draftmancer retries, that surfaces as "it errored twice and then
+  worked" rather than as a clean refusal. Measured against draftmancer.com by
+  hand: 96 either-slots against 48 legends generated on roughly one attempt in
+  two, 24 against 12 did the same, 24 legends against 96 slots never generated
+  in many attempts, and 60 against 96 worked first try. `draftmancerSheetNeeded`
+  in `src/lib/draft/config.ts` is the one definition — dedicated slots, which are
+  deterministic, plus `mean + 2.33 sd` of the weighted draw, which is about 99%
+  per attempt and is what puts 96 slots at 60 rather than 48. It lives beside the
+  pool math rather than in the exporter because the settings panel shows it and
+  the file's own warnings use it, and those two must not disagree. `check:draftmancer`
+  asserts it against every one of those hand-run sessions, since nothing in CI
+  can talk to Draftmancer.
+  **This is reachable from the defaults.** One either-slot at 8 players and 3
+  packs is 24 draws, so each section wants about 18; a cube with 14 legends is
+  intermittent, and before this it reported "needs 24, 70 spare" and looked fine.
 - **A slot may never name a sheet that was not emitted, and no sheet may be
   empty** — either one is a file that errors. A reserved type the cube has none
   of gives its slots back to main and says so, which is the same "fall back and
@@ -1740,11 +1790,12 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
   export even for its own owner. Verified: suspended and hidden both 404,
   unlisted works, and a cube that does not exist is indistinguishable from one
   that is private.
-- **The export lives on the draft screen, as one of two tabs over one settings
+- **The export lives on the draft screen, as one of three tabs over one settings
   form, and it is the one that opens.** `/cube/{username}/{slug}/draft?new=1`
-  leads with **Export to Draftmancer** and offers **Draft against bots**
-  second; `DraftSettings` renders once above them and each tab carries only its
-  own action. Drafting a cube with other people is the thing people want, and
+  leads with **Export to Draftmancer**, then **Draft against bots**, then
+  **Crack-A-Pack**; `DraftSettings` renders once above them and each tab carries
+  only its own action. The row wraps below `sm` rather than scrolling sideways,
+  which is the rule the cube page's tabs already follow. Drafting a cube with other people is the thing people want, and
   our own bots are deliberately dumb — whichever tab leads should also be the
   default, or the highlighted tab is the second one. They differ in *where* the
   draft happens, not in what a legend slot is, so configuring the pack template
@@ -1754,9 +1805,20 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
 - **`seats` is not written to the file, and `packsPerPlayer` is.** Players sizes
   the "is this cube big enough" arithmetic and nothing else; packs becomes
   `boostersPerPlayer`, the default the Draftmancer host sees and may override.
-  Because one form serves both tabs, the Draftmancer tab says which is which
-  **above** the form rather than in a footnote — the fields mean different
-  things per tab, and explaining that after they have been read is too late.
+  Because one form serves both tabs, **the qualification rides on the field it
+  qualifies**: `DraftSettings` takes a `mode`, and exporting, the Players hint
+  says it only sizes the check below while Packs each says it is the file's
+  default. That started as a paragraph above the form, on the reasoning that
+  explaining a field after it has been read is too late — which was right and did
+  not go far enough. The paragraph is read once and then forgotten while the eye
+  is on the fields, so by the time you are typing in Players there is nothing
+  beside it saying the number is only a check. `mode` changes hint text and one
+  sentence of the summary and nothing else: the config, the arithmetic and the
+  validation stay identical, which is what keeps one form safe to share.
+  The summary is tab-aware for the same reason. Exporting, the seat count is an
+  assumption about a session the host will size themselves, so it reads "Sized
+  for 8 players" and "Each player finishes with 36 cards" rather than stating
+  either as fact.
   **The tab is client state, not a URL parameter**, unlike the cube page's tabs
   — those select what to read and are worth linking to, while this one sits over
   a form you have just filled in, and a round trip to a dynamic route would
@@ -1772,6 +1834,96 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
   `"true"` and `"1"` for exactly that reason — a URL has no booleans, and the
   alternative is a second parser that could disagree with this one about what a
   config is.
+
+## Crack-A-Pack
+
+One pack from a cube, drawn as a single high-resolution image to post. The third
+tab on `/cube/{username}/{slug}/draft?new=1`, served by the `pack.png` route.
+
+It exists because creators were already screenshotting the pack view for videos
+and Discord, and a screenshot is unreadable once a video has re-encoded it. The
+on-site grid also leaves a battlefield as a lone landscape tile among portrait
+cards, which reads as a glitch rather than a design choice.
+
+- **The browser cannot draw this, and that is not a preference.**
+  `cmsassets.rgpub.io` sends **no `Access-Control-Allow-Origin` on any request
+  shape** — verified against a bare GET, an `Origin`-bearing GET and an OPTIONS
+  preflight. So `crossOrigin="anonymous"` fails to load outright, and a plain
+  load taints the canvas so `toBlob` throws at the very last step, *after*
+  everything appears to have worked. It is Riot's CDN, not ours, and the one
+  workaround — proxying the art through our origin — is exactly what "we store
+  image URLs, never image bytes" exists to prevent, and would cost more
+  bandwidth than server rendering does (per viewer rather than per pack).
+  **Re-check the header before anyone tries this again**; it is one `curl`.
+- **The preview is not a second renderer.** It is the same route at a smaller
+  tier in an ordinary `<img>`. *Displaying* a cross-origin image was never the
+  problem — only reading its pixels back is — so nothing on the client touches a
+  canvas.
+- **It requires an account; the Draftmancer export beside it does not.** That
+  export assembles a text file from rows we already hold. This fetches seventeen
+  images and composites them, which makes it by a wide margin the most expensive
+  endpoint on the site, and it was reachable signed out. A session is also the
+  only rate limit here that costs nothing to run: an account needs a magic link,
+  and that endpoint is already metered upstream. **`canUseCube` is still checked
+  *before* the session**, so a signed-out visitor cannot tell a private cube from
+  one that never existed — answering 401 first would give that away.
+- **Nothing is stored, and the URL is the state.** No pack row, no table, no
+  migration, no retention policy: the engine is deterministic, so a seed plus a
+  config regenerates the identical pack. `readDraftConfig` already knew how to
+  read a config out of a query string, because the Draftmancer export needed
+  exactly that. Same seed twice is byte-identical output, asserted by hand.
+- **The route deals the engine's *minimum* grid, not the configured draft.**
+  `generatePacks` with the form's seats and packs blocks on a cube too small for
+  24 packs, which has nothing to do with whether it can fill one. Two seats by
+  one pack is the floor, and the first pack is the one used.
+- **Only Shuffle deals.** Opening the tab renders nothing, and the template is
+  snapshotted alongside the seed rather than read live — building the image URL
+  from the live config re-rendered on every keystroke, so typing "15" into Cards
+  per pack dealt a 1-card pack and then a 15-card one. Seed plus template is one
+  description of one pack, which is what the download needs and what a permalink
+  would need.
+- **Two tiers, and they are card measurements rather than canvas ones.**
+  `preview` is 300px per card (~1930px canvas, ~290KB in) and `full` is 745
+  (~3200px, ~920KB in). The build spec named both "480 per card" and "around
+  1200px wide" and those were never in conflict — one is a card measurement, the
+  other a canvas. The preview is deliberately a *reading* size: the complaint
+  this feature answers is that shared pack images are too low-resolution to read,
+  so a preview you cannot read fails the same way.
+- **The layout solver is pure and lives in `src/lib/pack-image/layout.ts`.** A
+  pack mixes portrait cards (63×88) with landscape battlefields (88×63), so the
+  minority orientation pairs two-per-slot into one tile of the majority's shape
+  and the grid stays regular. Ties go to portrait; an all-battlefield pack flips
+  the base tile, without which you get one row of tiny half-height battlefields.
+  Dead cells are pure holes now that branding is the footer alone, so
+  `DEAD_PENALTY` is 0.15 and a short last row is centred. `check:pack-image`
+  asserts the six worked shapes and runs in CI, with no browser and no network.
+- **The wordmark font is vendored and named explicitly.** Space Grotesk, the
+  site's display face, as a TTF under `src/lib/pack-image/fonts/`. `font: "sans"`
+  resolves on a developer machine and in CI and renders as **nothing** on a
+  Vercel function, which carries almost no fonts — a bug no local test finds.
+  `fontfile` removes the dependency on the host having any fonts, and
+  `outputFileTracingIncludes` in `next.config.ts` puts the file in the bundle,
+  because nothing imports it and the tracer cannot see a path built at runtime.
+  Verified in a real build: the font is in the route's `.nft.json` and the
+  wordmark rasterises.
+- **`sharp` is the project's first native dependency.** It cannot run on Edge, so
+  the route declares `runtime = "nodejs"`. The lockfile carries the linux-x64
+  binaries Vercel installs, checked rather than assumed.
+- **The response is `private, max-age=3600`.** `private` because this image *is*
+  cube contents and an unlisted cube is only as private as its URL — and because
+  a shared cache would serve the bytes to anyone with the link, walking straight
+  around the sign-in check. **That rules out edge-caching even public cubes while
+  this route needs an account**, which is the tradeoff to reopen if it ever
+  stops. `max-age` rather than `no-store` is the part that matters: `no-store`
+  forbade the browser's cache too, so a double-click rendered the identical pack
+  twice.
+- **Every render logs what it cost** (`[pack.png] … in=…KB out=…KB …ms`), so
+  Vercel's logs answer "is this too expensive" with numbers. Inbound is the
+  figure to watch; it is bandwidth we never used to spend.
+- **Not built, deliberately:** a pack permalink and an `og:image`. That is where
+  the cost changes character, because unfurlers refetch repeatedly and carry no
+  cookies, and it would need a visibility-aware cache policy that the sign-in
+  requirement currently forecloses. Gate it on real usage data.
 
 ## Checks
 
@@ -1798,7 +1950,8 @@ which is why they can create and delete accounts freely.
 | `check:markdown-edit` | the primer toolbar's transforms: every button toggles, headings replace rather than stack, `diffRange` is minimal | nothing | **CI** |
 | `check:primer-toolbar` | the toolbar is *wired*: a click reaches React state, Ctrl+B matches the button, and the result saves byte-for-byte | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:deck-export` | drafted decks export as names other builders accept: legends rebuilt as `Champion, Title`, promo variant suffixes stripped, copies aggregated, and the result re-imports here | DB (read-only) | manual gate |
-| `check:draftmancer` | the cube file Draftmancer reads: unique custom-card names, every sheet line resolving to an entry, no slot naming an unemitted sheet and no empty sheet across four configs, the either-slot weighted 50/50, rarity in the accepted set with treatments resolved through `base_id` and a non-zero fallback, costless as `""`, and only the drafted sections | nothing | **CI** |
+| `check:draftmancer` | the cube file Draftmancer reads: unique custom-card names, every sheet line resolving to an entry, no slot naming an unemitted sheet and no empty sheet across four configs, the either-slot weighted 50/50, `draftmancerSheetNeeded` matching every hand-run Draftmancer session, rarity in the accepted set with treatments resolved through `base_id` and a non-zero fallback, costless as `""`, and only the drafted sections | nothing | **CI** |
+| `check:pack-image` | the pack image's layout: the six worked shapes from the build spec, battlefields pairing into the majority's tile, an all-battlefield pack flipping to landscape, a short last row centred, every card placed exactly once inside the canvas, and the vendored wordmark font rasterising rather than silently falling back | nothing | **CI** |
 | `check:staged-edit` | the edit panel's batching: collapse yields one row per (card, section) so a save cannot violate `ON CONFLICT`, netting cancels a staged-then-unstaged pair while two *different* printings stay two changes, quantities clamp, and `sectionForBoard` files a Legend to `legends` | nothing | **CI** |
 | `check:oauth` | the backup rule, `providersOf` order, the provider allowlist, and that both sign-in actions still validate their input and build `redirectTo` through `authCallbackUrl` | nothing | **CI** |
 | `check:oauth-buttons` | `/login` offers both providers as form fields, links to no provider directly, and still carries the same-address warning | dev server | manual gate |
@@ -1846,7 +1999,7 @@ exemption.
 
 `.github/workflows/ci.yml`, on every push and pull request: typecheck, lint,
 `check:primer-safety`, `check:draft`, `check:analytics`, `check:markdown-edit`,
-`check:draftmancer`, `check:staged-edit`, and a production build. It uses **placeholder** Supabase
+`check:draftmancer`, `check:pack-image`, `check:staged-edit`, and a production build. It uses **placeholder** Supabase
 values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**

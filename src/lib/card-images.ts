@@ -76,6 +76,20 @@ export function cardFull(url: string | null | undefined): string | null {
   return sized(url, FULL_WIDTH);
 }
 
+/**
+ * A rendition at an arbitrary width, for the pack image.
+ *
+ * The other helpers name a fixed size because a fixed size is what keeps the
+ * "source width stays near 2x the rendered one" rule checkable. The pack image
+ * has no fixed size at all: its card boxes fall out of the layout solver and
+ * change with the pack's shape, so it asks for what it computed. It is capped by
+ * the caller rather than here, because the cap is a bandwidth decision that
+ * belongs beside the render.
+ */
+export function cardAtWidth(url: string | null | undefined, width: number): string | null {
+  return sized(url, width);
+}
+
 /** Small rendition for dense pick-one grids. */
 export function cardPicker(url: string | null | undefined): string | null {
   return sized(url, PICKER_WIDTH);

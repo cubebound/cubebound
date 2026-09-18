@@ -695,7 +695,8 @@ const typesIn = (packs: { type: string }[][][]) => {
   const bad = (patch: Partial<DraftConfig>) =>
     validateDraftConfig({ ...DEFAULT_DRAFT_CONFIG, ...patch }).length > 0;
   expect(bad({ seats: 1 }), "one seat has nobody to pass to");
-  expect(bad({ seats: 9 }), "nine seats is over the cap");
+  expect(!bad({ seats: 16 }), "sixteen seats is the top of the range, not over it");
+  expect(bad({ seats: 17 }), "seventeen seats is over the cap");
   expect(bad({ packsPerPlayer: 0 }), "zero packs is not a draft");
   expect(bad({ packSize: 0 }), "zero cards is not a pack");
   expect(bad({ seats: 2.5 }), "fractional seats are not a thing");
