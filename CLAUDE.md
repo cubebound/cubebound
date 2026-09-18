@@ -33,6 +33,13 @@ deck builder. See "Draft".
 Custom Card List, so eight people can draft it in a browser today rather than
 waiting on multiplayer lobbies. See "Exports".
 
+**Crack-A-Pack has shipped** — the third tab on the draft settings screen draws
+one pack as a single high-resolution image to post, replacing the screenshots
+creators were taking of the pack view. It renders server-side because Riot's card
+CDN sends no CORS headers, which makes it the first feature where card art costs
+us bandwidth, and the reason it is the one export that needs an account. See
+"Crack-A-Pack".
+
 Then the rest of phase 2 in the order under "Product vision".
 
 Open items:
@@ -41,12 +48,13 @@ Open items:
   deployments and localhost each build their own correct magic-link and share
   URLs. The live domain must stay on the Supabase redirect allowlist; see
   "Auth and data access" for what breaks when it isn't.
-- **CI covers typecheck, lint, build, `check:primer-safety`, `check:draft` and
-  `check:analytics`, `check:markdown-edit`** on push and PR. The other thirteen need
-  a live Supabase or the
-  card pool and are
-  a documented pre-deploy manual gate — see "Checks". Run that gate before
-  deploying.
+- **CI covers typecheck, lint, build and the eight pure checks** on push and PR:
+  `check:primer-safety`, `check:draft`, `check:analytics`, `check:markdown-edit`,
+  `check:draftmancer`, `check:pack-image`, `check:staged-edit` and `check:oauth`.
+  The other sixteen need a live Supabase or the card pool and are a documented
+  pre-deploy manual gate — see "Checks". Run that gate before deploying. (Twenty-four
+  scripts in total; if that number moves, this line and the two counts under
+  "Checks" move with it.)
 - Feature work lands on a branch and pushes to
   `github.com/cubebound/cubebound`; `master` is production — see
   "Environments".
@@ -242,12 +250,13 @@ counts appear where you will actually look.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-**`printing-treatments` is in flight**: the browser's printing collapse and the
-card detail modal's printing label, described under "Conventions". It changes no
-data, adds no migration and needs no re-sync, so it is a code-only deploy.
-Discord and Google sign-in have merged — see "Sign-in methods". A gate run is
-sixteen scripts, `check:oauth-buttons` being the sixteenth; `check:oauth` is
-pure and runs in CI instead.
+**Nothing is in flight.** `printing-treatments` merged (the browser's printing
+collapse and the card detail modal's printing label, under "Conventions"), and so
+did `draft-screen-rollout` — the draft settings rework, the Draftmancer sheet
+fix and Crack-A-Pack. Discord and Google sign-in merged before them; see
+"Sign-in methods". None of those added a migration, so production needs nothing
+applied by hand. A gate run is sixteen scripts, `check:oauth-buttons` being the
+sixteenth; the other eight are pure and run in CI instead.
 
 **A preview deployment is not automatically a dev environment.** Vercel injects
 whichever environment variables are configured for Preview, and unless those
@@ -2044,7 +2053,7 @@ reuses a populated `.next` and an existing `.env.local`, so it passes on state
 CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
 `npm ci`, set placeholder env, then run the steps.
 
-### Why the other thirteen are a manual gate, not CI
+### Why the other sixteen are a manual gate, not CI
 
 Five of them `INSERT` directly into `auth.users` and then exchange a password
 grant against a live GoTrue endpoint to mint a session cookie. That needs a
