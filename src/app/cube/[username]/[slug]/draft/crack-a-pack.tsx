@@ -42,8 +42,10 @@ import { btn } from "@/lib/ui";
  * **It asks for an account, and the export tab beside it does not.** The
  * difference is real rather than arbitrary: the export assembles a text file
  * from rows we already hold, while this fetches every card's art and composites
- * it server-side. Saying which of the two needs a session, and why, beats
- * letting someone discover it from a 401 on a download.
+ * it server-side. The screen states the requirement rather than the reasoning —
+ * knowing *that* you need an account is what stops someone meeting a 401 on a
+ * download; knowing why it is this tab and not the one beside it is our problem,
+ * not the reader's.
  */
 export default function CrackAPack({
   imagePath,
@@ -106,7 +108,6 @@ export default function CrackAPack({
   if (!signedIn) {
     return (
       <p className="text-sm text-muted">
-        Cracking a pack draws the image on our side, so it needs an account.{" "}
         <a href="/login" className="font-medium underline underline-offset-2">
           Sign in
         </a>{" "}
