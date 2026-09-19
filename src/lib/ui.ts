@@ -72,6 +72,14 @@ export const input = `${fieldBase} h-10 px-3 text-sm`;
 export const inputSm = `${fieldBase} h-9 px-3 text-sm`;
 export const textarea = `${fieldBase} px-3 py-2 text-sm`;
 
+/** A native `<select>`, sized to sit in a toolbar row beside `btn.*Sm`.
+ *  Not `inputSm`: that is `w-full`, and a select in a toolbar sizes to its
+ *  widest option. `card-filter-bar.tsx` still carries an identical local
+ *  `controlClass` because it styles `<summary>` elements with it too. */
+export const selectSm =
+  "h-9 rounded-md border border-line bg-sunken px-2 text-sm text-ink " +
+  "transition-colors hover:border-line-strong focus:border-line-strong";
+
 export const label = "block text-sm font-medium text-ink";
 /** Radio and checkbox tint, so the brand reaches the forms too. */
 export const check = "accent-accent-strong";
