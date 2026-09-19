@@ -108,7 +108,7 @@ function FilterMenu({
       <summary
         aria-label={label}
         title={count > 0 ? summary : undefined}
-        className={`${controlClass} ${MENU_BUTTON_W} flex cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden ${
+        className={`${controlClass} ${MENU_BUTTON_W} flex list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden ${
           count > 0 ? "border-line-strong" : ""
         }`}
       >

@@ -723,6 +723,23 @@ a stale row — but it means a source switch leaves residue worth checking for.
   had no reliable indicator. Defining it globally means it also reaches
   controls no component file touches. **Never add `focus:outline-none`
   again** without providing a replacement indicator in the same change.
+- **One cursor rule in `globals.css` gives every button a pointer**, next to
+  that focus rule and there for the same reason. **Tailwind v4's Preflight
+  leaves `<button>` on the browser default of `cursor: default`; v3 set
+  `pointer`**, so the upgrade changed it silently and nothing failed — half the
+  site simply looked unclickable. Share, Clone, Follow, the view toggle, the
+  account menu, the theme switch and **every card name in the list view**, 47
+  controls on that page alone, sat on the arrow while the tab row beside them
+  did not, because an `<a href>` gets `pointer` from the UA stylesheet and a
+  `<button>` never does. Two controls that look and behave alike disagreeing
+  about the cursor is the tell. The rule covers `button`, `[role="button"]`,
+  `summary` and `select`, each `:not(:disabled)` so a dead control does not
+  invite the click — verified: a disabled button still reads `default`, which is
+  why the card browser's Clear button correctly does. **Do not add
+  `cursor-pointer` to a button again**; before this there were seven of them
+  across six files, each added when someone noticed one control, and every new
+  button needed noticing again. The three left are on `<label>`, which is not in
+  the selector and gets no pointer from the browser either.
 - **Shared class strings live in `src/lib/ui.ts`** — `btn`, `input`, `panel`,
   `tab`, `segment`, `cardTab`, `underlineTab`, `badge`, `menu`, `link`. Strings
   rather than components, in a plain `.ts` with no `"use client"`, so both

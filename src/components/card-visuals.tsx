@@ -398,7 +398,7 @@ export function CardTile({
     <li className="self-start">
       <button
         onClick={onOpen}
-        className="group block w-full cursor-pointer text-left"
+        className="group block w-full text-left"
         aria-label={`View ${card.name}`}
       >
         <div
