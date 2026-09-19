@@ -28,8 +28,8 @@ const dateFormat = new Intl.DateTimeFormat("en", {
  *
  * A draft is worth keeping as a draft: it holds the packs it was dealt, every
  * pick in order and the main/side split, none of which survives being flattened
- * into a cube. Saving as a cube stays available for when you want to *edit* the
- * result; this is for going back to the draft itself.
+ * into a cube. This page is for going back to the draft itself; taking the
+ * result elsewhere is the deck export at the end of the draft screen.
  */
 export default async function DraftsPage({
   searchParams,

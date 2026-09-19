@@ -58,10 +58,10 @@ Open items:
 - Feature work lands on a branch and pushes to
   `github.com/cubebound/cubebound`; `master` is production — see
   "Environments".
-- **Migrations are current: production is migrated through `0013` and nothing
-  newer exists.** `0013` (`cube_cards_cube_id_section_idx`) was applied by hand
-  at the Draftmancer export deploy on 17 August 2026; `0012` (moderation) the
-  same way on 16 August. Confirm either with
+- **The schema is current: production is migrated through `0013`, and `drizzle/`
+  holds nothing newer.** `0013` (`cube_cards_cube_id_section_idx`) was applied
+  by hand at the Draftmancer export deploy on 17 August 2026; `0012`
+  (moderation) the same way on 16 August. Confirm either with
   `select indexname from pg_indexes where tablename = 'cube_cards'` rather than
   by reading this file. Note that a hand-applied migration writes no row to
   production's `drizzle.__drizzle_migrations`, so that ledger and this repo's
@@ -250,8 +250,14 @@ counts appear where you will actually look.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-**Nothing is in flight.** `master` is the only branch, local or remote, and it
-is what cubebound.gg serves. `draftmancer-presets` — named Draftmancer formats
+**Nothing is in flight.** `master` is the only *local* branch, and it is what
+cubebound.gg serves. Three branches survive on the remote and none of them is
+work in progress: `draft-screen-rollout` and `staged-cube-editor` are merged and
+hold nothing `master` does not, and `main` is the retired original — a static
+landing page plus `riot.txt`, four commits that were never part of this app.
+Deleting them is housekeeping rather than a decision, so **do not read a remote
+branch as work someone left open**; `git rev-list --count master..origin/<branch>`
+settles it. `draftmancer-presets` — named Draftmancer formats
 and rarity-slot presets — was abandoned unmerged on 18 September 2026 and its
 branch deleted; it is not coming back, so treat that ground as unbuilt.
 
@@ -329,7 +335,7 @@ Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0010` `cube_follows` (+ RLS) · `0011` `cubes.cover_card_id` ·
 `0012` moderation: `users.is_admin` / `users.suspended_at`, `cubes.hidden_at` /
 `hidden_reason`, `moderation_log` (+ RLS) · `0013` `cube_cards_cube_id_section_idx`
-(**dev only so far — see "Current status"**).
+(**applied to both environments by hand — see "Current status"**).
 
 Migrations are applied **per environment and by hand** — see "Environments".
 A migration in a merged branch is not live until production is migrated.
@@ -353,7 +359,8 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /cubes  /cubes/new                    the signed-in user's cubes; ?tab=followed &q= &page=
 /cube/{username}/{slug}               public view — visibility-gated;
                                       307s the cube's own owner to /edit
-/cube/{username}/{slug}/edit          owner editor; ?mode=browse|primer|log
+/cube/{username}/{slug}/edit          owner editor;
+                                      ?mode=maybeboard|primer|analytics|log|browse|import
 /cube/{username}/{slug}/settings      rename, visibility, delete
 /cube/{username}/{slug}/draft         solo draft against bots — any viewer, not just the owner
                                       ?draft={id} opens a specific one, else the latest
@@ -843,14 +850,15 @@ sign-in methods, and nothing else yet; see "Sign-in methods".
   captures instead of the Add server action, and the check fails with
   "replay is not exercising the action". A key warning presenting as a
   replay failure is not a connection anyone makes twice.
-- The editor has four tabs, all on `/edit` behind `?mode=`. Default (no param):
-  the cube is the page, and **the edit panel opens on demand** — a prominent
-  Edit button, then a right-hand drawer on desktop and a bottom sheet below
-  `lg`. It used to hold a permanent 20rem column, which taxed every visit for a
-  panel you only want while editing. `?mode=browse` swaps in the full
-  filter/grid browser **in place of** the cube list; `?mode=primer` and
-  `?mode=log` are the Primer and Change log tabs. Browse mode is only rendered
-  when active, so the unfiltered card query isn't paid for on every editor load.
+- The editor has the same five tabs, all on `/edit` behind `?mode=`. Default
+  (no param): the cube is the page, and **the edit panel opens on demand** — a
+  prominent Edit button, then a right-hand drawer on desktop and a bottom sheet
+  below `lg`. It used to hold a permanent 20rem column, which taxed every visit
+  for a panel you only want while editing. `?mode=browse` swaps in the full
+  filter/grid browser **in place of** the cube list; `?mode=maybeboard`,
+  `?mode=primer`, `?mode=analytics` and `?mode=log` are the other four tabs, and
+  `?mode=import` is the bulk importer. Browse mode is only rendered when active,
+  so the unfiltered card query isn't paid for on every editor load.
 - **There is no "Browse cards" tab, deliberately.** Browse is the heaviest read
   on the site, and leading with it is what turned a run of edits into a run of
   round trips. Its slot in the tab row is the Edit trigger; browse is still
@@ -1418,14 +1426,17 @@ sign-in methods, and nothing else yet; see "Sign-in methods".
   format rather than serving the tool — a crawler meeting only a login wall and
   a list of other people's cubes has nothing to understand the site by.
 - **`/privacy` describes what the code actually does, so it changes with the
-  code.** Its cookie list is `THEME_COOKIE`, `CUBE_VIEW_COOKIE` and
-  `CARDS_PER_ROW_COOKIE`, and the page states the count in prose ("we set five
+  code.** Its cookie list is the sign-in cookies plus `THEME_COOKIE`,
+  `CUBE_VIEW_COOKIE`, `CARDS_PER_ROW_COOKIE` and `BACKUP_NOTICE_COOKIE`, and the
+  page states the count in prose ("we set five
   kinds of cookie"), so **adding one is a two-line edit there, in the same
   commit**; "analytics"
   is the Vercel Analytics component in the root layout; and it says plainly that
   account deletion is not yet self-serve, because promising a button that does
-  not exist is the one genuinely dishonest thing that page could do. **When
-  account deletion ships, that section is part of the same change.**
+  not exist is the one genuinely dishonest thing that page could do — though it
+  then says deletion "is being built", which is a promise with a clock on it.
+  **When account deletion ships, that section and the "Your data" paragraph on
+  `/settings`, which repeats the claim, are part of the same change.**
 - **A cube's cover art is a card in that cube** (`cubes.cover_card_id`), picked
   on the settings page. Restricted to cards the cube holds, because a cover is
   meant to say what the cube *is* rather than be an arbitrary image slot.
@@ -1581,8 +1592,8 @@ synchronous, no extra queries — and renders through hand-drawn SVG in
 ## Draft
 
 Solo drafting against bots lives at `/cube/{username}/{slug}/draft`. **Milestone
-A is done**: fixed configuration, dumb bots, pool-only result. B makes the bots
-smart; C adds the deck builder.
+A is done**: configuration chosen per draft, dumb bots, pool-only result. B makes
+the bots smart; C adds the deck builder.
 
 - **The engine is pure and deterministic** — `src/lib/draft/`, no database, no
   React, no clock. Given a seed, config and packs, a sequence of human picks
@@ -2497,14 +2508,15 @@ Audited before the first wide share. What was checked, and what it turned up.
   see "Auth and data access" for why it exists rather than SELECT policies.
 - **No secret has ever been committed.** `.env*` is gitignored bar the example,
   and a scan of full history turns up only placeholders.
-- **Every mutation is gated.** All 23 server actions call one of
-  `requireOwnedCube` / `requireDraftableCube` / `requireOwnDraft` /
-  `requireFollowableCube` / `getCurrentUser`; `check:cube-ownership` fails the
-  build if a new one doesn't. **It reads four action files, and
-  `src/app/auth/actions.ts` is not among them** — the sign-in actions there are
-  gated on their own provider allowlist and on `getUser()`, but they sit outside
-  that structural guarantee rather than inside it. That predates OAuth
-  (`claimUsername` has always lived there) and is worth closing separately. CSRF is covered by Next's Server Action origin
+- **Every mutation is gated.** All 25 server actions in the four files
+  `check:cube-ownership` reads call one of `requireOwnedCube` /
+  `requireDraftableCube` / `requireOwnDraft` / `requireFollowableCube` /
+  `requireAdmin` / `getCurrentUser`, and the check fails the build if a new one
+  doesn't. **The fifth `"use server"` file, `src/app/auth/actions.ts`, is not
+  among them** — its five sign-in actions are gated on their own provider
+  allowlist and on `getUser()`, but they sit outside that structural guarantee
+  rather than inside it. That predates OAuth (`claimUsername` has always lived
+  there) and is worth closing separately. CSRF is covered by Next's Server Action origin
   check — a spoofed `x-forwarded-host` without a matching `Origin` is rejected.
 - **The auth callback's `next=` cannot leave the origin.** `${origin}${next}`
   was tested against `//evil`, `/\evil`, `///evil` and an absolute URL: the

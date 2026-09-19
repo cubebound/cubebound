@@ -10,8 +10,8 @@ import { deleteDraftAction } from "@/app/cube/[username]/[slug]/draft/actions";
  *
  * Two steps rather than one, because this is the only irreversible thing on
  * the page and it sits next to a link you click to *open* a draft. The button
- * also names what goes — the picks are the draft; there is no copy of them
- * anywhere else unless the pool was saved as a cube.
+ * also names what goes — the picks are the draft, and there is no copy of them
+ * anywhere else, so deleting one is the end of it.
  */
 export default function DeleteDraft({
   draftId,
