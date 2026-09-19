@@ -626,7 +626,7 @@ export async function commitImportAction(
  * decision — it is how people actually edit a cube, and it is what makes
  * "Discard All" possible — but it is also the fix for a real fault: the panel
  * this replaces called `addCardAction` once per click, so a run of edits was a
- * run of round trips against a pool of six. See "Page speed" in CLAUDE.md.
+ * run of round trips against a pool of six. See docs/page-speed.md.
  *
  * Everything the client sends is re-derived here rather than trusted, the same
  * way `commitImportAction` re-reads every card id: the rows arrive from a

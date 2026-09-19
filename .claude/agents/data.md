@@ -44,5 +44,6 @@ role and is the one that answers questions about real users.
   without its date stops being true silently.
 - Say what the number cannot tell you. A count of public cubes is not a count of cubes; a
   draft row is not a finished draft; a follow is not a reader.
-- When a figure contradicts something in CLAUDE.md or in a planning document, say so
+- When a figure contradicts something in `CLAUDE.md`, in `docs/`, or in a planning
+  document, say so
   explicitly. That contradiction is usually the most valuable thing in the answer.

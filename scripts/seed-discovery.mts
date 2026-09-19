@@ -14,7 +14,7 @@
  * This reads DATABASE_URL from `.env.local`, which points at dev — the same
  * switch every other script uses. It refuses to run if that URL is not a
  * Supabase host it can see is the dev project, so a mis-set shell variable
- * cannot turn a seed run into a production write. See CLAUDE.md, "Environments".
+ * cannot turn a seed run into a production write. See docs/environments.md.
  *
  * Seeded accounts cannot sign in: the app is magic-link only and these have no
  * mailbox. They exist to be *found*, not to be used. Follow, search and browse

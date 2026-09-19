@@ -7,7 +7,7 @@
  *
  * **Strings, not components, and a plain `.ts` with no `"use client"`.** Both
  * server and client components import them, and a client module's exports
- * cannot be called from the server (see CLAUDE.md, Conventions) — shared
+ * cannot be called from the server (see CLAUDE.md, "Non-negotiables") — shared
  * *values* belong in `src/lib/` whichever direction they travel. Strings also
  * keep call sites free to add a layout class (`w-full`, `ml-auto`, `shrink-0`)
  * without a prop for each one.

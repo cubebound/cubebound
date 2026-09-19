@@ -12,8 +12,8 @@
  *
  * **Read-only by construction and by credential.** It runs `select` and nothing
  * else, and `--prod` reads `.env.production.readonly`, which holds a Postgres
- * role granted `select` and no other privilege — so the rule in CLAUDE.md's
- * "Environments" section survives: the credential that exists here cannot write
+ * role granted `select` and no other privilege — so the rule in
+ * docs/environments.md survives: the credential that exists here cannot write
  * even if this file were wrong. Never point it at a service key.
  *
  * Numbers print with an as-of line, because these move daily and a figure
@@ -43,7 +43,7 @@ function databaseUrl(): string {
       `${ENV_FILE} not found.` +
         (wantsProd
           ? " Create it with the read-only role's connection string — see" +
-            " \"Working with agents\" in CLAUDE.md."
+            " docs/agents.md."
           : ""),
     );
   }
