@@ -172,6 +172,25 @@ try {
     `the bounce should be a real 307, got ${ownerBounce.status}`,
   );
 
+  // The owner-only routes must 404 **while the cube is still public**, which is
+  // the case that went wrong. On a private cube the [slug] layout refuses first,
+  // above every loading boundary, so the status is right for the wrong reason —
+  // asserting only that let a soft 404 (HTTP 200 carrying the 404 body) sit on
+  // /edit and /settings for every public cube. The fix is a layout beside each
+  // page; this is what stops it coming back.
+  for (const [route, who, cookie] of [
+    ["/edit", "a stranger", stranger.cookie],
+    ["/edit", "a signed-out visitor", undefined],
+    ["/settings", "a stranger", stranger.cookie],
+    ["/settings", "a signed-out visitor", undefined],
+  ] as [string, string, string | undefined][]) {
+    const code = await status(`${publicPath}${route}`, cookie);
+    expect(
+      code === 404,
+      `a public cube's ${route} should 404 for ${who}, got ${code} — a 200 here is the loading-boundary soft 404`,
+    );
+  }
+
   // --- Share button ----------------------------------------------------------
   // The link it copies has to be absolute: a relative one is useless the moment
   // it leaves the page, which is the entire point of the button.

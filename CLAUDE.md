@@ -1205,6 +1205,25 @@ a stale row — but it means a source switch leaves residue worth checking for.
   anyone including signed-out visitors; private 404s for non-owners, the same
   convention the mutations use. `canViewCube` in `src/lib/cube-access.ts` is the
   single definition, next to `canEditCube`.
+- **Every owner-only route puts its ownership check in a `layout.tsx`, never
+  only in the page.** `/edit` and `/settings` each have one beside the page, and
+  they exist for the status, not the body. A `notFound()` in a page under a
+  `loading.tsx` lands after Next has flushed the shell and committed HTTP 200, so
+  it swaps in the 404 UI and leaves a **soft 404** — a page crawlers index as
+  real. The page keeps its own identical check, which is what narrows `cube` for
+  the rest of the file; deleting that breaks the types, not the status.
+  **This showed only on a *public* cube**, which is how it survived: on a private
+  one the `[slug]` layout refuses first, above every boundary, so the status was
+  right for the wrong reason, and `check:public-cube` asserted exactly that case.
+  It now asserts `/edit` and `/settings` 404 for a stranger and a signed-out
+  visitor **while the cube is still public**. Three routes have been bitten by
+  this now — the cube layout, the profile layout, and these two — so the rule is
+  the check goes in the layout.
+- **`settings/page.tsx` reads through `loadCube`/`loadViewer`**, not
+  `getCubeByOwnerAndSlug`/`getCurrentUser` directly. It was the one cube route
+  still on the raw queries, which was invisible until it gained a layout that
+  asks the same two questions — `cache()` makes those one query each instead of
+  two.
 - **The owner never sees the public page — it redirects them to `/edit`.** The
   editor is the same five tabs plus the ability to change something, so landing
   there signed in as the owner only ever meant a trip through an Edit button.
