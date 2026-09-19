@@ -15,7 +15,7 @@ import { getFollowState } from "@/db/queries/discovery";
 import { loadCube, loadViewer } from "@/lib/cube-request";
 import type { SearchParams } from "@/lib/card-search-params";
 import { CubeModerationPanel } from "@/components/moderation-panel";
-import { canEditCube, canViewCube } from "@/lib/cube-access";
+import { canViewCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
 import { CARDS_PER_ROW_COOKIE, resolveCardsPerRow } from "@/lib/cards-per-row";
 import {
@@ -34,8 +34,8 @@ import {
 import { resolveSiteUrl } from "@/lib/site-url";
 import { btn, panelEmpty, tab as tabStyle } from "@/lib/ui";
 
-import CloneButton from "./clone-button";
-import ShareButton from "./share-button";
+import CloneButton from "../clone-button";
+import ShareButton from "../share-button";
 
 interface RouteParams {
   username: string;
@@ -98,6 +98,17 @@ export async function generateMetadata({
       description,
       type: "article",
       url: `/cube/${cube.ownerUsername}/${cube.slug}`,
+      // Named explicitly because `opengraph-image.tsx` sits one segment up
+      // rather than beside this page, so Next does not pair the two on its own.
+      // It stays up there deliberately: inside the `(public)` group Next
+      // appends a group-derived suffix to the generated route
+      // (`/opengraph-image-7gn1ej`), which both changes a URL scrapers have
+      // already cached and stops `middleware.ts` recognising a preview route by
+      // its `/opengraph-image` ending — the query-stripping redirect that keeps
+      // the most expensive unauthenticated route on one CDN entry. The root
+      // layout's per-request `metadataBase` turns this into the absolute URL a
+      // scraper needs.
+      images: [`/cube/${cube.ownerUsername}/${cube.slug}/opengraph-image`],
     },
   };
 }
@@ -132,18 +143,18 @@ export default async function CubePage({
   ]);
   if (!canViewCube(cube, current?.profile?.id, current?.profile?.isAdmin)) notFound();
 
-  const isOwner = canEditCube(cube, current?.profile?.id);
+  const tab = resolveCubeTab(query.tab);
+
+  // Everything below is the visitor's view: the owner is redirected to the
+  // editor by the layout in this route group, above the loading boundary.
   const isAdmin = Boolean(current?.profile?.isAdmin);
   const hiddenAt = cube.hiddenAt;
   const hiddenReason = cube.hiddenReason;
   const cubeName = cube.name;
-  const tab = resolveCubeTab(query.tab);
   const hasPrimer = Boolean(cube.primer?.trim());
   const view = resolveCubeView(query.view, cookieStore.get(CUBE_VIEW_COOKIE)?.value);
   const perRow = resolveCardsPerRow(cookieStore.get(CARDS_PER_ROW_COOKIE)?.value);
 
-  // `cubeId` is hoisted because `isOwner` is an aliased type predicate: reading
-  // `cube.id` under `!isOwner` narrows the cube to `never`.
   const cubeId = cube.id;
   const viewerId = current?.profile?.id ?? null;
 
@@ -151,7 +162,7 @@ export default async function CubePage({
   // each other.
   const [allCards, follows, changes] = await Promise.all([
     getCubeCards(cubeId),
-    getFollowState(cubeId, isOwner ? null : viewerId),
+    getFollowState(cubeId, viewerId),
     // Only the Change log tab reads this, so it is not paid for on the others.
     tab === "log" ? listCubeChanges(cubeId) : [],
   ]);
@@ -168,8 +179,8 @@ export default async function CubePage({
   }
   const sectionCounts = CUBE_LIST_SECTIONS.filter((section) => bySection.has(section));
 
-  // The owner sees the count in the byline rather than a Follow button —
-  // following your own cube is noise, but knowing who's watching it isn't.
+  // Only a visitor reaches this page, so Follow is unconditional here; the
+  // owner's own follower count is in the editor's byline instead.
   const { followers, following } = follows;
 
   const basePath = `/cube/${cube.ownerUsername}/${cube.slug}`;
@@ -207,14 +218,6 @@ export default async function CubePage({
         </div>
       )}
 
-      {/* The owner is told, rather than left thinking the site is broken. */}
-      {!isAdmin && isOwner && hiddenAt && (
-        <p className="mb-5 rounded-md border border-amber-400/60 bg-amber-50/60 p-3 text-sm dark:border-amber-500/40 dark:bg-amber-950/20">
-          This cube has been hidden by a moderator and is not visible to anyone
-          else.{hiddenReason ? ` Reason: ${hiddenReason}` : ""}
-        </p>
-      )}
-
       <header className="mb-5">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold">{cube.name}</h1>
@@ -224,20 +227,14 @@ export default async function CubePage({
             </span>
           )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            {!isOwner && (
-              <FollowButton
-                cubeId={cubeId}
-                following={following}
-                followers={followers}
-                returnPath={basePath}
-                signedIn={Boolean(current?.profile)}
-              />
-            )}
-            <ShareButton
-              url={shareUrl}
-              visibility={cube.visibility}
-              settingsHref={isOwner ? `${basePath}/settings` : undefined}
+            <FollowButton
+              cubeId={cubeId}
+              following={following}
+              followers={followers}
+              returnPath={basePath}
+              signedIn={Boolean(current?.profile)}
             />
+            <ShareButton url={shareUrl} visibility={cube.visibility} />
             <Link
               /* `?new=1` opens the settings rather than resuming. "Draft"
                  on a cube means "set one up"; picking up where you left off is
@@ -249,19 +246,11 @@ export default async function CubePage({
             >
               Draft
             </Link>
-            {isOwner && (
-              <Link
-                href={`${basePath}/edit`}
-                className={btn.primarySm}
-              >
-                Edit
-              </Link>
-            )}
             <CloneButton
               username={cube.ownerUsername}
               slug={cube.slug}
               signedIn={Boolean(current?.profile)}
-              prominent={!isOwner}
+              prominent
             />
           </div>
         </div>
@@ -281,13 +270,6 @@ export default async function CubePage({
           <time dateTime={cube.updatedAt.toISOString()}>
             {dateFormat.format(cube.updatedAt)}
           </time>
-          {isOwner && followers > 0 && (
-            <>
-              {" · "}
-              <span className="tabular-nums">{followers}</span>{" "}
-              {followers === 1 ? "follower" : "followers"}
-            </>
-          )}
         </p>
 
         {cube.description && (
@@ -337,9 +319,7 @@ export default async function CubePage({
           <Primer markdown={cube.primer!} />
         ) : (
           <p className={panelEmpty}>
-            {isOwner
-              ? "No primer yet. Write one from the editor's Primer tab."
-              : "This cube's owner hasn't written a primer yet."}
+            This cube&rsquo;s owner hasn&rsquo;t written a primer yet.
           </p>
         )
       ) : tab === "analytics" ? (

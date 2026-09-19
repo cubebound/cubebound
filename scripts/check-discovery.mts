@@ -317,10 +317,17 @@ try {
 
   const cubeHtml = await body(`/cube/${owner.username}/${open.slug}`, reader.cookie);
   expect(cubeHtml.includes(">Follow<"), "the cube page should offer Follow to a visitor");
-  const ownerCubeHtml = await body(`/cube/${owner.username}/${open.slug}`, owner.cookie);
+  // The owner never lands on the public page at all: it redirects to the
+  // editor, so there is no follow control to offer them in the first place.
+  const ownerBounce = await fetch(`${APP}/cube/${owner.username}/${open.slug}`, {
+    headers: { cookie: owner.cookie },
+    redirect: "manual",
+  });
   expect(
-    !ownerCubeHtml.includes(">Follow<") && !ownerCubeHtml.includes(">Following<"),
-    "the owner should not be offered a follow control on their own cube",
+    (ownerBounce.headers.get("location") ?? "").includes(
+      `/cube/${owner.username}/${open.slug}/edit`,
+    ),
+    "the owner should be redirected from their own cube's public page to the editor",
   );
 
   const navHtml = await body("/");
