@@ -950,7 +950,21 @@ a stale row — but it means a source switch leaves residue worth checking for.
   only, then cost groups with counts. Champion Units are `type = 'Unit'` and
   Signature Spells are `type = 'Spell'`, so they land in the right subgroup for
   free; an unrecognized type gets its own subgroup at the end rather than being
-  dropped. **Columns wrap; they never shrink to fit and never scroll
+  dropped.
+- **The type subgroup header is a filled band, and it has to outrank the cost
+  header under it.** At `text-subtle`/`font-medium` the two were the same size
+  and near the same weight, so "Units (4)" read as a peer of the "2 (1)" inside
+  each cost cell rather than as the thing containing it — the hierarchy was
+  inverted, and the view is meant to be scanned. It is now uppercase, semibold,
+  `text-ink`, on `bg-ink/12`. One class covers both themes because `--ink` flips
+  with the theme: a pale grey wash on white, a faint lift on black. **The band
+  is neutral, never the column's domain colour** — the domain is already what
+  tints every cost cell beneath it, and repeating it in the header is a dozen
+  coloured bands down one page. Cube Cobra's list scans for the same reason, but
+  it also boxes each group; that was tried and rejected here, because the cost
+  cells are already bordered and it nests a border inside a border for about
+  four extra pixels of height per group on a page that can run to 500 cards.
+- **Columns wrap; they never shrink to fit and never scroll
   sideways.** The count per row steps at breakpoints — 8 at ≥1280px, 4 at
   ≥768px, 3 below, never fewer — and columns flex within a tier, which is how
   Cube Cobra keeps names readable at every width. Squeezing all of them onto
