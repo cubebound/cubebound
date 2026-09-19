@@ -841,15 +841,28 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - **No pending count on the button and no count in the tab labels.** The staged
   list inside the panel already says what is pending. `check:copies-and-log`
   separately forbids `×N` anywhere in the editor's HTML.
-- **Density folds into a `Display` menu** rather than four visible chips: four
-  chips beside a two-way view toggle is most of a phone's width, and it is a
-  setting you change occasionally. Built on the same `<details>` pattern as the
-  card browser's `FilterMenu`, so it needs no React state and survives JS being
-  off. **It is hidden below `sm`, where it does nothing**: every entry in
-  `cardGrid` is `grid-cols-2` at that width, so the menu would offer four
-  choices with one outcome. If a `cardGrid` entry ever differs below `sm`, that
-  breakpoint has to move with it. **Nothing collapses into a JS-only menu**, because `check:public-cube`
-  requires `>Share<` and `>Clone<` in the served HTML.
+- **Density is a native `<select>` reading "6 Cards Per Row"** (`CardsPerRowSelect`),
+  not four visible chips and no longer a `<details>` menu labelled `Display`.
+  Chips beside a two-way view toggle are most of a phone's width; the menu fixed
+  that but hid the current value behind a click, and named a category rather
+  than the setting. A select wears its answer on its face and hands keyboard,
+  type-ahead, touch and the platform's own picker to the browser, in place of an
+  effect listening for outside clicks and Escape. The option text is the whole
+  sentence for the same reason a bare `6` was not enough. It is always plural
+  because `CARDS_PER_ROW` starts at four — a one-card option would need the
+  singular, and the union type flags the dead branch if you write it. **It is
+  hidden below `sm`, where it does nothing**: every entry in `cardGrid` is
+  `grid-cols-2` at that width, so it would offer four choices with one outcome.
+  If a `cardGrid` entry ever differs below `sm`, that breakpoint moves with it.
+  **Nothing collapses into a JS-only menu**, because `check:public-cube`
+  requires `>Share<` and `>Clone<` in the served HTML — a select is in the
+  served HTML, which the popover it replaced only barely was.
+- **`selectSm` in `src/lib/ui.ts` is the token for a toolbar select**, added with
+  that control because there was none and the codebase has seven selects. Not
+  `inputSm`: that is `w-full`, and a toolbar select sizes to its widest option.
+  `card-filter-bar.tsx` still carries an identical local `controlClass` because
+  it styles `<summary>` elements with it too; adopting the token there is a
+  tidy-up nobody has needed yet.
 - **The trigger renders only on tabs that show cards.** The panel edits the card list,
   so on Primer or Change log it is a button that does nothing you came to that
   tab to do, and its remove picker reads the cube, which the maybeboard tab is
@@ -1038,7 +1051,8 @@ a stale row — but it means a source switch leaves residue worth checking for.
   selects what the *server* renders, so it belongs in a link. The column count
   is only a CSS class on a list the server has already sent, so a param would
   spend a round trip on a dynamic route to change a class. `cubebound.cards-per-row`
-  holds 4, 6, 8 or 10; the server reads it into the props and
+  holds 4, 6, 8 or 10 — the select offers exactly those, so its option list and
+  this cookie's valid values are the same array; the server reads it into the props and
   `CardsPerRowProvider` holds it as client state so a click re-lays-out on its
   own frame. Same versioning rule as `…-view2` applies if the default ever moves.
 - **The grid classes live in `cardGrid` in `src/lib/ui.ts`, and every one is a

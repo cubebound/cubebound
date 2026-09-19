@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 import CubeAnalyticsView from "@/components/cube-analytics-view";
 import CubeSections from "@/components/cube-sections";
 import CubeViewToggle from "@/components/cube-view-toggle";
-import { CardsPerRowMenu, CardsPerRowProvider } from "@/components/cards-per-row";
+import { CardsPerRowProvider, CardsPerRowSelect } from "@/components/cards-per-row";
 import ChangeLog from "@/components/change-log";
 import FollowButton from "@/components/follow-button";
 import Primer from "@/components/primer";
@@ -325,7 +325,7 @@ export default async function CubePage({
         {tabShowsCards(tab) && cards.length > 0 && (
           <div className="mt-3 flex items-center gap-2">
             <span className="ml-auto flex items-center gap-2">
-              {view === "visual" && <CardsPerRowMenu />}
+              {view === "visual" && <CardsPerRowSelect />}
               <CubeViewToggle active={view} />
             </span>
           </div>
