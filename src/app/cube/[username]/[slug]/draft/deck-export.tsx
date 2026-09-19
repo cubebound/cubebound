@@ -43,7 +43,7 @@ export default function DeckExport({ pool }: { pool: PoolCard[] }) {
 
   return (
     <details className="rounded-md border border-line">
-      <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium hover:bg-hover">
+      <summary className="list-none px-4 py-3 text-sm font-medium hover:bg-hover">
         Export deck
         <span className="ml-2 font-normal text-subtle">
           for Piltover Archive and other builders

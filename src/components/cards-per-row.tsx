@@ -112,7 +112,7 @@ export function CardsPerRowSelect() {
       aria-label="Cards per row"
       value={ctx.perRow}
       onChange={(event) => ctx.choose(Number(event.target.value) as CardsPerRow)}
-      className={`${selectSm} hidden cursor-pointer sm:block`}
+      className={`${selectSm} hidden sm:block`}
     >
       {CARDS_PER_ROW.map((count) => (
         <option key={count} value={count}>

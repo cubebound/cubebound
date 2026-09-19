@@ -132,6 +132,32 @@ h3 {
   outline: 2px solid var(--accent-strong);
   outline-offset: 2px;
 }
+/* Tailwind v4's Preflight leaves buttons on the browser default, `cursor:
+   default`. v3 set `pointer`, so this changed silently at the upgrade and
+   nothing failed — it just made half the site look unclickable. Share, Clone,
+   Follow, the view toggle, the account menu, the theme switch and every card
+   name in the list view all kept the arrow, while the tab row beside them did
+   not, because an `<a href>` gets `pointer` from the UA stylesheet and a
+   `<button>` does not. Two controls that look identical and behave identically
+   disagreeing about the cursor is the tell.
+
+   Defined here for the same reason the headings are: the other approach had
+   already started without anyone deciding on it — seven `cursor-pointer`
+   classes across six files, each added when someone noticed one control, and
+   every new button would have needed noticing again. The four that this rule
+   covers are gone; the three on `<label>` stay, since a label is not in this
+   selector and the browser gives it no pointer either.
+
+   `:not(:disabled)` because a control that cannot be clicked should not invite
+   the click. `summary` and `select` are here for the same reason as `button`:
+   the browser calls them text and form furniture, we use them as controls. */
+button:not(:disabled),
+[role="button"]:not(:disabled),
+summary,
+select:not(:disabled) {
+  cursor: pointer;
+}
+
 
 /* iOS Safari zooms the whole page in when you focus a control whose text is
    under 16px, and every field here is `text-sm` (14px) or smaller — so tapping
