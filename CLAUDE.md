@@ -250,7 +250,14 @@ counts appear where you will actually look.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-**Nothing is in flight.** `printing-treatments` merged (the browser's printing
+**`visual-view-display-select` is in flight** — the cards-per-row control as a
+native select, and a filled band behind the list view's type headers. It branches
+from `master` rather than from the merge below, so the two are independent.
+
+`owner-skips-the-visitor-view` merged: the public cube page 307s its owner to
+`/edit`, with the follower count, the section breakdown, the moderation notice
+and Clone moved there so nothing was lost with the page an owner stopped seeing.
+`printing-treatments` merged before it (the browser's printing
 collapse and the card detail modal's printing label, under "Conventions"), and so
 did `draft-screen-rollout` — the draft settings rework, the Draftmancer sheet
 fix and Crack-A-Pack. Discord and Google sign-in merged before them; see
