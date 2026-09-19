@@ -1,7 +1,7 @@
 # Typecheck, lint, build and the checks that need no database and no credentials.
 #
-# The other sixteen checks are deliberately NOT here — see "Checks" in
-# CLAUDE.md. Several INSERT directly into `auth.users` and exchange a password
+# The other sixteen checks are deliberately NOT here — see docs/checks.md and
+# docs/gate-runbook.md. Several INSERT directly into `auth.users` and exchange a password
 # grant against a live GoTrue endpoint, so they need a real Supabase project
 # rather than a Postgres container; others drive Chrome over CDP against a
 # running dev server, and check:printings reads the synced card pool, which only
@@ -114,6 +114,14 @@ jobs:
       # server and stays in the manual gate as check:oauth-buttons.
       - name: Check OAuth rules
         run: npm run check:oauth
+
+      # The doc split: CLAUDE.md is a router and the detail lives in docs/,
+      # reached from its routing table or from a nested CLAUDE.md stub. All
+      # three failure modes are silent - the root growing back, a doc nothing
+      # links to, or an `@` import, which is expanded at launch and so quietly
+      # reinstates the cost the split removed.
+      - name: Check docs
+        run: npm run check:docs
 
       - name: Build
         run: npm run build
