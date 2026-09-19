@@ -312,7 +312,22 @@ export default function CubeTable({
                 return (
                   <div key={subgroup || "all"} className="mb-2">
                     {subgroup && (
-                      <p className="mb-1 flex items-baseline gap-1 px-0.5 text-[11px] font-medium text-subtle">
+                      // A filled band, not just text. The type is the bigger
+                      // grouping, but at `text-subtle` and `font-medium` it was
+                      // losing to the cost header inside each cell below it -
+                      // same size, similar weight, so "Units" read as a peer of
+                      // "2 (1)" rather than as the thing containing it. Cube
+                      // Cobra's list scans because its type headers sit on a
+                      // band; this borrows that and not its outer box, which
+                      // would put a border around cells that are already
+                      // bordered.
+                      //
+                      // `bg-ink/12` rather than a light/dark pair: `--ink` flips
+                      // with the theme, so one class is a pale wash on white and
+                      // a faint lift on black. Neutral on purpose - the domain's
+                      // colour is already the cost cells' job, and repeating it
+                      // here would be a dozen tinted bands down the page.
+                      <p className="mb-1 flex items-baseline gap-1 rounded-sm bg-ink/12 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-ink">
                         <span>{subgroup}</span>
                         <span className="tabular-nums">({subgroupTotal})</span>
                       </p>

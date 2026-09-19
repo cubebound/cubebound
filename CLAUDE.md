@@ -250,11 +250,15 @@ counts appear where you will actually look.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-**`visual-view-display-select` is in flight** — the cards-per-row control as a
-native select, and a filled band behind the list view's type headers. It branches
-from `master` rather than from the merge below, so the two are independent.
+**`owner-routes-real-404` is in flight** — `/edit` and `/settings` answered
+HTTP 200 carrying the 404 body to a non-owner of a *public* cube, and the fix
+puts each ownership check in a `layout.tsx` above its loading boundary. Until it
+merges, that soft 404 is live. `draftmancer-presets` is also open and is not
+close to ready.
 
-`owner-skips-the-visitor-view` merged: the public cube page 307s its owner to
+`visual-view-display-select` merged: the cards-per-row control is a native
+select, and the list view's type headers sit on a filled band.
+`owner-skips-the-visitor-view` merged before it: the public cube page 307s its owner to
 `/edit`, with the follower count, the section breakdown, the moderation notice
 and Clone moved there so nothing was lost with the page an owner stopped seeing.
 `printing-treatments` merged before it (the browser's printing
@@ -849,15 +853,28 @@ a stale row — but it means a source switch leaves residue worth checking for.
 - **No pending count on the button and no count in the tab labels.** The staged
   list inside the panel already says what is pending. `check:copies-and-log`
   separately forbids `×N` anywhere in the editor's HTML.
-- **Density folds into a `Display` menu** rather than four visible chips: four
-  chips beside a two-way view toggle is most of a phone's width, and it is a
-  setting you change occasionally. Built on the same `<details>` pattern as the
-  card browser's `FilterMenu`, so it needs no React state and survives JS being
-  off. **It is hidden below `sm`, where it does nothing**: every entry in
-  `cardGrid` is `grid-cols-2` at that width, so the menu would offer four
-  choices with one outcome. If a `cardGrid` entry ever differs below `sm`, that
-  breakpoint has to move with it. **Nothing collapses into a JS-only menu**, because `check:public-cube`
-  requires `>Share<` and `>Clone<` in the served HTML.
+- **Density is a native `<select>` reading "6 Cards Per Row"** (`CardsPerRowSelect`),
+  not four visible chips and no longer a `<details>` menu labelled `Display`.
+  Chips beside a two-way view toggle are most of a phone's width; the menu fixed
+  that but hid the current value behind a click, and named a category rather
+  than the setting. A select wears its answer on its face and hands keyboard,
+  type-ahead, touch and the platform's own picker to the browser, in place of an
+  effect listening for outside clicks and Escape. The option text is the whole
+  sentence for the same reason a bare `6` was not enough. It is always plural
+  because `CARDS_PER_ROW` starts at four — a one-card option would need the
+  singular, and the union type flags the dead branch if you write it. **It is
+  hidden below `sm`, where it does nothing**: every entry in `cardGrid` is
+  `grid-cols-2` at that width, so it would offer four choices with one outcome.
+  If a `cardGrid` entry ever differs below `sm`, that breakpoint moves with it.
+  **Nothing collapses into a JS-only menu**, because `check:public-cube`
+  requires `>Share<` and `>Clone<` in the served HTML — a select is in the
+  served HTML, which the popover it replaced only barely was.
+- **`selectSm` in `src/lib/ui.ts` is the token for a toolbar select**, added with
+  that control because there was none and the codebase has seven selects. Not
+  `inputSm`: that is `w-full`, and a toolbar select sizes to its widest option.
+  `card-filter-bar.tsx` still carries an identical local `controlClass` because
+  it styles `<summary>` elements with it too; adopting the token there is a
+  tidy-up nobody has needed yet.
 - **The trigger renders only on tabs that show cards.** The panel edits the card list,
   so on Primer or Change log it is a button that does nothing you came to that
   tab to do, and its remove picker reads the cube, which the maybeboard tab is
@@ -945,7 +962,21 @@ a stale row — but it means a source switch leaves residue worth checking for.
   only, then cost groups with counts. Champion Units are `type = 'Unit'` and
   Signature Spells are `type = 'Spell'`, so they land in the right subgroup for
   free; an unrecognized type gets its own subgroup at the end rather than being
-  dropped. **Columns wrap; they never shrink to fit and never scroll
+  dropped.
+- **The type subgroup header is a filled band, and it has to outrank the cost
+  header under it.** At `text-subtle`/`font-medium` the two were the same size
+  and near the same weight, so "Units (4)" read as a peer of the "2 (1)" inside
+  each cost cell rather than as the thing containing it — the hierarchy was
+  inverted, and the view is meant to be scanned. It is now uppercase, semibold,
+  `text-ink`, on `bg-ink/12`. One class covers both themes because `--ink` flips
+  with the theme: a pale grey wash on white, a faint lift on black. **The band
+  is neutral, never the column's domain colour** — the domain is already what
+  tints every cost cell beneath it, and repeating it in the header is a dozen
+  coloured bands down one page. Cube Cobra's list scans for the same reason, but
+  it also boxes each group; that was tried and rejected here, because the cost
+  cells are already bordered and it nests a border inside a border for about
+  four extra pixels of height per group on a page that can run to 500 cards.
+- **Columns wrap; they never shrink to fit and never scroll
   sideways.** The count per row steps at breakpoints — 8 at ≥1280px, 4 at
   ≥768px, 3 below, never fewer — and columns flex within a tier, which is how
   Cube Cobra keeps names readable at every width. Squeezing all of them onto
@@ -1046,7 +1077,8 @@ a stale row — but it means a source switch leaves residue worth checking for.
   selects what the *server* renders, so it belongs in a link. The column count
   is only a CSS class on a list the server has already sent, so a param would
   spend a round trip on a dynamic route to change a class. `cubebound.cards-per-row`
-  holds 4, 6, 8 or 10; the server reads it into the props and
+  holds 4, 6, 8 or 10 — the select offers exactly those, so its option list and
+  this cookie's valid values are the same array; the server reads it into the props and
   `CardsPerRowProvider` holds it as client state so a click re-lays-out on its
   own frame. Same versioning rule as `…-view2` applies if the default ever moves.
 - **The grid classes live in `cardGrid` in `src/lib/ui.ts`, and every one is a

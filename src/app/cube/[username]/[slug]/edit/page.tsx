@@ -7,7 +7,7 @@ import CardFilterBar from "@/components/card-filter-bar";
 import CardPagination from "@/components/card-pagination";
 import ChangeLog from "@/components/change-log";
 import CubeViewToggle from "@/components/cube-view-toggle";
-import { CardsPerRowMenu, CardsPerRowProvider } from "@/components/cards-per-row";
+import { CardsPerRowProvider, CardsPerRowSelect } from "@/components/cards-per-row";
 import { getFilterOptions, PAGE_SIZE, searchCards } from "@/db/queries/cards";
 import { getFollowState } from "@/db/queries/discovery";
 import {
@@ -296,7 +296,7 @@ export default async function EditCubePage({
               }))}
             />
             <span className="ml-auto flex items-center gap-2">
-              {view === "visual" && <CardsPerRowMenu />}
+              {view === "visual" && <CardsPerRowSelect />}
               <CubeViewToggle active={view} />
             </span>
           </div>

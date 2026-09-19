@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 
 import {
   CARDS_PER_ROW,
@@ -8,7 +8,7 @@ import {
   CARDS_PER_ROW_COOKIE_MAX_AGE,
   type CardsPerRow,
 } from "@/lib/cards-per-row";
-import { menu, menuItem, segment } from "@/lib/ui";
+import { segment, selectSm } from "@/lib/ui";
 
 /**
  * How many tiles a cube's visual view puts on a row, shared between the control
@@ -85,65 +85,40 @@ export function CardsPerRowToggle() {
 }
 
 /**
- * The same choice, folded into a menu.
+ * The same choice, as a plain native select.
  *
- * Four visible chips plus a two-way view toggle is most of a phone's width, and
- * the density is a setting you change occasionally rather than a control you
- * reach for — so it earns a menu, not a permanent row. Built on `<details>`
- * like the card browser's filter menus: it opens and closes with no React state
- * and keeps working with JavaScript off.
+ * It used to be a `<details>` menu labelled "Display", which hid the current
+ * value behind a click - you could not tell what the grid was set to without
+ * opening it, and the label named a category rather than a setting. A select
+ * wears its answer on its face, and hands the whole interaction to the browser:
+ * keyboard, type-ahead, touch, and the platform's own picker, in place of an
+ * effect listening for outside clicks and Escape to close a popover by hand.
+ *
+ * The option text is the full sentence rather than a bare number for the same
+ * reason - closed, `6` alone says nothing about what it counts. It is always
+ * plural because `CARDS_PER_ROW` starts at four; a one-card option would need
+ * the singular, and the type would flag it here.
  */
-export function CardsPerRowMenu() {
+export function CardsPerRowSelect() {
   const ctx = useContext(Ctx);
-  const ref = useRef<HTMLDetailsElement>(null);
-
-  useEffect(() => {
-    const close = (event: Event) => {
-      const el = ref.current;
-      if (!el?.open) return;
-      if (event.target instanceof Node && el.contains(event.target)) return;
-      el.open = false;
-    };
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && ref.current?.open) ref.current.open = false;
-    };
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
-
   if (!ctx) return null;
 
   return (
     // Hidden below `sm`, where it does nothing: every option renders
-    // `grid-cols-2` at that width, so the menu would offer four choices with
-    // one outcome. The cube's own breakpoints already pick a sane count for a
-    // phone; density is a desktop preference.
-    <details ref={ref} className="relative hidden sm:block">
-      <summary className="cursor-pointer list-none rounded-md border border-line px-3 py-1.5 text-sm text-muted select-none hover:bg-hover">
-        Display
-      </summary>
-      <div className={`${menu} absolute right-0 mt-1 w-44`}>
-        <p className="px-3 py-1.5 text-xs text-subtle">Cards per row</p>
-        {CARDS_PER_ROW.map((count) => (
-          <button
-            key={count}
-            type="button"
-            onClick={() => {
-              ctx.choose(count);
-              if (ref.current) ref.current.open = false;
-            }}
-            aria-pressed={count === ctx.perRow}
-            className={`${menuItem} ${count === ctx.perRow ? "text-accent" : ""}`}
-          >
-            {count}
-            {count === ctx.perRow ? " ✓" : ""}
-          </button>
-        ))}
-      </div>
-    </details>
+    // `grid-cols-2` at that width, so this would offer four choices with one
+    // outcome. The cube's own breakpoints already pick a sane count for a phone;
+    // density is a desktop preference.
+    <select
+      aria-label="Cards per row"
+      value={ctx.perRow}
+      onChange={(event) => ctx.choose(Number(event.target.value) as CardsPerRow)}
+      className={`${selectSm} hidden cursor-pointer sm:block`}
+    >
+      {CARDS_PER_ROW.map((count) => (
+        <option key={count} value={count}>
+          {count} Cards Per Row
+        </option>
+      ))}
+    </select>
   );
 }
