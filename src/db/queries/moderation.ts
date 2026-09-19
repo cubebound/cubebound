@@ -1,4 +1,4 @@
-import { desc, eq, isNotNull, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 import { db } from "..";
 import { cubes, moderationLog, users } from "../schema";
@@ -144,41 +144,4 @@ export async function getUserForModeration(username: string): Promise<AdminUserR
     .where(eq(users.username, username.toLowerCase()))
     .limit(1);
   return row ?? null;
-}
-
-/** Recent moderation actions, newest first. */
-export async function listModerationLog(limit = 50) {
-  return db
-    .select()
-    .from(moderationLog)
-    .orderBy(desc(moderationLog.createdAt))
-    .limit(limit);
-}
-
-/** Everything currently hidden or suspended, for a quick review pass. */
-export async function listModerated(): Promise<{
-  hiddenCubes: { id: string; name: string; slug: string; ownerUsername: string; hiddenAt: Date | null; hiddenReason: string | null }[];
-  suspendedUsers: { id: string; username: string; suspendedAt: Date | null }[];
-}> {
-  const [hiddenCubes, suspendedUsers] = await Promise.all([
-    db
-      .select({
-        id: cubes.id,
-        name: cubes.name,
-        slug: cubes.slug,
-        ownerUsername: users.username,
-        hiddenAt: cubes.hiddenAt,
-        hiddenReason: cubes.hiddenReason,
-      })
-      .from(cubes)
-      .innerJoin(users, eq(users.id, cubes.ownerId))
-      .where(isNotNull(cubes.hiddenAt))
-      .orderBy(desc(cubes.hiddenAt)),
-    db
-      .select({ id: users.id, username: users.username, suspendedAt: users.suspendedAt })
-      .from(users)
-      .where(isNotNull(users.suspendedAt))
-      .orderBy(desc(users.suspendedAt)),
-  ]);
-  return { hiddenCubes, suspendedUsers };
 }

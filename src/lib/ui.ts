@@ -89,8 +89,6 @@ export const check = "accent-accent-strong";
    panel sat at exactly the page's own colour with a hairline around it. */
 
 export const panel = "rounded-lg border border-line bg-raised";
-/** A list whose rows divide rather than repeat the border. */
-export const panelList = "divide-y divide-line rounded-lg border border-line bg-raised";
 /** Empty states — dashed, so "nothing here" is legible as a state not a bug. */
 export const panelEmpty =
   "rounded-lg border border-dashed border-line-strong bg-raised/40 p-10 text-center text-muted";
@@ -106,10 +104,6 @@ export const notice =
 
 export const link =
   "text-accent underline underline-offset-2 transition-colors hover:text-accent-hover";
-/** A link that only underlines on hover — for names in lists and bylines. */
-export const linkQuiet = "underline-offset-2 transition-colors hover:underline";
-export const navLink =
-  "text-sm text-muted transition-colors hover:text-ink";
 export const errorText = "text-sm text-red-600 dark:text-red-400";
 export const help = "text-xs text-subtle";
 
@@ -159,20 +153,10 @@ export const badge = {
   warn: `${badgeBase} bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200`,
 } as const;
 
-/** Cube visibility, mapped once so a badge cannot come to mean two things.
- *  Public is the notable state; unlisted is the one with a caveat. */
-export const visibilityBadge: Record<string, string> = {
-  public: badge.good,
-  unlisted: badge.warn,
-  private: badge.neutral,
-};
-
 /* ── Menus ────────────────────────────────────────────────────────────── */
 
 export const menu =
   "z-50 rounded-lg border border-line bg-raised p-1 shadow-lg shadow-black/5 dark:shadow-black/40";
-export const menuItem =
-  "block w-full rounded px-3 py-2 text-left text-sm transition-colors hover:bg-hover";
 
 /* ── Card grids ───────────────────────────────────────────────────────── */
 

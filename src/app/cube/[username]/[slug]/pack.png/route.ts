@@ -11,11 +11,9 @@
  * it is why `readDraftConfig` already knows how to read a config out of a query
  * string — the Draftmancer export needed exactly this.
  *
- * **A route handler does not run the layout above it**, so the visibility check
- * is repeated here, and it is `canUseCube` rather than `canViewCube` for the
- * same reason the export uses it: taking a cube's art away to post elsewhere is
- * *using* the cube, so a hidden cube or a suspended owner's must not render even
- * for its own owner.
+ * Access and the pack template come from `../export-request`, which both export
+ * routes share — including the reason the check is `canUseCube` rather than
+ * `canViewCube`.
  *
  * **It needs an account, unlike the Draftmancer export beside it.** That export
  * is a text file assembled from rows we already hold; this fetches seventeen
@@ -30,11 +28,10 @@
 
 import { getDraftCards } from "@/db/queries/drafts";
 import { getDraftPools } from "@/db/queries/drafts";
-import { canUseCube } from "@/lib/cube-access";
-import { loadCube, loadViewer } from "@/lib/cube-request";
-import { readDraftConfig, validateDraftConfig } from "@/lib/draft/config";
 import { generatePacks } from "@/lib/draft/packs";
 import { renderPackImage, type PackImageCard } from "@/lib/pack-image/render";
+
+import { readExportRequest } from "../export-request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,26 +64,9 @@ export async function GET(
   { params }: { params: Promise<{ username: string; slug: string }> },
 ) {
   const startedAt = Date.now();
-  const { username, slug } = await params;
-  const [cube, viewer] = await Promise.all([loadCube(username, slug), loadViewer()]);
-
-  if (!canUseCube(cube, viewer?.profile?.id)) {
-    return new Response("Not found", { status: 404 });
-  }
-
-  // Access is checked first so a signed-out visitor still cannot tell a private
-  // cube from one that never existed — that distinction is what the 404 above
-  // protects, and answering 401 before it would give it away.
-  if (!viewer?.profile?.id) {
-    return new Response("You need to be signed in.", { status: 401 });
-  }
-
-  const query = new URL(request.url).searchParams;
-  const config = readDraftConfig(Object.fromEntries(query));
-  const problems = validateDraftConfig(config);
-  if (problems.length > 0) {
-    return new Response(problems[0].message, { status: 400 });
-  }
+  const resolved = await readExportRequest(request, params, { needsAccount: true });
+  if (resolved instanceof Response) return resolved;
+  const { cube, config, query } = resolved;
 
   const tier = query.get("tier") === "preview" ? "preview" : "full";
   // Absent, a fresh pack. The caller normally supplies one so the same URL keeps
@@ -150,7 +130,7 @@ export async function GET(
       // page's own image. The slug is URL- and filename-safe by construction
       // (`slugify`).
       "Content-Disposition": query.get("dl")
-        ? `attachment; filename="${slug}-pack.webp"`
+        ? `attachment; filename="${cube.slug}-pack.webp"`
         : "inline",
       /**
        * `private`, so no CDN or shared proxy holds it: an unlisted cube's

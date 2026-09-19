@@ -225,24 +225,6 @@ export async function getCubeCards(cubeId: string): Promise<CubeCardRow[]> {
   return rows as CubeCardRow[];
 }
 
-/**
- * Copies of each printing already in the cube, keyed by card id and summed
- * across sections, so an add panel can show "×2 in cube" without another read.
- */
-export async function getCubeCardQuantities(
-  cubeId: string,
-): Promise<Record<string, number>> {
-  const rows = await db
-    .select({
-      cardId: cubeCards.cardId,
-      quantity: sql<number>`sum(${cubeCards.quantity})::int`,
-    })
-    .from(cubeCards)
-    .where(eq(cubeCards.cubeId, cubeId))
-    .groupBy(cubeCards.cardId);
-  return Object.fromEntries(rows.map((r) => [r.cardId, r.quantity]));
-}
-
 /** Total copies, not distinct rows — a cube running four of a card holds four. */
 export async function countCubeCards(cubeId: string): Promise<number> {
   // Named for what it is, not `value` — see the note in `searchCards`.

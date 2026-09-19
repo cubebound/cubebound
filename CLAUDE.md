@@ -250,28 +250,19 @@ counts appear where you will actually look.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-**Nothing is in flight except `draftmancer-presets`**, which is open and not
-close to ready.
+**Nothing is in flight.** `master` is the only branch, local or remote, and it
+is what cubebound.gg serves. `draftmancer-presets` — named Draftmancer formats
+and rarity-slot presets — was abandoned unmerged on 18 September 2026 and its
+branch deleted; it is not coming back, so treat that ground as unbuilt.
 
-`printings-columns` merged: the Printing dropdown's query returns two columns
-instead of eighteen, taking 209KB off every editor load.
-`button-cursor-pointer` merged before it: every button, summary and select gets
-`cursor: pointer` back from one rule in `globals.css`, after Tailwind v4's
-Preflight silently dropped it. `owner-routes-real-404` merged before it: `/edit` and `/settings` had been answering
-HTTP 200 carrying the 404 body to a non-owner of a *public* cube, and each
-ownership check now sits in a `layout.tsx` above its loading boundary.
-`visual-view-display-select` merged before it: the cards-per-row control is a native
-select, and the list view's type headers sit on a filled band.
-`owner-skips-the-visitor-view` merged before it: the public cube page 307s its owner to
-`/edit`, with the follower count, the section breakdown, the moderation notice
-and Clone moved there so nothing was lost with the page an owner stopped seeing.
-`printing-treatments` merged before it (the browser's printing
-collapse and the card detail modal's printing label, under "Conventions"), and so
-did `draft-screen-rollout` — the draft settings rework, the Draftmancer sheet
-fix and Crack-A-Pack. Discord and Google sign-in merged before them; see
-"Sign-in methods". None of those added a migration, so production needs nothing
-applied by hand. A gate run is sixteen scripts, `check:oauth-buttons` being the
-sixteenth; the other eight are pure and run in CI instead.
+**What merged, in order, is `git log`'s business rather than this file's.** The
+last several are the draft settings rework and Crack-A-Pack
+(`draft-screen-rollout`), the printing-collapse work (`printing-treatments`),
+the owner's redirect off the visitor view, real 404s on `/edit` and
+`/settings`, and the Printing dropdown's two-column query. None of them added
+a migration, so production needs nothing applied by hand. A gate run is sixteen
+scripts, `check:oauth-buttons` being the sixteenth; the other eight are pure
+and run in CI instead.
 
 **A preview deployment is not automatically a dev environment.** Vercel injects
 whichever environment variables are configured for Preview, and unless those
@@ -357,6 +348,7 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /explore                              public cube search — ?q= &card= &sort= &page=
 /u/{username}                         public profile — their public cubes; ?q= &page=
 /profile                              redirect to your own /u/{username}
+/settings                             account settings — sign-in methods
 /login  /welcome  /auth/callback      magic link, username claim, PKCE exchange
 /cubes  /cubes/new                    the signed-in user's cubes; ?tab=followed &q= &page=
 /cube/{username}/{slug}               public view — visibility-gated;
@@ -793,8 +785,8 @@ a stale row — but it means a source switch leaves residue worth checking for.
   The indicator is an `::after` bar rather than a border so it adds nothing to
   the link's box and the nav's height cannot shift between pages.
 - **The brand mark lives in `src/components/logo.tsx`, and there are two of
-  them.** Every surface that shows the logo — nav, landing page, coming-soon
-  pages, 404 — renders that component, so the artwork changes in one place;
+  them.** Every surface that shows the logo — nav, landing page, 404 —
+  renders that component, so the artwork changes in one place;
   the *size* picks the file. `lg` (64px) gets `public/logo.svg`, the detailed
   mark with dashed rear edges, five floating cards and sparkles. `sm`/`md`
   (26–30px, the nav) get `public/logo-mark.svg`: the cube silhouette and its
@@ -819,7 +811,8 @@ a stale row — but it means a source switch leaves residue worth checking for.
   public cubes only even to their owner, because a profile is what other people
   see; your private and unlisted ones live on `/cubes`, which says so. It exists
   because Explore puts a username on every row and the cube URL carries one, so
-  both were link-shaped dead ends. `/settings` is still "not built yet".
+  both were link-shaped dead ends. `/settings` is the account page beside it —
+sign-in methods, and nothing else yet; see "Sign-in methods".
 - `not-found.tsx` covers unknown URLs *and* every `notFound()` call, so a
   private cube and a cube that never existed look identical — the 404 must not
   become a way to test whether a cube id is real. `error.tsx` leads with "Try
@@ -1951,6 +1944,13 @@ for Piltover Archive (see "Draft"). `src/lib/draftmancer-export.ts` turns a
   export even for its own owner. Verified: suspended and hidden both 404,
   unlisted works, and a cube that does not exist is indistinguishable from one
   that is private.
+- **Both export routes read that gate from one place**,
+  `cube/[username]/[slug]/export-request.ts`: the access check and the pack
+  template it validates were duplicated in `draftmancer.txt` and `pack.png`,
+  and a visibility rule kept in two copies is one that eventually disagrees
+  with itself. The helper answers with either the resolved request or the
+  `Response` to send instead, so a caller that skips the failure branch has no
+  cube to read.
 - **The export lives on the draft screen, as one of three tabs over one settings
   form, and it is the one that opens.** `/cube/{username}/{slug}/draft?new=1`
   leads with **Export to Draftmancer**, then **Draft against bots**, then
@@ -2027,7 +2027,10 @@ cards, which reads as a glitch rather than a design choice.
   only rate limit here that costs nothing to run: an account needs a magic link,
   and that endpoint is already metered upstream. **`canUseCube` is still checked
   *before* the session**, so a signed-out visitor cannot tell a private cube from
-  one that never existed — answering 401 first would give that away.
+  one that never existed — answering 401 first would give that away. That order
+  is `needsAccount` in `export-request.ts`: 404, then 401, then the config's
+  400, so a bad template cannot turn a request that should have been refused
+  into an answer that admits the cube is there.
 - **Nothing is stored, and the URL is the state.** No pack row, no table, no
   migration, no retention policy: the engine is deterministic, so a seed plus a
   config regenerates the identical pack. `readDraftConfig` already knew how to
@@ -2167,8 +2170,10 @@ exemption.
 ### What CI runs
 
 `.github/workflows/ci.yml`, on every push and pull request: typecheck, lint,
-`check:primer-safety`, `check:draft`, `check:analytics`, `check:markdown-edit`,
-`check:draftmancer`, `check:pack-image`, `check:staged-edit`, and a production build. It uses **placeholder** Supabase
+the eight pure checks — `check:primer-safety`, `check:draft`,
+`check:analytics`, `check:markdown-edit`, `check:draftmancer`,
+`check:pack-image`, `check:staged-edit` and `check:oauth` — and a production
+build. It uses **placeholder** Supabase
 values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**
@@ -2529,8 +2534,11 @@ Two things dominate, and neither is the amount of data.
     `idle_timeout: 20` so a frozen instance hands its connections back, and
     `connect_timeout: 10` so exhaustion fails fast with a digest instead of
     hanging — a page that errors is far easier to diagnose than one that stalls.
-  - Reproduce with `npm run check:load` — 40 concurrent requests to `/cards`
-    plus a probe at `/explore`. Before: the slowest took 45s. After: 5s.
+  - Reproduced at the time with a throwaway load script — 40 concurrent
+    requests to `/cards` plus a probe at `/explore`. Before: the slowest took
+    45s. After: 5s. **That script is deliberately not in the repo**: see the
+    `check:pool` bullet below for why firing it at the shared dev project is
+    worse than not having it.
     **The symptom appeared twice in local testing first and was written off as
     "I hammered the dev server"** — it was the same bug both times, and a hang
     under self-inflicted load is a finding, not an artefact.
@@ -2692,5 +2700,5 @@ production (486ms under `npm run dev`), editor 351ms (589ms), `/cubes` 299ms.
 6. ✅ Cube view — public page, domain/cost grouping, view toggle, clone.
 7. ✅ Deploy to Vercel with the production domain — live at cubebound.gg.
 
-Phase 1 is done. Bulk import is in flight; then phase 2 in the order under
+Phase 1 is done, and so is bulk import. Then phase 2 in the order under
 "Product vision", starting with search syntax. Do NOT build ahead of it.

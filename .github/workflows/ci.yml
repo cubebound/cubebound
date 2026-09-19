@@ -1,10 +1,11 @@
 # Typecheck, lint, build and the checks that need no database and no credentials.
 #
-# The other six checks are deliberately NOT here — see "Checks" in CLAUDE.md.
-# Five of them INSERT directly into `auth.users` and exchange a password grant
-# against a live GoTrue endpoint, so they need a real Supabase project rather
-# than a Postgres container; check:printings reads the synced card pool, which
-# only changes when the sync runs. They are a documented pre-deploy gate.
+# The other sixteen checks are deliberately NOT here — see "Checks" in
+# CLAUDE.md. Several INSERT directly into `auth.users` and exchange a password
+# grant against a live GoTrue endpoint, so they need a real Supabase project
+# rather than a Postgres container; others drive Chrome over CDP against a
+# running dev server, and check:printings reads the synced card pool, which only
+# changes when the sync runs. They are a documented pre-deploy gate.
 #
 # No production credentials are used here, and none should ever be added.
 name: CI
