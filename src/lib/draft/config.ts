@@ -7,13 +7,22 @@
  * takes a config object rather than reading globals, which is what makes it
  * pure and replayable.
  *
- * The default pack template follows Riftbound's Legacy booster: eleven cards
- * from the main pool plus one Legend-or-Battlefield. Those two types are the
- * deck's identity rather than its body — you play one legend and a small number
- * of battlefields — so dealing them from the main pool would both flood packs
- * with cards nobody can use twice and starve drafters of the one card that
- * fixes their domains. A guaranteed slot per pack gives every seat a shot at
- * each.
+ * The default pack template reserves one Legend-or-Battlefield slot, chosen
+ * 50/50, and fills the rest of the pack from the main pool. That slot is the
+ * one Riot's boosters guarantee from Legacy (Set 6, January 2027) onward, and
+ * matching it is the whole of what "follows retail" means here.
+ *
+ * **Pack size deliberately does not track a retail pack's card count.** A
+ * retail pack's rarity, rune and insert slots have no cube equivalent — rarity
+ * plays no part below, and runes are resources rather than picks — so copying
+ * the printed card count would be imitating slots this engine never deals.
+ * Twelve cards with one either-slot is eleven from main.
+ *
+ * Legends and battlefields are the deck's identity rather than its body — you
+ * play one legend and a small number of battlefields — so dealing them from the
+ * main pool would both flood packs with cards nobody can use twice and starve
+ * drafters of the one card that fixes their domains. A guaranteed slot per pack
+ * gives every seat a shot at each.
  *
  * **Rarity plays no part in pack construction.** A cube is already a curated
  * pool; re-imposing the printed rarity distribution on top would double-filter
@@ -141,9 +150,9 @@ export function canUseEitherSlot(config: DraftConfig): boolean {
  * no meaning with one.
  *
  * Sixteen is the ceiling, and it is a sanity bound on input from a browser
- * rather than a product opinion. It used to be eight, which was the Legacy
- * booster's pod size read as a limit: nothing in the engine cares how many
- * seats there are, and for a Draftmancer export `seats` is never written to the
+ * rather than a product opinion. It used to be eight, which was the standard
+ * draft pod size read as a limit: nothing in the engine cares how many seats
+ * there are, and for a Draftmancer export `seats` is never written to the
  * file at all — it only sizes the "is this cube big enough" arithmetic, so
  * capping it at eight meant a twelve-person pod could not even be checked for.
  * A cube too small for the seats asked for still blocks, with the real numbers.

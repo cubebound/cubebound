@@ -73,7 +73,7 @@ export async function readExportRequest(
   // the same validator the solo draft uses — so a config that could never work
   // is refused here rather than producing a file that errors on upload or an
   // image of a pack the engine cannot deal. A bare URL with no parameters is
-  // the default Legacy booster.
+  // the default pack template.
   const query = new URL(request.url).searchParams;
   const config = readDraftConfig(Object.fromEntries(query));
   const problems = validateDraftConfig(config);

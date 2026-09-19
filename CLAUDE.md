@@ -1608,13 +1608,18 @@ the bots smart; C adds the deck builder.
   into `drafts.config`, so a cube edited mid-draft — or different settings next
   time — cannot change what was already dealt. Seats, packs, cards per pack, and
   three kinds of reserved slot: legend, battlefield, and either-at-random.
-  Defaults are the Legacy booster: 8 seats, 3 packs, 12 cards, 1 either-slot.
+  Defaults are 8 seats, 3 packs, 12 cards, 1 either-slot — the either-slot
+  matching the Legend-or-Battlefield slot Riot's boosters guarantee from Legacy
+  (Set 6, January 2027) onward. **Pack size deliberately does not track a retail
+  pack's card count**: rarity, rune and insert slots have no cube equivalent, so
+  only the Legend-or-Battlefield structure is matched. Do not "correct" 12 to a
+  printed pack size.
   Bounds live in `DRAFT_LIMITS` and are enforced by `validateDraftConfig` **on
   the server** — the config arrives from a browser, so `readDraftConfig` rebuilds
   it field by field rather than spreading it, which also stops a caller
   smuggling in `passDirections` and pinning the passing order.
   **Seats run 2 to 16, and the ceiling is a sanity bound rather than a product
-  opinion.** It was 8, which was the Legacy booster's pod size mistaken for a
+  opinion.** It was 8, which was the standard draft pod size mistaken for a
   limit: nothing in the engine cares how many seats there are, and for an export
   `seats` never reaches the file at all, so the old cap meant a twelve-person pod
   could not even be checked for. A cube too small for the seats asked for still
@@ -1658,13 +1663,14 @@ the bots smart; C adds the deck builder.
   what stops a card being dealt from both piles — validation normally makes the
   combination unreachable, so `check:draft` builds the contradictory config on
   purpose to exercise the guard, since `generatePacks` does not validate.
-- **The pack template follows Riftbound's Legacy booster**: eleven cards from
-  the cube's main section plus one Legend-or-Battlefield, chosen 50/50 per
-  pack. Legends and battlefields are a deck's *identity* rather than its body —
-  you play one legend and a handful of battlefields — so dealing them from the
-  main pool would both flood packs with cards nobody can use twice and starve
-  drafters of the one card that fixes their domains. A guaranteed slot gives
-  every seat three shots at each.
+- **The pack template reserves one Legend-or-Battlefield**, chosen 50/50 per
+  pack, with the other eleven cards from the cube's main section — the same
+  guaranteed slot Riot's boosters carry from Legacy (Set 6) onward. Legends and
+  battlefields are a deck's *identity* rather than its body — you play one
+  legend and a handful of battlefields — so dealing them from the main pool
+  would both flood packs with cards nobody can use twice and starve drafters of
+  the one card that fixes their domains. A guaranteed slot gives every seat
+  three shots at each.
 - **Rarity plays no part in pack construction.** A cube is already a curated
   pool; re-imposing the printed rarity distribution would double-filter it and
   put Riot's choices above the cube owner's.
@@ -2127,6 +2133,24 @@ one MCP config.
 Four is deliberate. Review is already covered by the `/code-review`, `/simplify` and
 `/security-review` skills, and an agent nobody invokes is worse than none.
 
+**Start Claude Code from the repo root.** On 19 September 2026 a session opened in
+`C:\Users\Carl` that then `cd`'d here had **none** of these four registered: spawning one
+returned `Agent type 'gate' not found`, offering only the built-in types, and the whole
+gate ran in the main thread instead. The four files were valid and there is no user-level
+`~/.claude/agents/` shadowing them, so the working directory at startup is the remaining
+explanation — `.claude/agents/` is read from where the session begins, not where it later
+moves to. **Not yet confirmed from the other direction**: nobody has since started a
+session in this directory and checked that `gate` appears. Do that once and replace this
+paragraph with what it shows. The failure is silent either way, which is the part worth
+remembering — nothing announces that an agent is missing until you try to spawn it.
+
+**The gate runs through the `gate` agent — always, and without judgement.** Not "prefer",
+not "when the output looks long". Sixteen scripts produce screens of output and one bit of
+signal, and absorbing that in the main thread is the precise cost the agent exists to
+avoid. The same holds for the other three: a usage question goes to `data`, a roadmap item
+goes to `planner` before any code is written, and a diff's documentation updates go to
+`docs`. An agent that is merely available is an agent nobody uses.
+
 ### `npm run stats`
 
 [scripts/stats.mts](scripts/stats.mts) prints what the site holds: cubes by visibility,
@@ -2260,6 +2284,16 @@ isolated build targets `.next-build` via `NEXT_DIST_DIR` and leaves the dev
 server alone. If it has already happened: restart `npm run dev` and hard-reload
 the browser.
 
+**In the gate, that collision surfaces as `check:magic-link` and nothing else.** It fails
+with "no /auth/v1/otp request was captured within 15s", which reads as a broken sign-in
+path. The real cause is that the check waits for React to hydrate before clicking submit,
+and a poisoned `.next` never hydrates, so the click degrades to a native POST that Next
+rejects and no OTP request is ever made. The other fifteen pass, which makes it look
+specific to sign-in. There is no browser to hard-reload in a headless run, so the fix is
+to stop the dev server, delete `.next`, and restart it. Confirmed 19 September 2026: it
+failed identically on a comment-only branch and on `master`, and passed on both once
+`.next` was removed.
+
 **Verify CI changes from a fresh clone, not the working tree.** A local run
 reuses a populated `.next` and an existing `.env.local`, so it passes on state
 CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
@@ -2314,6 +2348,14 @@ foreach ($c in @("printings","browse-grid","card-filters","copies-and-log","publ
   npm run "check:$c"; if (-not $?) { "FAILED at check:$c"; break }
 }
 ```
+
+**Both long-lived processes must outlive the shell that starts them.** Launch the probe
+server the way Chrome is launched above — `Start-Process`, with the working directory set
+— rather than as a background job of the calling shell. A backgrounded job is reaped when
+its wrapper exits: on 19 September 2026 that killed the dev server mid-gate, taking
+`check:card-filters` onward with it, and later killed headless Chrome, which left
+`check:auth-flow` hanging on a debugger that was no longer there. Neither failure named
+its real cause. Give each check a timeout as well, so one hang cannot stall the run.
 
 **Two of these fail transiently and pass on a re-run** — `check:browse-grid` and
 `check:deck-export` both did so in one sitting, aborting with an undici
