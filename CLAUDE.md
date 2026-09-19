@@ -344,7 +344,8 @@ add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 /profile                              redirect to your own /u/{username}
 /login  /welcome  /auth/callback      magic link, username claim, PKCE exchange
 /cubes  /cubes/new                    the signed-in user's cubes; ?tab=followed &q= &page=
-/cube/{username}/{slug}               public view — visibility-gated
+/cube/{username}/{slug}               public view — visibility-gated;
+                                      307s the cube's own owner to /edit
 /cube/{username}/{slug}/edit          owner editor; ?mode=browse|primer|log
 /cube/{username}/{slug}/settings      rename, visibility, delete
 /cube/{username}/{slug}/draft         solo draft against bots — any viewer, not just the owner
@@ -1165,18 +1166,59 @@ a stale row — but it means a source switch leaves residue worth checking for.
   anyone including signed-out visitors; private 404s for non-owners, the same
   convention the mutations use. `canViewCube` in `src/lib/cube-access.ts` is the
   single definition, next to `canEditCube`.
+- **The owner never sees the public page — it redirects them to `/edit`.** The
+  editor is the same five tabs plus the ability to change something, so landing
+  there signed in as the owner only ever meant a trip through an Edit button.
+  The entry points also disagreed about it: `/cubes` linked to `/edit` while
+  Explore, profiles and search linked to the public path, so the same cube
+  opened two different ways depending on where you clicked it. One redirect
+  settles every entry point at once — shared links and bookmarks included —
+  instead of teaching each link who owns what.
+- **That redirect lives in `(public)/layout.tsx`, and both halves of that are
+  load-bearing.** It has to be a *layout* for the same reason `notFound()` is
+  one segment up: Next flushes the `loading.tsx` shell as soon as it can, which
+  commits HTTP 200, so a `redirect()` in the page degrades into a client-side
+  hop — the visitor's skeleton flashes and a crawler is told the page is fine.
+  Putting it in the page reproduced exactly that, measured as a 200 with no
+  `Location`. It has to be in a **route group** because the `[slug]` layout also
+  wraps `/edit`, and redirecting there would loop. `check:public-cube` asserts a
+  real 307 rather than just a redirect, so the degraded form cannot come back.
+  `loading.tsx` moved into the group with the page, so `settings/` and `draft/`
+  got their own copies — every dynamic route needs one, see `skeleton.tsx`.
+- **The tab does not survive that redirect.** Layouts are not given
+  `searchParams`, so an owner opening a shared `?tab=analytics` link arrives on
+  the editor's Mainboard. Reading the query string would mean threading it
+  through middleware, which is a lot of machinery for a link an owner rarely
+  follows to their own cube.
+- **`opengraph-image.tsx` stays at the `[slug]` segment, outside the group**, and
+  the page therefore names it in `openGraph.images` by hand rather than relying
+  on Next pairing a co-located file. Inside the group Next appends a
+  group-derived suffix to the generated route (`/opengraph-image-7gn1ej`), which
+  changes a URL scrapers have already cached *and* stops `middleware.ts`
+  recognising a preview route by its `/opengraph-image` ending — that is the
+  query-stripping redirect keeping the most expensive unauthenticated route on
+  one CDN entry. `check:share-previews` asserts the advertised `og:image` and the
+  directly-fetched one are the same bytes, which is what caught this.
+- **What the owner used to get only on the public page now lives in the editor**:
+  the follower count in the header byline, the per-section breakdown under it,
+  and the hidden-by-a-moderator notice. Without the move the redirect would have
+  silently taken all three away — the follower count has no other home on the
+  site, and a hidden cube would look like a broken one. The admin moderation
+  panel is on both, so an admin who owns a cube can still reach it.
 - **There is no "View" button on the editor.** It went to the public page to
   show the same list read-only, and now that Analytics and the change log are on
   the editor too there is nothing over there an owner needs. The consequence to
-  know: an owner has no one-click preview of how the cube looks to a visitor.
-  Share already states who can open the link, which is the question that was
-  actually being asked.
+  know: an owner has no preview of how the cube looks to a visitor, and with the
+  redirect above there is no route to one at all — signing out or opening a
+  private window is the answer. Share already states who can open the link,
+  which is the question that was actually being asked.
 - **The change log is public.** It records card names, dates and actor usernames
   on a cube that is already public, so nothing new is disclosed, and seeing how
   a cube has evolved is a reason to follow it.
-- The public page's actions are ordered by who is looking: a visitor's primary
-  action is **Clone** (filled), the owner's is **Edit**, and Clone steps down to
-  a quiet button on your own cube. **Share** sits on both the public page and
+- The public page has one audience, so **Clone is unconditionally its primary
+  action** (filled) and Follow is unconditional beside it. Both used to be
+  owner-aware — Clone stepping down to a quiet button and Follow disappearing on
+  your own cube — which the redirect made dead code. **Share** sits on both the public page and
   the editor header — the owner works in the editor, so that is where they
   reach for a link. It copies the absolute cube URL, built server-side with
   `resolveSiteUrl` so it doesn't depend on where the client is, and the link
@@ -1968,7 +2010,7 @@ which is why they can create and delete accounts freely.
 | `check:browse-grid` | a grouped tile is a card, an all-printings tile is itself | Supabase + dev server | manual gate |
 | `check:card-filters` | multi-select ORs within a filter and ANDs across; energy buckets partition the pool; sorting uses the game's order | DB (read-only) | manual gate |
 | `check:copies-and-log` | quantity 2 lists as two entries; per-copy edits move one copy; edits reach the log | Supabase + dev server | manual gate |
-| `check:public-cube` | visibility gating, cloning, quantity-aware counts, and which action is the prominent one (it imports `btn.primarySm` from `src/lib/ui.ts` rather than matching a palette string, so styling changes cannot break it) | Supabase + dev server | manual gate |
+| `check:public-cube` | visibility gating, cloning, quantity-aware counts, that Clone is the prominent action (it imports `btn.primarySm` from `src/lib/ui.ts` rather than matching a palette string, so styling changes cannot break it), and that the owner gets a real **307** to `/edit` rather than the page — a 200 there means the redirect degraded to a client-side hop | Supabase + dev server | manual gate |
 | `check:auth-flow` | claiming a username refreshes the nav (`revalidatePath`) | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:cube-ownership` | replays an Add under another session and with no cookie | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:magic-link` | the `redirect_to` actually sent to Supabase, and `/?code=` self-heal | `dev:probe` server + Chrome :9222 | manual gate |

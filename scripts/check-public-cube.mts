@@ -132,11 +132,45 @@ try {
   const status = async (path: string, cookie?: string) =>
     (await fetch(`${APP}${path}`, { headers: cookie ? { cookie } : {}, redirect: "manual" }))
       .status;
+  // Where a redirect points, for the owner's bounce to the editor. Kept
+  // separate from `status` so the existing assertions read the same as before.
+  const location = async (path: string, cookie?: string) => {
+    const res = await fetch(`${APP}${path}`, {
+      headers: cookie ? { cookie } : {},
+      redirect: "manual",
+    });
+    return { status: res.status, to: res.headers.get("location") ?? "" };
+  };
 
   const publicPath = `/cube/${owner.username}/${cube.slug}`;
   expect((await status(publicPath)) === 200, "a public cube should render signed out");
   expect((await status(publicPath, stranger.cookie)) === 200, "a public cube should render for others");
-  expect((await status(publicPath, owner.cookie)) === 200, "a public cube should render for its owner");
+  // The owner does not read their own cube here — the page redirects them to
+  // the editor, which is the same tabs plus the ability to change something.
+  const ownerBounce = await location(publicPath, owner.cookie);
+  expect(
+    ownerBounce.status >= 300 && ownerBounce.status < 400,
+    `the owner should be redirected off the public page, got ${ownerBounce.status}`,
+  );
+  expect(
+    ownerBounce.to.includes(`${publicPath}/edit`),
+    `the owner should be sent to the editor, got "${ownerBounce.to}"`,
+  );
+  // The redirect resolves in a layout, which Next does not give
+  // `searchParams`, so a tab on the URL is dropped rather than carried — but
+  // the bounce still has to happen instead of rendering the visitor's view.
+  const tabBounce = await location(`${publicPath}?tab=analytics`, owner.cookie);
+  expect(
+    tabBounce.to.includes(`${publicPath}/edit`),
+    `a tabbed link should still bounce the owner to the editor, got "${tabBounce.to}"`,
+  );
+  // 307, not 200: a 200 means the loading shell was flushed first and the
+  // redirect degraded to a client-side hop, which is what putting this in the
+  // page did. See the note in (public)/layout.tsx.
+  expect(
+    ownerBounce.status === 307,
+    `the bounce should be a real 307, got ${ownerBounce.status}`,
+  );
 
   // --- Share button ----------------------------------------------------------
   // The link it copies has to be absolute: a relative one is useless the moment
@@ -166,9 +200,6 @@ try {
     "Clone should be the prominent button for a visitor",
   );
 
-  const ownerHtml = await body(publicPath, owner.cookie);
-  expect(ownerHtml.includes(">Share<"), "the owner should also get a Share button");
-
   // The analytics tab is computed, not stored, so a broken panel renders as a
   // 500 rather than as wrong numbers. Assert it comes back at all, and that it
   // reports the cube's real size — the share previews taught us that a route
@@ -191,12 +222,6 @@ try {
     editorHtml.includes(`${APP}${publicPath}`),
     `the editor's Share should carry the absolute URL ${APP}${publicPath}`,
   );
-  const editPosition = ownerHtml.indexOf(">Edit<");
-  expect(editPosition !== -1, "the owner should see Edit");
-  expect(
-    ownerHtml.slice(Math.max(0, editPosition - 900), editPosition).includes(filled),
-    "Edit should be the prominent button for the owner",
-  );
 
   await updateCube(cube.id, {
     name: cube.name,
@@ -212,7 +237,11 @@ try {
   });
   expect((await status(publicPath)) === 404, "a private cube should 404 signed out");
   expect((await status(publicPath, stranger.cookie)) === 404, "a private cube should 404 for others");
-  expect((await status(publicPath, owner.cookie)) === 200, "a private cube should render for its owner");
+  const privateBounce = await location(publicPath, owner.cookie);
+  expect(
+    privateBounce.to.includes(`${publicPath}/edit`),
+    "a private cube should send its owner to the editor rather than 404",
+  );
 
   // A stranger must not be able to clone a private cube, even knowing its path.
   expect(
