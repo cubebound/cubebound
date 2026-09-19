@@ -250,14 +250,15 @@ counts appear where you will actually look.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-**Nothing is in flight.** `master` is the only *local* branch, and it is what
-cubebound.gg serves. Three branches survive on the remote and none of them is
-work in progress: `draft-screen-rollout` and `staged-cube-editor` are merged and
-hold nothing `master` does not, and `main` is the retired original — a static
-landing page plus `riot.txt`, four commits that were never part of this app.
-Deleting them is housekeeping rather than a decision, so **do not read a remote
-branch as work someone left open**; `git rev-list --count master..origin/<branch>`
-settles it. `draftmancer-presets` — named Draftmancer formats
+**Nothing is in flight.** `master` is the only branch, local and remote, and it
+is what cubebound.gg serves. Three others were deleted on 19 September 2026:
+`draft-screen-rollout` and `staged-cube-editor` were merged and held nothing
+`master` did not, and `main` was the retired original — a static landing page
+plus `riot.txt`, four commits that were never part of this app. **`main` lives
+on as the tag `retired-landing-page`**, because those four commits exist nowhere
+else; GitHub Pages served them at `cubebound.github.io/cubebound` until it was
+unpublished the same day, and that URL now 404s by intent.
+`draftmancer-presets` — named Draftmancer formats
 and rarity-slot presets — was abandoned unmerged on 18 September 2026 and its
 branch deleted; it is not coming back, so treat that ground as unbuilt.
 
