@@ -2067,6 +2067,14 @@ cards, which reads as a glitch rather than a design choice.
   because nothing imports it and the tracer cannot see a path built at runtime.
   Verified in a real build: the font is in the route's `.nft.json` and the
   wordmark rasterises.
+- **The wordmark is rasterised at 8x and scaled down.** Pango hints every glyph
+  advance onto a whole device pixel, and the preview tier's em is only 23px, so
+  the leftover fractions pile up into gaps you can read — `cubebo und.gg` in the
+  corner of every preview. Nothing in sharp's text API turns hinting off, so
+  `SUPERSAMPLE` in `render.ts` puts the pixel grid out of reach and lanczos
+  averages the error away on the way down. The download tier had the same flaw
+  and only hid it better, a 56px em spreading the rounding thinner. One extra
+  in-memory raster against seventeen CDN fetches, so the cost does not register.
 - **`sharp` is the project's first native dependency.** It cannot run on Edge, so
   the route declares `runtime = "nodejs"`. The lockfile carries the linux-x64
   binaries Vercel installs, checked rather than assumed.

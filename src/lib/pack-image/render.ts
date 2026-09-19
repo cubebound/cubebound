@@ -70,6 +70,21 @@ const TILE_BORDER = "rgba(255,255,255,0.14)";
 const TEXT_DPI = 72 * 4;
 const FONT_FAMILY = "Space Grotesk";
 const FONT_FILE = path.join(process.cwd(), "src/lib/pack-image/fonts/SpaceGrotesk-Bold.ttf");
+/**
+ * Draw the wordmark this many times over, then scale it back down.
+ *
+ * Pango hints every glyph advance onto a whole device pixel, and the preview
+ * tier asks for a 23px em — so a fraction of a pixel per letter accumulates
+ * into gaps you can read, `cubebo und.gg` being the one that gave it away. The
+ * text API exposes no hinting switch, so the fix is to put the pixel grid out
+ * of reach: rasterise at 8x, where the same rounding is an eighth of a pixel,
+ * and let lanczos average it away on the way down. The download tier has the
+ * same flaw and only hides it better, a 56px em spreading the error thinner.
+ *
+ * It costs one extra in-memory text raster against seventeen CDN fetches, so
+ * it does not register beside what a render already spends.
+ */
+const SUPERSAMPLE = 8;
 
 /**
  * Never upscale past this. Card assets top out around 744px wide and pushing
@@ -120,8 +135,14 @@ export async function renderWordmark(text: string, pixels: number, colour = BRAN
   // against the dpi rather than passed straight through. Handing it the pixel
   // count at 288dpi renders four times too big, which is a mistake that looks
   // like a styling choice: the footer simply comes out as a headline.
-  const points = Math.max(4, Math.round((pixels * 72) / TEXT_DPI));
-  const buffer = await sharp({
+  //
+  // Supersampling buys back what rounding to whole points costs, as well: 23px
+  // asked for 6pt and got a 24px em, where 46pt scaled by 8 lands on 23 exactly.
+  const points = Math.max(
+    4 * SUPERSAMPLE,
+    Math.round((pixels * SUPERSAMPLE * 72) / TEXT_DPI),
+  );
+  const large = await sharp({
     text: {
       text: `<span foreground="${colour}">${escaped}</span>`,
       font: `${FONT_FAMILY} ${points}`,
@@ -130,6 +151,13 @@ export async function renderWordmark(text: string, pixels: number, colour = BRAN
       dpi: TEXT_DPI,
     },
   })
+    .png()
+    .toBuffer();
+  const { width: largeWidth = 0 } = await sharp(large).metadata();
+  // Width alone, so the height follows the aspect rather than being rounded
+  // independently and squashing the glyphs by up to half a pixel.
+  const buffer = await sharp(large)
+    .resize({ width: Math.max(1, Math.round(largeWidth / SUPERSAMPLE)), kernel: "lanczos3" })
     .png()
     .toBuffer();
   const { width = 0, height = 0 } = await sharp(buffer).metadata();
