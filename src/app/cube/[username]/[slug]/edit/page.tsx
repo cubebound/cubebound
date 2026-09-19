@@ -9,16 +9,23 @@ import ChangeLog from "@/components/change-log";
 import CubeViewToggle from "@/components/cube-view-toggle";
 import { CardsPerRowProvider, CardsPerRowSelect } from "@/components/cards-per-row";
 import { getFilterOptions, PAGE_SIZE, searchCards } from "@/db/queries/cards";
+import { getFollowState } from "@/db/queries/discovery";
 import {
   getCubeCards,
   getCubeHoldingsForBases,
   listCubeChanges,
 } from "@/db/queries/cubes";
-import { tab as tabStyle } from "@/lib/ui";
+import { btn, tab as tabStyle } from "@/lib/ui";
 import { getPrintingsForBases } from "@/db/queries/cards";
 import { loadCube, loadViewer } from "@/lib/cube-request";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
 import { canEditCube } from "@/lib/cube-access";
+import { CubeModerationPanel } from "@/components/moderation-panel";
+import {
+  CUBE_LIST_SECTIONS,
+  CUBE_SECTION_LABELS,
+  type CubeSection,
+} from "@/lib/riftbound";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
 import { CARDS_PER_ROW_COOKIE, resolveCardsPerRow } from "@/lib/cards-per-row";
 import {
@@ -31,6 +38,7 @@ import {
 import { countCopies } from "@/lib/cube-cards";
 import { resolveSiteUrl } from "@/lib/site-url";
 
+import CloneButton from "../clone-button";
 import ShareButton from "../share-button";
 import AddCards from "./add-cards";
 import CubeContents from "./cube-contents";
@@ -97,17 +105,32 @@ export default async function EditCubePage({
   // Mode-specific data joins this round rather than waiting for the cube's
   // cards, which it does not depend on — the browse grid and the change log
   // were each costing their own extra trip on top of everything above.
-  const [allContents, browse, changes] = await Promise.all([
+  const [allContents, browse, changes, follows] = await Promise.all([
     getCubeCards(cube.id),
     // Only rendered in browse mode, so don't pay for it in the default view.
     browsing ? Promise.all([getFilterOptions(), searchCards(filters)]) : null,
     viewingLog ? listCubeChanges(cube.id) : [],
+    // The owner's only readout of who is watching the cube, now that the public
+    // page redirects them here. `null` because following your own cube is not a
+    // thing — only the count is wanted.
+    getFollowState(cube.id, null),
   ]);
   // The maybeboard is a shortlist, not part of the cube, so it neither shows
   // in the cube list nor counts toward the size.
   const contents = allContents.filter((card) => card.section !== "maybeboard");
   const maybeboard = allContents.filter((card) => card.section === "maybeboard");
   const totalCopies = countCopies(contents);
+  const { followers } = follows;
+
+  // The per-section breakdown the public page used to be the only home for.
+  // Pure over cards already loaded, so it costs no query.
+  const bySection = new Map<CubeSection, number>();
+  for (const card of contents) {
+    bySection.set(card.section, (bySection.get(card.section) ?? 0) + card.quantity);
+  }
+  const sectionCounts = CUBE_LIST_SECTIONS.filter((section) => bySection.has(section));
+
+  const isAdmin = Boolean(current?.profile?.isAdmin);
 
   // Printings for the cards actually on screen, and only where alternates
   // exist. `cube-contents.tsx` renders a plain label rather than a select when
@@ -149,6 +172,28 @@ export default async function EditCubePage({
   return (
     <CardsPerRowProvider initial={perRow}>
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
+      {/* Above the header rather than beside the owner's own buttons: acting
+          on a cube by mistake is the failure to design against. */}
+      {isAdmin && (
+        <div className="mb-5">
+          <CubeModerationPanel
+            cubeId={cube.id}
+            cubeName={cube.name}
+            hidden={Boolean(cube.hiddenAt)}
+            hiddenReason={cube.hiddenReason}
+          />
+        </div>
+      )}
+
+      {/* The owner is told here rather than on the public page, which they no
+          longer see — otherwise a hidden cube looks like a broken site. */}
+      {!isAdmin && cube.hiddenAt && (
+        <p className="mb-5 rounded-md border border-amber-400/60 bg-amber-50/60 p-3 text-sm dark:border-amber-500/40 dark:bg-amber-950/20">
+          This cube has been hidden by a moderator and is not visible to anyone
+          else.{cube.hiddenReason ? ` Reason: ${cube.hiddenReason}` : ""}
+        </p>
+      )}
+
       <header className="mb-5">
         <Link href="/cubes" className="text-sm text-subtle underline-offset-4 hover:underline">
           ← Your cubes
@@ -161,6 +206,12 @@ export default async function EditCubePage({
           <span className="text-sm text-subtle tabular-nums">
             {totalCopies} {totalCopies === 1 ? "card" : "cards"}
           </span>
+          {followers > 0 && (
+            <span className="text-sm text-subtle">
+              <span className="tabular-nums">{followers}</span>{" "}
+              {followers === 1 ? "follower" : "followers"}
+            </span>
+          )}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {/* The owner works here, so this is where they reach for a link to
                 hand out. Same component and same URL as the public page. */}
@@ -172,18 +223,40 @@ export default async function EditCubePage({
             <Link
               /* Same as the public page: Draft sets one up. */
               href={`${publicPath}/draft?new=1`}
-              className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-hover"
+              className={btn.secondarySm}
             >
               Draft
             </Link>
-            <Link
-              href={`${publicPath}/settings`}
-              className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-hover"
-            >
+            {/* Forking your own cube — a variant to try without touching this
+                one — is a real thing to want, and the editor is now the only
+                place an owner can ask for it: the public page, which used to
+                carry Clone for them, redirects here. Quiet rather than filled,
+                because on your own cube it is never the main action. It lands
+                on the copy's editor, so cloning twice cannot be a mis-click. */}
+            <CloneButton
+              username={cube.ownerUsername}
+              slug={cube.slug}
+              signedIn
+              prominent={false}
+            />
+            <Link href={`${publicPath}/settings`} className={btn.secondarySm}>
               Settings
             </Link>
           </div>
         </div>
+        {sectionCounts.length > 0 && (
+          <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
+            {sectionCounts.map((section) => (
+              <li key={section}>
+                {CUBE_SECTION_LABELS[section]}{" "}
+                <span className="font-medium tabular-nums text-ink">
+                  {bySection.get(section)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <nav className="mt-4 flex flex-wrap items-center gap-2">
           {CUBE_TABS.map((name) =>
             modeLink(
