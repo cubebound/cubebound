@@ -250,13 +250,13 @@ counts appear where you will actually look.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-**`owner-routes-real-404` is in flight** — `/edit` and `/settings` answered
-HTTP 200 carrying the 404 body to a non-owner of a *public* cube, and the fix
-puts each ownership check in a `layout.tsx` above its loading boundary. Until it
-merges, that soft 404 is live. `draftmancer-presets` is also open and is not
+**Nothing is in flight except `draftmancer-presets`**, which is open and not
 close to ready.
 
-`visual-view-display-select` merged: the cards-per-row control is a native
+`owner-routes-real-404` merged: `/edit` and `/settings` had been answering
+HTTP 200 carrying the 404 body to a non-owner of a *public* cube, and each
+ownership check now sits in a `layout.tsx` above its loading boundary.
+`visual-view-display-select` merged before it: the cards-per-row control is a native
 select, and the list view's type headers sit on a filled band.
 `owner-skips-the-visitor-view` merged before it: the public cube page 307s its owner to
 `/edit`, with the follower count, the section breakdown, the moderation notice
