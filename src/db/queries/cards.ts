@@ -104,6 +104,24 @@ export type BrowseCard = {
   printingCount: number;
 };
 
+/**
+ * One printing, as the editor's Printing dropdown needs it.
+ *
+ * Two columns, not `BrowseCard`'s eighteen. The dropdown renders `id` and
+ * compares it to `baseId` to mark the base printing; it reads nothing else, and
+ * fetching the rest meant carrying rules text, both image URLs, the artist and
+ * the rest of the row across the wire to render a list of ids — 209KB of the
+ * 471KB of card data on a 360-card cube, on every editor load, in both views.
+ *
+ * Deliberately its own type rather than `Pick<BrowseCard, …>`: this is the
+ * shape one screen needs, and saying so here is what stops the next person
+ * spreading `browseColumns` back in because it was nearby.
+ */
+export interface CardPrinting {
+  id: string;
+  baseId: string;
+}
+
 /** A set as the filter offers it: the code stays the value, the label is for
  *  reading. "SFD" tells you nothing until you know it means Spiritforged. */
 export interface SetOption {
@@ -474,14 +492,16 @@ export async function quickSearchCards(
     .limit(limit);
 }
 
-/** Every printing of each of the given cards, base printing first. */
-export async function getPrintingsForBases(baseIds: string[]): Promise<BrowseCard[]> {
+/**
+ * Every printing of each of the given cards, base printing first.
+ *
+ * Two columns only — see `CardPrinting`. Ordering by columns it does not select
+ * is fine; the database sorts on what it reads, not on what it returns.
+ */
+export async function getPrintingsForBases(baseIds: string[]): Promise<CardPrinting[]> {
   if (baseIds.length === 0) return [];
   return db
-    .select({
-      ...browseColumns,
-      printingCount: sql<number>`count(*) over (partition by ${cards.baseId})::int`,
-    })
+    .select({ id: cards.id, baseId: cards.baseId })
     .from(cards)
     .where(inArray(cards.baseId, baseIds))
     .orderBy(cards.baseId, sql`(${cards.id} = ${cards.baseId}) desc`, cards.id);

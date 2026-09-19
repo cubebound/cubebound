@@ -9,7 +9,7 @@ import {
   swapPrintingAction,
 } from "@/app/cube/actions";
 import CubeSections from "@/components/cube-sections";
-import type { BrowseCard } from "@/db/queries/cards";
+import type { CardPrinting } from "@/db/queries/cards";
 import type { CubeCardRow } from "@/db/queries/cubes";
 import type { CubeView } from "@/lib/cube-view";
 import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
@@ -36,7 +36,9 @@ export default function CubeContents({
   sections?: readonly CubeSection[];
   emptyMessage?: string;
   /** Every printing of each card in the cube, for the per-copy switcher. */
-  printingsByBase: Record<string, BrowseCard[]>;
+  /** Two columns per printing, not a whole card row — the dropdown renders the
+   *  id and marks the base one. See `CardPrinting`. */
+  printingsByBase: Record<string, CardPrinting[]>;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
