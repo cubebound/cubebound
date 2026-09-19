@@ -253,7 +253,9 @@ does not touch production *code*. `master` holds everything that is live.
 **Nothing is in flight except `draftmancer-presets`**, which is open and not
 close to ready.
 
-`button-cursor-pointer` merged: every button, summary and select gets
+`printings-columns` merged: the Printing dropdown's query returns two columns
+instead of eighteen, taking 209KB off every editor load.
+`button-cursor-pointer` merged before it: every button, summary and select gets
 `cursor: pointer` back from one rule in `globals.css`, after Tailwind v4's
 Preflight silently dropped it. `owner-routes-real-404` merged before it: `/edit` and `/settings` had been answering
 HTTP 200 carrying the 404 body to a non-owner of a *public* cube, and each
