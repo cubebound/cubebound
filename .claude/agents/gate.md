@@ -21,9 +21,13 @@ read it before your first run of a session, because the list changes.
 5.1 has no `&&`, `chrome` is not on the path, and `/tmp` does not exist. Drive it as a
 loop instead.
 
-1. Check whether a dev server is already up on :3000 before starting one. If you need to
-   start it, use `SIGNIN_PROBE=1 npm run dev:probe` — it is the plain dev server plus the
-   probe that `check:magic-link` needs, so it covers every script.
+1. The server on :3000 must be `SIGNIN_PROBE=1 npm run dev:probe` — the plain dev server
+   plus the probe `check:magic-link` needs, so it covers every script. **A dev server
+   being up is not enough: if it is a plain `npm run dev`, restart it as the probe.**
+   Reusing one costs a confusing failure fifteen minutes into the run — `check:magic-link`
+   aborts with "no /auth/v1/otp request was captured within 15s", which reads as a broken
+   sign-in path rather than the wrong server. `APP_URL` is configurable but the script
+   asserts on `localhost:3000`, so the probe has to own that port.
 2. Launch a headless Chrome for the four CDP-driven checks:
 
    ```powershell

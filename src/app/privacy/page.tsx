@@ -33,8 +33,12 @@ const linkClass = "underline underline-offset-2 hover:text-ink";
  *
  * Written to describe what the code actually does, so it has to be updated
  * with the code rather than treated as boilerplate. Specifically: the cookie
- * list matches `THEME_COOKIE`, `CUBE_VIEW_COOKIE` and `BACKUP_NOTICE_COOKIE`,
- * "analytics" means the
+ * list matches `THEME_COOKIE`, `CUBE_VIEW_COOKIE`, `CARDS_PER_ROW_COOKIE` and
+ * `BACKUP_NOTICE_COOKIE`, plus the sign-in cookies — five kinds, which the
+ * prose above the list also states, so adding one is an edit in two places
+ * here. The names are written out rather than imported, so nothing breaks
+ * when a constant changes and this list is the only thing tying them
+ * together. "analytics" means the
  * Vercel Analytics component in the root layout, and the deletion section says
  * plainly that self-serve account deletion does not exist yet — promising a
  * button that isn't built would be the one genuinely dishonest thing this page
