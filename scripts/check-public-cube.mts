@@ -218,6 +218,14 @@ try {
   // too — that is where they are when they want to hand the cube to someone.
   const editorHtml = await body(`${publicPath}/edit`, owner.cookie);
   expect(editorHtml.includes(">Share<"), "the editor should offer a Share button");
+  // The owner's only route to Clone, now that the public page redirects them
+  // here. Quiet rather than filled: on your own cube it is not the main action.
+  const editorClone = editorHtml.indexOf(">Clone<");
+  expect(editorClone !== -1, "the editor should offer Clone");
+  expect(
+    !editorHtml.slice(Math.max(0, editorClone - 900), editorClone).includes(filled),
+    "Clone should be the quiet button on your own cube",
+  );
   expect(
     editorHtml.includes(`${APP}${publicPath}`),
     `the editor's Share should carry the absolute URL ${APP}${publicPath}`,

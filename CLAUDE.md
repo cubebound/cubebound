@@ -1217,8 +1217,19 @@ a stale row — but it means a source switch leaves residue worth checking for.
   a cube has evolved is a reason to follow it.
 - The public page has one audience, so **Clone is unconditionally its primary
   action** (filled) and Follow is unconditional beside it. Both used to be
-  owner-aware — Clone stepping down to a quiet button and Follow disappearing on
-  your own cube — which the redirect made dead code. **Share** sits on both the public page and
+  owner-aware, which the redirect made dead code there.
+- **Clone is on the editor too, as the quiet button.** Forking your own cube —
+  a variant to try without touching the original — is a real thing to want, and
+  with the public page redirecting its owner away the editor is the only place
+  left to ask for it. It is never the main action on a cube you already own, so
+  it takes `prominent={false}`; `check:public-cube` asserts both that it is
+  there and that it is *not* wearing `btn.primarySm`. The action lands on the
+  copy's editor, which is also what makes a double-click harmless.
+- **The editor's header controls are all `btn.secondarySm`.** Draft and Settings
+  were hand-written `py-1.5` strings that came out 34px against Share's 36, so
+  the row was already a little ragged before Clone arrived and made it obvious.
+  Measured over CDP: Share, Draft, Clone and Settings are 36px each.
+- **Share** sits on both the public page and
   the editor header — the owner works in the editor, so that is where they
   reach for a link. It copies the absolute cube URL, built server-side with
   `resolveSiteUrl` so it doesn't depend on where the client is, and the link

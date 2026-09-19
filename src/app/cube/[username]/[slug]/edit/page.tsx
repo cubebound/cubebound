@@ -15,7 +15,7 @@ import {
   getCubeHoldingsForBases,
   listCubeChanges,
 } from "@/db/queries/cubes";
-import { tab as tabStyle } from "@/lib/ui";
+import { btn, tab as tabStyle } from "@/lib/ui";
 import { getPrintingsForBases } from "@/db/queries/cards";
 import { loadCube, loadViewer } from "@/lib/cube-request";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
@@ -38,6 +38,7 @@ import {
 import { countCopies } from "@/lib/cube-cards";
 import { resolveSiteUrl } from "@/lib/site-url";
 
+import CloneButton from "../clone-button";
 import ShareButton from "../share-button";
 import AddCards from "./add-cards";
 import CubeContents from "./cube-contents";
@@ -222,14 +223,23 @@ export default async function EditCubePage({
             <Link
               /* Same as the public page: Draft sets one up. */
               href={`${publicPath}/draft?new=1`}
-              className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-hover"
+              className={btn.secondarySm}
             >
               Draft
             </Link>
-            <Link
-              href={`${publicPath}/settings`}
-              className="rounded-md border border-line px-3 py-1.5 text-sm hover:bg-hover"
-            >
+            {/* Forking your own cube — a variant to try without touching this
+                one — is a real thing to want, and the editor is now the only
+                place an owner can ask for it: the public page, which used to
+                carry Clone for them, redirects here. Quiet rather than filled,
+                because on your own cube it is never the main action. It lands
+                on the copy's editor, so cloning twice cannot be a mis-click. */}
+            <CloneButton
+              username={cube.ownerUsername}
+              slug={cube.slug}
+              signedIn
+              prominent={false}
+            />
+            <Link href={`${publicPath}/settings`} className={btn.secondarySm}>
               Settings
             </Link>
           </div>
