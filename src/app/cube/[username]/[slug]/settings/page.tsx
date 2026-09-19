@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 
 import { updateCubeAction } from "@/app/cube/actions";
 import CubeForm from "@/app/cubes/cube-form";
-import { countCubeCards, getCubeByOwnerAndSlug, getCubeCards } from "@/db/queries/cubes";
-import { getCurrentUser } from "@/lib/auth";
+import { countCubeCards, getCubeCards } from "@/db/queries/cubes";
 import { canEditCube } from "@/lib/cube-access";
+import { loadCube, loadViewer } from "@/lib/cube-request";
 
 import CoverPicker from "./cover-picker";
 import DeleteCube from "./delete-cube";
@@ -22,9 +22,13 @@ export default async function CubeSettingsPage({
   params: Promise<{ username: string; slug: string }>;
 }) {
   const { username, slug } = await params;
-  const cube = await getCubeByOwnerAndSlug(username, slug);
+  // The request-cached loaders, not the raw queries: `layout.tsx` beside this
+  // file has already asked both, and `cache()` makes these the same answers
+  // rather than two more round trips.
+  const [cube, current] = await Promise.all([loadCube(username, slug), loadViewer()]);
 
-  const current = await getCurrentUser();
+  // Ownership was decided in that layout, which is the only place it can set a
+  // 404 *status* — see the note there. Re-asserted here to narrow the type.
   if (!canEditCube(cube, current?.profile?.id)) notFound();
 
   const cardCount = await countCubeCards(cube.id);

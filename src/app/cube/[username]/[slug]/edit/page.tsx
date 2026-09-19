@@ -74,6 +74,11 @@ export default async function EditCubePage({
 
   // Non-owners get a 404 rather than a 403, so the existence of someone else's
   // private cube isn't leaked. The mutations re-check ownership independently.
+  //
+  // `layout.tsx` beside this file makes the same call, and that is the one that
+  // sets the *status* — a `notFound()` here lands after the loading shell has
+  // committed 200. This re-assertion is what narrows `cube` for the rest of the
+  // page; deleting it breaks the types, not the 404.
   if (!canEditCube(cube, current?.profile?.id)) notFound();
 
   const filters = cardFiltersFromParams(query);
