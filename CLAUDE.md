@@ -2573,6 +2573,25 @@ Two things dominate, and neither is the amount of data.
   from four to two. **The number that matters is queries × concurrent
   requests**, so a read that is merely unused is not free; it is a connection
   someone else's request is waiting on.
+- **Bounding the *rows* is only half of it; bound the *columns* too.**
+  `getPrintingsForBases` returns `CardPrinting` — `id` and `baseId`, nothing
+  else — because that is all the Printing dropdown reads: it renders the id and
+  compares it to `baseId` to mark the base printing. It used to spread
+  `browseColumns`, so every load carried rules text, both image URLs, the artist,
+  the domains and the rest, to render a list of ids. Measured on a 360-card
+  cube: **209KB down to 11KB**, and the editor's HTML from 931KB to 715KB in
+  list view and 1021KB to 805KB in visual, on every load of both. `browseColumns`
+  is for the card browser, where a card is *shown*; reaching for it because it
+  is nearby is how a screen that needs two fields ends up shipping eighteen.
+  `CardPrinting` is its own interface rather than `Pick<BrowseCard, …>` so that
+  spreading the wide list back in has to be a decision rather than an autocomplete.
+- **None of that data is ever server-rendered.** The detail modal lives behind
+  `useState(null)` in `cube-sections.tsx`, so `detailFooter` — the only consumer
+  of `printingsByBase` — never runs during SSR. Verified with 40 cards that all
+  have alternates: the served HTML contains no `>Printing<`, no
+  `aria-label="Printing for` and no `Remove this copy` in either view. So these
+  rows were pure payload, and changing them cannot move a byte of served markup
+  — which is also why no gate script that reads HTML can catch a regression here.
 - **The cube listings are where the remaining time goes.** Measured in
   production, the three variants of `searchCubes` were 3,082ms of 3,790ms across
   every query touching `cubes` — 81% of the time from 1.7% of the calls, at
