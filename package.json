@@ -40,7 +40,8 @@
     "check:moderation": "tsx --env-file-if-exists=.env.local scripts/check-moderation.mts",
     "check:draftmancer": "tsx scripts/check-draftmancer.mts",
     "check:staged-edit": "tsx scripts/check-staged-edit.mts",
-    "check:pack-image": "tsx scripts/check-pack-image.mts"
+    "check:pack-image": "tsx scripts/check-pack-image.mts",
+    "stats": "tsx scripts/stats.mts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.70.0",

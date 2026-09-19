@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(git show *)",
+      "Bash(npm run check:*)",
+      "Bash(npm run stats)",
+      "Bash(npm run stats *)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run lint)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "out=$(node_modules/.bin/tsc --noEmit 2>&1) || printf '%s' \"$out\" | node -e \"let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.stringify({systemMessage:'tsc failed — '+d.slice(0,400)})))\"",
+            "timeout": 60,
+            "statusMessage": "Typechecking"
+          }
+        ]
+      }
+    ]
+  }
+}
