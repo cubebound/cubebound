@@ -179,10 +179,11 @@ export default function CubeDraftingGuide() {
             <li>
               <Term>Reserved slots.</Term> Each pack contains a fixed number of
               legends and battlefields, and the rest comes from the main pool.
-              Riftbound&rsquo;s own Legacy booster is the model most cubes copy:
-              twelve cards, of which one is a legend or a battlefield chosen at
-              random. Reserved slots come out of the pack size rather than on top
-              of it. Twelve cards with one reserved slot is eleven main cards.
+              From Legacy (Set&nbsp;6) onward, Riftbound&rsquo;s own boosters
+              guarantee one legend or battlefield per pack, chosen at random, and
+              that is the model most cubes copy. Reserved slots come out of the
+              pack size rather than on top of it, so a twelve-card pack with one
+              reserved slot is eleven main cards.
               This guarantees every seat gets shots at the cards their deck
               cannot do without.
             </li>

@@ -1608,13 +1608,18 @@ the bots smart; C adds the deck builder.
   into `drafts.config`, so a cube edited mid-draft — or different settings next
   time — cannot change what was already dealt. Seats, packs, cards per pack, and
   three kinds of reserved slot: legend, battlefield, and either-at-random.
-  Defaults are the Legacy booster: 8 seats, 3 packs, 12 cards, 1 either-slot.
+  Defaults are 8 seats, 3 packs, 12 cards, 1 either-slot — the either-slot
+  matching the Legend-or-Battlefield slot Riot's boosters guarantee from Legacy
+  (Set 6, January 2027) onward. **Pack size deliberately does not track a retail
+  pack's card count**: rarity, rune and insert slots have no cube equivalent, so
+  only the Legend-or-Battlefield structure is matched. Do not "correct" 12 to a
+  printed pack size.
   Bounds live in `DRAFT_LIMITS` and are enforced by `validateDraftConfig` **on
   the server** — the config arrives from a browser, so `readDraftConfig` rebuilds
   it field by field rather than spreading it, which also stops a caller
   smuggling in `passDirections` and pinning the passing order.
   **Seats run 2 to 16, and the ceiling is a sanity bound rather than a product
-  opinion.** It was 8, which was the Legacy booster's pod size mistaken for a
+  opinion.** It was 8, which was the standard draft pod size mistaken for a
   limit: nothing in the engine cares how many seats there are, and for an export
   `seats` never reaches the file at all, so the old cap meant a twelve-person pod
   could not even be checked for. A cube too small for the seats asked for still
@@ -1658,13 +1663,14 @@ the bots smart; C adds the deck builder.
   what stops a card being dealt from both piles — validation normally makes the
   combination unreachable, so `check:draft` builds the contradictory config on
   purpose to exercise the guard, since `generatePacks` does not validate.
-- **The pack template follows Riftbound's Legacy booster**: eleven cards from
-  the cube's main section plus one Legend-or-Battlefield, chosen 50/50 per
-  pack. Legends and battlefields are a deck's *identity* rather than its body —
-  you play one legend and a handful of battlefields — so dealing them from the
-  main pool would both flood packs with cards nobody can use twice and starve
-  drafters of the one card that fixes their domains. A guaranteed slot gives
-  every seat three shots at each.
+- **The pack template reserves one Legend-or-Battlefield**, chosen 50/50 per
+  pack, with the other eleven cards from the cube's main section — the same
+  guaranteed slot Riot's boosters carry from Legacy (Set 6) onward. Legends and
+  battlefields are a deck's *identity* rather than its body — you play one
+  legend and a handful of battlefields — so dealing them from the main pool
+  would both flood packs with cards nobody can use twice and starve drafters of
+  the one card that fixes their domains. A guaranteed slot gives every seat
+  three shots at each.
 - **Rarity plays no part in pack construction.** A cube is already a curated
   pool; re-imposing the printed rarity distribution would double-filter it and
   put Riot's choices above the cube owner's.
