@@ -98,7 +98,7 @@ function toRow(card: RiftScribeCard, syncedAt: Date): NewCard {
     collectorNo: String(card.collector_number),
     rarity: card.rarity ? titleCase(card.rarity) : "Unknown",
     type: card.type ?? "Unknown",
-    // Neither RiftScribe nor Riot expose these yet; see CLAUDE.md.
+    // Neither RiftScribe nor Riot expose these yet; see docs/card-data.md.
     supertype: null,
     champion: null,
     domains,

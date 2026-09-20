@@ -68,7 +68,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-  // Moderation. Owner-only for now — see "Moderation" in CLAUDE.md.
+  // Moderation. Owner-only for now — see docs/moderation.md.
   isAdmin: boolean("is_admin").notNull().default(false),
   // Set means the account's cubes stop rendering for everyone but an admin.
   // Reversible, unlike deletion, which is why it is the primary verb.

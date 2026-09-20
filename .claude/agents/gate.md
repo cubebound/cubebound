@@ -11,13 +11,14 @@ not deploy.
 ## What the gate is
 
 Sixteen `check:*` scripts that need a live Supabase, a running dev server, or a headless
-Chrome, and so cannot run in CI. The other eight are pure and already run on every push.
-The authoritative list and the reasoning live in the **Checks** section of CLAUDE.md —
-read it before your first run of a session, because the list changes.
+Chrome, and so cannot run in CI. The other nine are pure and already run on every push.
+The runbook lives in [docs/gate-runbook.md](../../docs/gate-runbook.md) and the
+authoritative list of scripts in [docs/checks.md](../../docs/checks.md) — read both
+before your first run of a session, because the list changes.
 
 ## Running it
 
-**This is a Windows machine.** The bash block in CLAUDE.md does not run here: PowerShell
+**This is a Windows machine.** The bash block in the runbook does not run here: PowerShell
 5.1 has no `&&`, `chrome` is not on the path, and `/tmp` does not exist. Drive it as a
 loop instead.
 
@@ -68,5 +69,5 @@ calling anything broken.
   keeps returning 200. Use `npm run build:isolated`.
 - Report concisely: one line per script with its status, then the full output of failures
   only, then a one-line verdict on whether the gate passed. A green gate is also evidence
-  that CLAUDE.md's runbook is still accurate — say so if you had to deviate from it, since
-  that means the documentation needs updating.
+  that `docs/gate-runbook.md` is still accurate — say so if you had to deviate from it,
+  since that means the documentation needs updating.

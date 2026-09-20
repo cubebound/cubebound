@@ -21,7 +21,7 @@ import { useState } from "react";
  * The retry counter rides in the `src` as a cache-busting parameter, because
  * re-assigning an identical `src` does not make a browser fetch again. Riot's
  * CDN ignores parameters it doesn't know, and this is still the source CDN
- * serving its own asset — the no-proxy rule in CLAUDE.md is untouched.
+ * serving its own asset — the no-proxy rule in docs/card-images.md is untouched.
  *
  * A plain `<img>` on purpose, never `next/image`: optimizing through Vercel
  * would proxy and cache these, which we deliberately do not do.

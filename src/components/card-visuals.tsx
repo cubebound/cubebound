@@ -14,7 +14,7 @@ import { cardGrid } from "@/lib/ui";
 
 /* Shared between the card browser and the cube editor.
    Card images come straight from the source CDN — we deliberately do not proxy
-   or re-optimize them yet (see CLAUDE.md), so next/image is not used. */
+   or re-optimize them yet (see docs/card-images.md), so next/image is not used. */
 
 export function DomainDots({ domains }: { domains: string[] }) {
   if (domains.length === 0) return null;

@@ -117,7 +117,7 @@ function toRow(card: CardDTO, set: SetDTO, syncedAt: Date): NewCard {
     collectorNo: String(card.collectorNumber),
     rarity: card.rarity ? titleCase(card.rarity) : "Unknown",
     type: card.type,
-    // Not provided by riftbound-content-v1; see CLAUDE.md.
+    // Not provided by riftbound-content-v1; see docs/card-data.md.
     supertype: null,
     champion: null,
     domains,

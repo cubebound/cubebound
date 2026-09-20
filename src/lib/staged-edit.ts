@@ -12,7 +12,7 @@
  * a card, change your mind, swap it back — and it turns what used to be one
  * write per click into one write per session. The old quick-add panel called
  * `addCardAction` per card, and a run of edits was a run of round trips against
- * a pool of six; see "Page speed" in CLAUDE.md for what that cost in
+ * a pool of six; see docs/page-speed.md for what that cost in
  * production.
  */
 

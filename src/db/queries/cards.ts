@@ -88,7 +88,7 @@ export const browseColumns = {
   // `cards.keywords` is deliberately NOT selected: it is empty on every row and
   // no source has ever populated it, so it was a column fetched on every card
   // query and read by nothing. The keywords people actually see come from the
-  // bracketed markers in `rulesText` — see "Analytics" in CLAUDE.md. The column
+  // bracketed markers in `rulesText` — see docs/analytics.md. The column
   // and the sync's writes stay, so a future source that fills it loses nothing;
   // add it back here when something reads it.
   tags: cards.tags,

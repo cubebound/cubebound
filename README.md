@@ -33,15 +33,18 @@ and never proxied or stored.
 
 ## Working on it
 
-**Read [CLAUDE.md](CLAUDE.md) first.** It is the orientation document: the game's
-domain model, the schema, the conventions, and — more usefully — the reasoning
-behind decisions that look arbitrary until you know what broke. It is kept true
-in the same commit as the code it describes.
+**Read [CLAUDE.md](CLAUDE.md) first.** It is the router: the game's domain model,
+the environments, the rules that hold everywhere, and a table pointing at
+[docs/](docs/) for everything else. The docs carry the detail and — more usefully
+— the reasoning behind decisions that look arbitrary until you know what broke.
+Most directories also carry a short `CLAUDE.md` naming the docs that govern the
+code in them. All of it is kept true in the same commit as the code it
+describes.
 
 ```bash
 npm run typecheck
 npm run lint
-npm run check:draft           # and the other checks; see CLAUDE.md
+npm run check:draft           # and the other checks; see docs/checks.md
 ```
 
 Each `check:*` script guards a regression that has already happened once. The
