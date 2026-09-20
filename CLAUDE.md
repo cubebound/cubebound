@@ -43,15 +43,17 @@ as a convenience. **Stubs are pointers and hold no rules of their own.**
 cube, search and add cards, view it by domain/cost/type, and share a public URL
 anyone can browse and clone.
 
-**[docs/roadmap-and-status.md](docs/roadmap-and-status.md) owns the build
-order.** What has shipped, what is next and in what sequence live there and
-nowhere else, so this file cannot drift from them.
+**[docs/roadmap-and-status.md](docs/roadmap-and-status.md) is the way in to the
+build order**, and it links the live doc that is authoritative. What has shipped
+and what comes next live there, never here, so this file cannot drift from them.
 
 **Do NOT build ahead of that order, and read it before starting anything new.**
-The prohibition is useless without the list, and the list moves: solo drafting
-and the Draftmancer export were both brought forward by request, ahead of items
-above them. Reordering is the owner's call, made explicitly, never a judgement
-to make while implementing something else.
+The prohibition is useless without the list, and the list moves in both
+directions: solo drafting and the Draftmancer export were pulled forward, while
+multiplayer lobbies and a search-syntax language have since been decided against
+outright. An item you remember from an earlier session may no longer be on it.
+Reordering is the owner's call, made explicitly, never a judgement to make while
+implementing something else.
 
 ## Stack
 

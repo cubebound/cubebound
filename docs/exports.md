@@ -6,12 +6,14 @@ for Piltover Archive (see [draft.md](draft.md)). `src/lib/draftmancer-export.ts`
 **whole cube** into a Draftmancer Custom Card List so other people can draft it.
 
 - **Why Draftmancer at all.** Our own drafting is one person against
-  deliberately dumb bots, and multiplayer lobbies are item 4 of phase 2 —
-  a websocket server we have not written. Draftmancer already runs multiplayer
-  drafts in a browser, and its **custom card** support lets it run a game it has
-  never heard of: `[CustomCards]` defines cards by name, type and image URL, and
-  the sheets below reference them. Cubecana runs Lorcana cubes through it the
-  same way. So the export substitutes for the expensive feature.
+  deliberately dumb bots, and **we are not building multiplayer lobbies** — that
+  is parked, and this is what replaces it rather than a stopgap until it is
+  written. Draftmancer already runs multiplayer drafts in a browser, and its
+  **custom card** support lets it run a game it has never heard of:
+  `[CustomCards]` defines cards by name, type and image URL, and the sheets below
+  reference them. Cubecana runs Lorcana cubes through it the same way. So a
+  websocket server we would have had to write and host is a file we generate.
+  See the build order in [roadmap-and-status.md](roadmap-and-status.md).
 - **Exporting needs no account.** The route has always been `canUseCube` with
   whatever viewer there was, signed out included; the draft screen now renders
   signed out too, so the tab is actually reachable — see [draft.md](draft.md). A cube you

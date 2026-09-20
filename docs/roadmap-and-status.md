@@ -20,11 +20,12 @@ preview exactly what matched, then commit.
 **Solo bot drafting has shipped, and its settings are configurable** — choose
 seats, packs, pack size and reserved legend/battlefield slots, then draft
 against bots. Milestone B makes the bots smart; milestone C adds the post-draft
-deck builder. See "Draft".
+deck builder. See [draft.md](draft.md).
 
 **Export to Draftmancer has shipped** — any cube downloads as a Draftmancer
-Custom Card List, so eight people can draft it in a browser today rather than
-waiting on multiplayer lobbies. See "Exports".
+Custom Card List, so eight people can draft it in a browser. It is not a
+stopgap for multiplayer lobbies: those are parked, and this is the answer
+instead. See [exports.md](exports.md).
 
 **Crack-A-Pack has shipped** — the third tab on the draft settings screen draws
 one pack as a single high-resolution image to post, replacing the screenshots
@@ -46,28 +47,53 @@ Open items:
 
 ## Build order
 
-**This is the list the root CLAUDE.md defers to, and the only place it is
-stated. Next up is search syntax, item 1.** The rule against building ahead of
-this order lives in the root [CLAUDE.md](../CLAUDE.md); keeping the order itself
-in one place is what lets that rule mean anything.
+**The [cubebound build order](https://claude.ai/artifact/5xyrDck2rNoMExUoVtrqGW) doc
+is the roadmap, and it is the only authoritative copy.** It carries each item's
+reasoning and your own note deciding it. The list below is a **snapshot taken on
+19 September 2026** so a session with no access to that doc is not flying blind;
+where the two disagree, the doc wins, and if you are about to start something,
+open it rather than trusting this.
 
-A ✅ means the item shipped whole. Item 3 did not: its milestone A shipped and
-B and C are open, which is why the tick is missing and the note is there
-instead. Phase 2, in priority order:
+**Now**
 
-1. Search syntax (`domain:fury cost:2 type:unit`)
-2. ✅ Cube analytics — energy curve, domains, types, rarity, rules-text length, keywords. See [analytics.md](analytics.md).
-3. Solo bot drafting — **milestone A is done, ahead of 1 and 2 by request.**
-   B (smart bots) and C (the post-draft deck builder) are still open. See
-   [draft.md](draft.md).
-4. Multiplayer draft lobbies (websockets)
-5. Community features (clone, changelogs, card pick data)
-6. Exports (proxy sheets, deck lists compatible with other Riftbound tools) —
-   **the Draftmancer cube export landed early, by request**, like solo drafting
-   did before it. The reasoning was that it substitutes for item 4 at a fraction
-   of the cost: Draftmancer already runs multiplayer drafts in a browser, so a
-   cube file gets people drafting together without us writing a websocket
-   server. Proxy sheets and the rest of item 6 are still unbuilt.
+1. ✅ CLAUDE.md cleanup, before any feature. Merged `6175c9a`, `1081b67`, `389ce8e`.
+2. ✅ The Legacy booster becomes the default everywhere. Merged `195a160`.
+3. **Account deletion.** `/privacy` and `/settings` both promise it and it does not
+   exist; `deleteUserAccount` today is admin-only and refuses self-deletion. Those
+   two pages change in the same commit as the button. See [auth.md](auth.md) and
+   [moderation.md](moderation.md).
+4. **Investigate whether large imports are failing.** A 426-line buylist is the
+   signal. Diagnosis before any fix, and `npm run stats` reports import sizes for
+   exactly this. See [agents.md](agents.md).
+5. Give a new cube somewhere to start.
+5b. Rename a cube while cloning it, so a clone is not stuck with `copy-of-`.
+6. Popularity %, placed carefully.
+
+**Next**
+
+7. Limited formats: a sealed tab, then retail products.
+8. The Draftmancer round trip — a spike, not a build.
+9. Smarter bots. Lower priority.
+
+**Workflow** (items 10 to 14, all of which are about how the work gets done rather
+than what ships)
+
+10. ✅ Give Claude the data — `npm run stats`, the read-only production role, MCP.
+11. ✅ The four agents in `.claude/agents/`.
+12. Automation worth having.
+13. How we work, changed.
+14. ✅ CLAUDE.md, split by what it costs not to know. This doc set is that item.
+
+**Parked, with the decision already made — do not re-argue these.** Multiplayer
+draft lobbies are **not being built**: item 8, the Draftmancer handoff, is the
+answer instead. Also parked: one shared filter expression language (the card pool
+is small enough that it is not required yet), proxy sheets, a deck builder over a
+drafted pool, cube snapshots, a public read API, surfacing draftability on the cube
+page, and anything needing a migration. The doc records your reason for each.
+
+**The old phase-2 list is superseded** and is only in git history now. It led with
+search syntax and had multiplayer lobbies at item 4, and both of those are decided
+the other way.
 
 ## Phase 1 milestones
 
