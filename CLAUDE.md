@@ -10,16 +10,26 @@ on every session, which is the whole point: this file used to be 2,815 lines and
 was loaded in full before any work started, including into every subagent.
 
 Most directories also carry their own `CLAUDE.md`, three or four lines, naming
-the docs that govern the code in them. Those are meant to load when a file tool
-touches that directory, but **do not count on it.** Measured on 19 September 2026,
-in the first real session after the split: a session that reads through `cat`,
-`grep` and `sed` inside Bash rather than through the Read tool never sees them,
-because the harness cannot observe what happens inside a shell command. A stub
-also fires for its own directory only, never the subtree beneath it, and a
-directory that does not exist yet has none at all. **The table under "Where to
-read next" is the part that always loads**, so treat it as the rule and a stub as
-a convenience that may not arrive. **Stubs are pointers and hold no rules of
-their own.**
+the docs that govern the code in them. Both of the following were measured on
+19 September 2026, in the first sessions after the split.
+
+**They load on a Read, and not on a shell command.** Reading a file with the Read
+tool delivers them; reading the same file with `cat`, `grep` or `sed` inside Bash
+delivers nothing, because the harness cannot see which directory a shell command
+touched. So in a session that prefers Bash for file access, no stub ever fires and
+the routing table below is doing all the work.
+
+**They load upward, every ancestor at once.** A Read of `src/lib/draft/bots.ts`
+pulls `src/lib/draft/`, `src/lib/` and any other ancestor holding one. They do
+*not* load downward: a stub never covers the subtree beneath it. That asymmetry is
+why a stub sitting above other stubs says it governs only the files directly in
+its own directory — without that, one Read of a draft file arrived carrying nine
+doc pointers, seven of them about auth, printings and card images. `check:docs`
+enforces it. **Ignore an ancestor stub when you are working deeper than it.**
+
+A directory that does not exist yet has no stub at all. **The table under "Where
+to read next" is the part that always loads**, so treat it as the rule and a stub
+as a convenience. **Stubs are pointers and hold no rules of their own.**
 
 - **Keep the docs true in the same commit.** Any change to behavior, schema or
   conventions updates the doc that owns it alongside the code, not in a

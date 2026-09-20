@@ -17,6 +17,13 @@
  * that only fires for one directory, which is how the same fact ends up in two
  * places saying different things.
  *
+ * Stubs load *upward*: reading src/lib/draft/bots.ts pulls src/lib/draft/,
+ * src/lib/ and every other ancestor that has one. Measured, and the reason a
+ * stub over a subtree has to say it governs only its own files - without that,
+ * one Read of a draft file arrived with nine doc pointers, seven of them about
+ * auth, printings and card images. A stub that misroutes at that rate is worse
+ * than no stub.
+ *
  * Needs nothing. Runs in CI.
  *
  *   npm run check:docs
@@ -128,6 +135,20 @@ for (const stub of stubs) {
   expectTrue(`${rel} names no doc`, /docs\/[a-z-]+\.md/.test(text));
   // A stub that grew headings is a stub that grew content.
   expectTrue(`${rel} has headings, so it is holding content rather than pointing`, !/^#{1,6} /m.test(text));
+}
+
+// --- a stub over a subtree says so ------------------------------------------
+// Ancestors fire too, so an unscoped parent stub sprays its docs over every
+// read beneath it.
+const stubDirs = stubs.map((f) => relative(REPO, dirname(f)).split(sep).join("/"));
+for (const stub of stubs) {
+  const dir = relative(REPO, dirname(stub)).split(sep).join("/");
+  const hasDescendants = stubDirs.some((d) => d !== dir && d.startsWith(`${dir}/`));
+  if (!hasDescendants) continue;
+  expectTrue(
+    `${dir}/CLAUDE.md sits above other stubs but does not say it governs only its own files - it will fire on every read beneath it`,
+    read(stub).includes("governs the"),
+  );
 }
 
 // --- the stubs point at directories that exist ------------------------------
