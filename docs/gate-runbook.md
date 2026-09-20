@@ -109,6 +109,18 @@ believing any gate result late in a sitting.
   `--user-data-dir`: passed first try. `check:auth-flow` and
   `check:primer-toolbar` share that instance, so they are exposed to the same
   thing.
+- **A fresh Chrome can also come up without binding the debug port at all**, so
+  this is not only a long-session problem. On 20 September 2026 the
+  `Start-Process` launch above produced a live `chrome.exe` with nothing
+  listening on 9222: `netstat` showed no listener and `/json/version` refused
+  the connection. Nothing reported an error — the first sign was
+  `check:auth-flow` failing with **`check crashed: fetch failed`**, which names
+  neither Chrome nor the port. Killing every `chrome.exe`, deleting the profile
+  directory and launching `chrome.exe` directly rather than through
+  `Start-Process` bound it immediately and it stayed up for the rest of the run.
+  **So `fetch failed` in a Chrome-driven check means look at 9222 before looking
+  at the code**, and confirm the endpoint answers before starting a gate rather
+  than assuming a running process implies a listening one.
 - **Restart the dev server when a card route hangs.** One slow query exhausts
   the app's Drizzle pool (`max: 6` — see `check:pool`), and every card request
   after it queues forever: `/cards` sat at 200s while the database answered the
