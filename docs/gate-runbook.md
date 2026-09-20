@@ -56,7 +56,30 @@ server the way Chrome is launched above — `Start-Process`, with the working di
 its wrapper exits: on 19 September 2026 that killed the dev server mid-gate, taking
 `check:card-filters` onward with it, and later killed headless Chrome, which left
 `check:auth-flow` hanging on a debugger that was no longer there. Neither failure named
-its real cause. Give each check a timeout as well, so one hang cannot stall the run.
+its real cause.
+
+**Confirm the probe is armed before trusting the server, by grepping its log for
+`[otp-probe] armed`.** Nothing else can tell you. `otp-probe.mjs` prints that line
+unconditionally when it arms, and an unarmed server is identical to an armed one in every
+other respect: it serves `/cards` in 200ms, passes the other fifteen checks, and fails
+only `check:magic-link`, with "no /auth/v1/otp request was captured within 15s" — which
+this runbook already attributes to a poisoned `.next`, so the obvious reading is the wrong
+one. On 19 September 2026 that cost a re-run: the server had been started through the
+`dev:probe` script and still had no probe.
+
+The way it happened is worth knowing, because the launch line looks right. In `cmd`,
+`set SIGNIN_PROBE=1 && npm run dev:probe` assigns **`"1 "`, with the trailing space**, and
+the probe tests `=== "1"`, so it stays inert and says nothing. Close the space up
+(`set SIGNIN_PROBE=1&& …`), or set it in PowerShell with `$env:SIGNIN_PROBE = '1'` before
+`Start-Process`, which is clearer.
+
+**Give each check a timeout, but read its exit code rather than its job state.** Wrapping
+each check in `Start-Job` is the obvious way to get a timeout, and it silently swallows
+failures: the job reaches `Completed` even when the `npm run` inside it exits 1, so a
+summary built from `$job.State` reports a failing check as a pass. That happened on the
+same run and was caught only by reading the raw output. Check `$LASTEXITCODE` inside the
+job, or use the plain foreground loop above, which reads `$?` from the last native command
+and does not have the problem.
 
 **Two of these fail transiently and pass on a re-run** — `check:browse-grid` and
 `check:deck-export` both did so in one sitting, aborting with an undici
