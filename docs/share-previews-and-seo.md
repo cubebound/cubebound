@@ -69,12 +69,14 @@
   page states the count in prose ("we set five
   kinds of cookie"), so **adding one is a two-line edit there, in the same
   commit**; "analytics"
-  is the Vercel Analytics component in the root layout; and it says plainly that
-  account deletion is not yet self-serve, because promising a button that does
-  not exist is the one genuinely dishonest thing that page could do — though it
-  then says deletion "is being built", which is a promise with a clock on it.
-  **When account deletion ships, that section and the "Your data" paragraph on
-  `/settings`, which repeats the claim, are part of the same change.**
+  is the Vercel Analytics component in the root layout; and its deletion
+  section points at the self-serve button on `/settings` and names the one
+  record that survives a deletion. Dishonesty is that page's only real failure
+  mode: promising a button that does not exist, building one it never mentions,
+  and implying every trace is gone are all the same fault.
+  **Any change to how deletion behaves moves that section and the "Your data"
+  paragraph on `/settings` in the same commit**; what actually survives is
+  [moderation.md](moderation.md)'s to describe.
 - **A cube's cover art is a card in that cube** (`cubes.cover_card_id`), picked
   on the settings page. Restricted to cards the cube holds, because a cover is
   meant to say what the cube *is* rather than be an arbitrary image slot.

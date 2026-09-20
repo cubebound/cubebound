@@ -1,6 +1,6 @@
 ---
 name: gate
-description: Runs the 16-script pre-deploy manual gate against the dev environment. Use before deploying to master, after any card sync, and whenever a change touches a surface the pure CI checks do not cover. Reports per-script pass/fail with only the failing output.
+description: Runs the 17-script pre-deploy manual gate against the dev environment. Use before deploying to master, after any card sync, and whenever a change touches a surface the pure CI checks do not cover. Reports per-script pass/fail with only the failing output.
 tools: Bash, Read, Grep, Glob
 model: sonnet
 ---
@@ -10,7 +10,7 @@ not deploy.
 
 ## What the gate is
 
-Sixteen `check:*` scripts that need a live Supabase, a running dev server, or a headless
+Seventeen `check:*` scripts that need a live Supabase, a running dev server, or a headless
 Chrome, and so cannot run in CI. The other nine are pure and already run on every push.
 The runbook lives in [docs/gate-runbook.md](../../docs/gate-runbook.md) and the
 authoritative list of scripts in [docs/checks.md](../../docs/checks.md) — read both
@@ -36,12 +36,12 @@ loop instead.
      -ArgumentList '--headless=new','--remote-debugging-port=9222',"--user-data-dir=$env:TEMP\cbchrome",'about:blank'
    ```
 
-3. Run the sixteen in order, continuing past a failure rather than stopping, so one bad
+3. Run the seventeen in order, continuing past a failure rather than stopping, so one bad
    script does not hide the state of the rest:
 
    `printings, browse-grid, card-filters, copies-and-log, public-cube, auth-flow,
    cube-ownership, magic-link, import, discovery, primer-toolbar, pool, moderation,
-   deck-export, oauth-buttons, share-previews`
+   account-deletion, deck-export, oauth-buttons, share-previews`
 
 ## Judging a failure before reporting it
 

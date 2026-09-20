@@ -37,6 +37,7 @@
     "check:deck-export": "tsx --env-file-if-exists=.env.local scripts/check-deck-export.mts",
     "check:oauth": "tsx scripts/check-oauth.mts",
     "check:oauth-buttons": "tsx scripts/check-oauth-buttons.mts",
+    "check:account-deletion": "tsx --env-file-if-exists=.env.local scripts/check-account-deletion.mts",
     "check:moderation": "tsx --env-file-if-exists=.env.local scripts/check-moderation.mts",
     "check:draftmancer": "tsx scripts/check-draftmancer.mts",
     "check:staged-edit": "tsx scripts/check-staged-edit.mts",

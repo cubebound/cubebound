@@ -245,18 +245,18 @@ Commit per logical piece of work with a descriptive message. **Do not merge to
 
 ## Checks and deploying
 
-Each check guards a regression that already happened once. Run the ones
+Nearly every check guards a regression that already happened once. Run the ones
 touching what you changed; run the manual gate in full before a deploy. The
 ones needing a database hit **dev**, never production — see above —
 which is why they can create and delete accounts freely.
 
 The table of scripts and what each guards is in [docs/checks.md](docs/checks.md);
-the runbook for the sixteen manual ones is in [docs/gate-runbook.md](docs/gate-runbook.md).
+the runbook for the seventeen manual ones is in [docs/gate-runbook.md](docs/gate-runbook.md).
 
 ## Delegating
 
 **The gate runs through the `gate` agent — always, and without judgement.** Not "prefer",
-not "when the output looks long". Sixteen scripts produce screens of output and one bit of
+not "when the output looks long". Seventeen scripts produce screens of output and one bit of
 signal, and absorbing that in the main thread is the precise cost the agent exists to
 avoid. The same holds for the other three: a usage question goes to `data`, a roadmap item
 goes to `planner` before any code is written, and a diff's documentation updates go to

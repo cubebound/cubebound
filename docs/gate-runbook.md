@@ -1,8 +1,8 @@
 # The manual gate
 
-## Why the other sixteen are a manual gate, not CI
+## Why the other seventeen are a manual gate, not CI
 
-Five of them `INSERT` directly into `auth.users` and then exchange a password
+Six of them `INSERT` directly into `auth.users` and then exchange a password
 grant against a live GoTrue endpoint to mint a session cookie. That needs a
 real Supabase project, not a Postgres service container — and migration `0002`
 adds a foreign key into `auth.users`, so migrations don't even apply to bare
@@ -30,7 +30,8 @@ npm run check:copies-and-log && npm run check:public-cube && \
 npm run check:auth-flow && npm run check:cube-ownership && \
 npm run check:magic-link && npm run check:import && npm run check:discovery && \
 npm run check:primer-toolbar && npm run check:pool && \
-npm run check:moderation && npm run check:deck-export && \
+npm run check:moderation && npm run check:account-deletion && \
+npm run check:deck-export && \
 npm run check:oauth-buttons && \
 npm run check:share-previews
 ```
@@ -44,7 +45,7 @@ Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" `
   -ArgumentList '--headless=new','--remote-debugging-port=9222',"--user-data-dir=$env:TEMP\cbchrome",'about:blank'
 foreach ($c in @("printings","browse-grid","card-filters","copies-and-log","public-cube",
                  "auth-flow","cube-ownership","magic-link","import","discovery",
-                 "primer-toolbar","pool","moderation","deck-export",
+                 "primer-toolbar","pool","moderation","account-deletion","deck-export",
                  "oauth-buttons","share-previews")) {
   npm run "check:$c"; if (-not $?) { "FAILED at check:$c"; break }
 }
@@ -58,10 +59,19 @@ its wrapper exits: on 19 September 2026 that killed the dev server mid-gate, tak
 `check:auth-flow` hanging on a debugger that was no longer there. Neither failure named
 its real cause.
 
+**`Start-Process` cannot launch `npm` directly**, unlike the `chrome.exe` line above, so
+the two are not quite symmetrical. `npm` on Windows is a `.cmd` shim rather than an
+executable, and `Start-Process -FilePath npm` fails outright with "not a valid Win32
+application". Wrap it:
+
+```powershell
+Start-Process -FilePath cmd.exe -ArgumentList '/c','npm run dev:probe' -WorkingDirectory $PWD
+```
+
 **Confirm the probe is armed before trusting the server, by grepping its log for
 `[otp-probe] armed`.** Nothing else can tell you. `otp-probe.mjs` prints that line
 unconditionally when it arms, and an unarmed server is identical to an armed one in every
-other respect: it serves `/cards` in 200ms, passes the other fifteen checks, and fails
+other respect: it serves `/cards` in 200ms, passes the other sixteen checks, and fails
 only `check:magic-link`, with "no /auth/v1/otp request was captured within 15s" — which
 this runbook already attributes to a poisoned `.next`, so the obvious reading is the wrong
 one. On 19 September 2026 that cost a re-run: the server had been started through the

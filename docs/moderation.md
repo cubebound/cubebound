@@ -5,10 +5,12 @@ moderator role beyond it yet.
 
 - **Suspend and hide are the primary verbs; delete is the last resort.** There
   is no point-in-time recovery on this plan, so a wrong delete cannot be undone
-  from anywhere. Both delete actions require the cube name or username typed
-  exactly, and `check:cube-ownership` fails the build if either stops
-  *comparing* that confirmation — checking only that the word `confirm` appears
-  let a mutation through that deleted the guard and left the variable behind.
+  from anywhere. All three delete paths require the cube name or username typed
+  exactly, and a check fails the build if any of them stops *comparing* that
+  confirmation — `check:cube-ownership` for the two a moderator drives,
+  `check:account-deletion` for an account deleting itself. Checking only that
+  the word `confirm` appears is not enough: that let a mutation through which
+  deleted the guard and left the variable behind.
 - **`canViewCube` is still the one read rule**, now taking `hiddenAt` and
   `ownerSuspendedAt`. Those live on `ViewableCube` as a required type rather
   than being read loosely, so adding a moderation state breaks every call site
@@ -44,6 +46,29 @@ moderator role beyond it yet.
   trace a deleted cube or account leaves. Unlike `recordCubeChange`, logging
   here does **not** swallow failures, and it is written *before* the action, so
   an action with no audit trail cannot happen.
+- **An account can delete itself from `/settings`, and that path deliberately
+  inherits neither of the admin path's refusals.** `deleteUserAction` refuses
+  self-deletion and refuses deleting another admin; both exist to stop a
+  moderator acting on the wrong row, and neither means anything when the actor
+  *is* the row. So an **admin can delete their own account** — and because
+  nothing in `src/` writes `is_admin`, the last one doing that leaves
+  `/moderation` unreachable until someone runs SQL against production, which is
+  why `/settings` asks `countAdmins()` and warns on the form. And a
+  **suspended account can delete itself**: `suspensionError` gates the paths
+  that let an account go on building things, and refusing here would turn a
+  suspension into data retention. Both are decisions, not oversights.
+- **There is no grace period and no soft delete.** Submitting the form deletes
+  the row. A window in which the account still exists means keeping the data
+  you have just told someone is gone, plus a restore path and a signed-out way
+  to reach it, and none of that is worth building at this size. The copy on
+  `/settings` and `/privacy` therefore says the deletion is immediate.
+- **Not every `moderation_log` row has a moderator.** A self-deletion writes
+  `account_self_deleted` with a **null** `actor_id`: the actor is the row being
+  deleted, so even writing the id would leave the FK to null it a moment later.
+  `actor_username` is NOT NULL and is what keeps the row readable, which is what
+  makes "where did that cube go" answerable afterwards. `ModerationEntry.actorId`
+  is `string | null` for that reason, so anything rendering the log has to
+  handle a missing actor rather than assume one.
 - Deleting an account deletes the **`auth.users`** row, not just the profile.
   Deleting the public row alone would leave an auth account that can still sign
   in and claim a fresh username on `/welcome` — the same person, a clean slate,

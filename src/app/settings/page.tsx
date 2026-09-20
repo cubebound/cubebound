@@ -4,8 +4,13 @@ import { redirect } from "next/navigation";
 
 import { linkProvider } from "@/app/auth/actions";
 import ProviderButtons from "@/components/provider-buttons";
+import { countCubesForOwner } from "@/db/queries/cubes";
+import { countDraftsForUser } from "@/db/queries/drafts";
+import { countAdmins } from "@/db/queries/moderation";
 import { getCurrentUser } from "@/lib/auth";
 import { isOAuthProvider, PROVIDER_LABELS, providersOf } from "@/lib/auth-providers";
+
+import DeleteAccount from "./delete-account";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -29,7 +34,15 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   // here rather than there so the message lands next to the button that
   // produced it. `ProviderButtons` has its own error slot, but that one only
   // covers a failure the action returns without leaving the site.
-  const params = await searchParams;
+  // All independent, so they go out together rather than in sequence. The two
+  // counts only feed the deletion confirmation's copy; `countAdmins` is asked
+  // only when it could matter, which is one account on the whole site.
+  const [params, cubeCount, draftCount, adminCount] = await Promise.all([
+    searchParams,
+    countCubesForOwner(current.profile.id),
+    countDraftsForUser(current.profile.id),
+    current.profile.isAdmin ? countAdmins() : Promise.resolve(0),
+  ]);
   const linkError = Array.isArray(params.error) ? params.error[0] : params.error;
   const asked = Array.isArray(params.linked) ? params.linked[0] : params.linked;
   // The URL says which provider to name; the account says whether it happened.
@@ -127,13 +140,25 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       <section className="mt-10 border-t border-line pt-6">
         <h2 className="text-lg font-semibold">Your data</h2>
         <p className="mt-2 text-sm text-muted">
-          You can delete any cube from its own Settings page. Deleting your whole
-          account isn&rsquo;t self-serve yet. See the{" "}
+          You can delete any cube from its own Settings page. To ask for a copy
+          of your data, see the{" "}
           <Link href="/privacy" className="underline underline-offset-2">
             privacy policy
-          </Link>{" "}
-          for how to ask.
+          </Link>
+          .
         </p>
+      </section>
+
+      <section className="mt-10 border-t border-line pt-6">
+        <h2 className="text-lg font-semibold">Delete account</h2>
+        <div className="mt-3">
+          <DeleteAccount
+            username={current.profile.username}
+            cubeCount={cubeCount}
+            draftCount={draftCount}
+            isLastAdmin={adminCount === 1}
+          />
+        </div>
       </section>
     </div>
   );

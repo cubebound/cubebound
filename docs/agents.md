@@ -8,7 +8,7 @@ one MCP config.
 
 | Agent | Use it for | Notes |
 | --- | --- | --- |
-| `gate` | Running the sixteen-script manual gate before a deploy or after a card sync | Carries the PowerShell runbook, the Chrome-on-:9222 launch, and the two transient failures. **Dev only.** |
+| `gate` | Running the seventeen-script manual gate before a deploy or after a card sync | Carries the PowerShell runbook, the Chrome-on-:9222 launch, and the two transient failures. **Dev only.** |
 | `data` | Any question about real usage — how many cubes, how many empty, how many drafts finish | Read-only by rule and by credential. Starts from `npm run stats`. |
 | `planner` | Turning a roadmap item into an implementation plan before writing code | Must cite the conventions here that constrain the change, and name the checks that cover it. |
 | `docs` | Keeping the docs true after a change | Enforces the same-commit rule below. Counts and tables are where it goes stale. |

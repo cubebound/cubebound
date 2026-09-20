@@ -17,8 +17,14 @@ Audited before the first wide share. What was checked, and what it turned up.
   among them** — its five sign-in actions are gated on their own provider
   allowlist and on `getUser()`, but they sit outside that structural guarantee
   rather than inside it. That predates OAuth (`claimUsername` has always lived
-  there) and is worth closing separately. CSRF is covered by Next's Server Action origin
-  check — a spoofed `x-forwarded-host` without a matching `Origin` is rejected.
+  there) and is worth closing separately. **The sixth, `src/app/settings/actions.ts`,
+  sits outside it by design**: `deleteOwnAccountAction` takes its target from
+  `getCurrentUser()` and reads a single field from the form, which it *compares*
+  and never selects on, so there is no caller-supplied id left to gate.
+  `check:account-deletion` asserts that structurally — that `confirm` is the only
+  key read — which reaches the same guarantee by a different route. CSRF is
+  covered by Next's Server Action origin check — a spoofed `x-forwarded-host`
+  without a matching `Origin` is rejected.
 - **The auth callback's `next=` cannot leave the origin.** `${origin}${next}`
   was tested against `//evil`, `/\evil`, `///evil` and an absolute URL: the
   authority is already fixed by the time the path is appended.
@@ -46,7 +52,7 @@ Audited before the first wide share. What was checked, and what it turned up.
   every visitor who takes a provider button is one who never touches the limit —
   but the magic-link endpoint is still there and still unthrottled.
 - **No report or takedown path** for user-written cube text now that Explore
-  indexes it, and no account deletion. Both matter more the wider this goes.
+  indexes it. That matters more the wider this goes.
 
 **Also fixed, after measuring rather than assuming:**
 - **The OG image routes are the most expensive unauthenticated endpoint** — a
@@ -71,6 +77,6 @@ Audited before the first wide share. What was checked, and what it turned up.
 ## Still open
 
 - Still open before a wide launch: a **Supabase auth rate limit** (not code —
-  see above). Moderation now covers hiding and account removal; a
-  user-facing *report* path is still absent, so problems have to be noticed
-  rather than reported.
+  see above). Moderation covers hiding, suspension and removal, and an account
+  can now delete itself from `/settings`; a user-facing *report* path is still
+  absent, so problems have to be noticed rather than reported.

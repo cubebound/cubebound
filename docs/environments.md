@@ -73,6 +73,6 @@ last several are the draft settings rework and Crack-A-Pack
 (`draft-screen-rollout`), the printing-collapse work (`printing-treatments`),
 the owner's redirect off the visitor view, real 404s on `/edit` and
 `/settings`, and the Printing dropdown's two-column query. None of them added
-a migration, so production needs nothing applied by hand. A gate run is sixteen
-scripts, `check:oauth-buttons` being the sixteenth; the other eight are pure
+a migration, so production needs nothing applied by hand. A gate run is seventeen
+scripts, `check:account-deletion` being the seventeenth; the other nine are pure
 and run in CI instead.

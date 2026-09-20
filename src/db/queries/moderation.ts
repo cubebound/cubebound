@@ -11,6 +11,11 @@ import { cubes, moderationLog, users } from "../schema";
  * anywhere — which is why the reversible verbs are the ones the UI leads with
  * and why every action writes a `moderation_log` row with a snapshot first. For
  * a delete that snapshot is the only thing left afterwards.
+ *
+ * **Not every row has a moderator.** `account_self_deleted` is written by the
+ * account itself from `/settings`, with a null actor — the actor is the row
+ * being deleted, and `actor_id`'s ON DELETE SET NULL would null it regardless.
+ * `actor_username` is NOT NULL and is what makes such a row readable afterwards.
  */
 
 export type ModerationAction =
@@ -19,10 +24,13 @@ export type ModerationAction =
   | "cube_deleted"
   | "user_suspended"
   | "user_unsuspended"
-  | "user_deleted";
+  | "user_deleted"
+  | "account_self_deleted";
 
 export interface ModerationEntry {
-  actorId: string;
+  /** Null when the account deleted itself: there is no moderator to point at,
+   *  and the FK would null it as the delete cascaded anyway. */
+  actorId: string | null;
   actorUsername: string;
   action: ModerationAction;
   targetType: "cube" | "user";
@@ -116,6 +124,22 @@ export async function summarizeUser(userId: string): Promise<{
  */
 export async function deleteUserAccount(userId: string): Promise<void> {
   await db.execute(sql`delete from auth.users where id = ${userId}::uuid`);
+}
+
+/**
+ * How many accounts carry the admin flag.
+ *
+ * Only `/settings` asks, and only when the viewer is an admin, so the account
+ * about to delete itself can be told whether it is the last one. Nothing in
+ * `src/` writes `is_admin`, so an admin who deletes themselves with this at 1
+ * leaves `/moderation` unreachable until someone runs SQL against production.
+ */
+export async function countAdmins(): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(users)
+    .where(eq(users.isAdmin, true));
+  return row?.count ?? 0;
 }
 
 export interface AdminUserRow {

@@ -1,7 +1,9 @@
 # Auth and sign-in
 
 Magic link, plus **Discord and Google**. `/settings` is where an account sees
-what it has and adds what it lacks.
+what it has, adds what it lacks, and ends: self-serve deletion is the last
+section of that page, and the rules governing it are
+[moderation.md](moderation.md)'s.
 
 - **The callback needed no change.** `signInWithOAuth` returns to the same
   `/auth/callback`, which already does `exchangeCodeForSession` — the identical
