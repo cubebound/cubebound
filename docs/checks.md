@@ -27,6 +27,7 @@
 | `check:docs` | the doc split holds: the root stays under its line ceiling, every `docs/*.md` is reachable from the routing table or a stub, every relative link resolves, no `@` import reinstates the startup cost, and a stub stays a pointer | nothing | **CI** |
 | `check:oauth-buttons` | `/login` offers both providers as form fields, links to no provider directly, and still carries the same-address warning | dev server | manual gate |
 | `check:moderation` | hide/suspend take effect and drop out of every listing including the owner's own; `canUseCube` refuses even the owner; deleting an account cascades and leaves a surviving log entry | DB | manual gate |
+| `check:account-deletion` | self-serve deletion, which is the one check here that guards a mistake that must not happen *once* rather than one that already has: structurally, that `confirm` is the only form key the action reads and that the typed name is still *compared*; then that a wrong confirmation deletes nothing, that a forged body naming a bystander deletes the caller and not the bystander, that the cascade takes the cubes, cards, drafts and follows, that the log row outlives its author with a null actor, that a suspended account can still delete itself, and that the dead cookie no longer reaches `/settings`. The draft and follow it deletes are real rows it created first, because asserting `drafts = 0` for an account that never drafted passes whatever the schema does and only reads like coverage | Supabase + dev server | manual gate |
 | `check:pool` | the pool is bounded and releases (`max` / `idle_timeout` / `connect_timeout`), the filter options and default card page are memoised, and filtered searches are **not** | DB (3 queries) | manual gate |
 | `check:share-previews` | all three OG routes return real PNGs; cover set and cover falling back; a private cube stays generic; `og:image` is absolute | Supabase + dev server | manual gate |
 
@@ -86,7 +87,7 @@ the browser.
 with "no /auth/v1/otp request was captured within 15s", which reads as a broken sign-in
 path. The real cause is that the check waits for React to hydrate before clicking submit,
 and a poisoned `.next` never hydrates, so the click degrades to a native POST that Next
-rejects and no OTP request is ever made. The other fifteen pass, which makes it look
+rejects and no OTP request is ever made. The other sixteen pass, which makes it look
 specific to sign-in. There is no browser to hard-reload in a headless run, so the fix is
 to stop the dev server, delete `.next`, and restart it. Confirmed 19 September 2026: it
 failed identically on a comment-only branch and on `master`, and passed on both once
@@ -102,7 +103,7 @@ CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
 - **CI covers typecheck, lint, build and the nine pure checks** on push and PR:
   `check:primer-safety`, `check:draft`, `check:analytics`, `check:markdown-edit`,
   `check:draftmancer`, `check:pack-image`, `check:staged-edit`, `check:oauth` and
-  `check:docs`. The other sixteen need a live Supabase or the card pool and are a
+  `check:docs`. The other seventeen need a live Supabase or the card pool and are a
   documented pre-deploy manual gate — see [gate-runbook.md](gate-runbook.md). Run
-  that gate before deploying. (Twenty-five scripts in total; if that number moves,
+  that gate before deploying. (Twenty-six scripts in total; if that number moves,
   this line and the count above it move with it.)

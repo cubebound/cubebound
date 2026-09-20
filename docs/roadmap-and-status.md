@@ -34,6 +34,10 @@ CDN sends no CORS headers, which makes it the first feature where card art costs
 us bandwidth, and the reason it is the one export that needs an account. See
 "Crack-A-Pack".
 
+**Self-serve account deletion has shipped** — an account can delete itself from
+`/settings`, and `/privacy` describes what that does. See
+[moderation.md](moderation.md).
+
 Open items:
 - **The production origin is derived from the request**, not from config —
   `resolveSiteUrl` reads the forwarded host, so cubebound.gg, preview
@@ -58,10 +62,9 @@ open it rather than trusting this.
 
 1. ✅ CLAUDE.md cleanup, before any feature. Merged `6175c9a`, `1081b67`, `389ce8e`.
 2. ✅ The Legacy booster becomes the default everywhere. Merged `195a160`.
-3. **Account deletion.** `/privacy` and `/settings` both promise it and it does not
-   exist; `deleteUserAccount` today is admin-only and refuses self-deletion. Those
-   two pages change in the same commit as the button. See [auth.md](auth.md) and
-   [moderation.md](moderation.md).
+3. ✅ Account deletion. Self-serve from `/settings`; `/privacy` and the "Your
+   data" copy moved in the same commit, and `check:account-deletion` guards it.
+   See [moderation.md](moderation.md).
 4. **Investigate whether large imports are failing.** A 426-line buylist is the
    signal. Diagnosis before any fix, and `npm run stats` reports import sizes for
    exactly this. See [agents.md](agents.md).

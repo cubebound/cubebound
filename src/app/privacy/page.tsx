@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 /** The date the wording below last changed. Update it when the policy does. */
-const LAST_UPDATED = "16 August 2026";
+const LAST_UPDATED = "20 September 2026";
 
 /** Where privacy requests go. Defined once — it appears four times below, and
  *  a policy that lists an address nobody reads is worse than no policy. */
@@ -39,10 +39,12 @@ const linkClass = "underline underline-offset-2 hover:text-ink";
  * here. The names are written out rather than imported, so nothing breaks
  * when a constant changes and this list is the only thing tying them
  * together. "analytics" means the
- * Vercel Analytics component in the root layout, and the deletion section says
- * plainly that self-serve account deletion does not exist yet — promising a
- * button that isn't built would be the one genuinely dishonest thing this page
- * could do.
+ * Vercel Analytics component in the root layout, and the deletion section points
+ * at the self-serve button on /settings — which must stay in step with it, since
+ * promising a button that isn't built, or building one this page never mentions,
+ * would be the one genuinely dishonest thing this page could do. It also states
+ * the one record that survives a deletion, the `moderation_log` row, because a
+ * policy describing what the code does cannot imply every trace is gone.
  */
 export default function PrivacyPolicy() {
   return (
@@ -181,15 +183,28 @@ export default function PrivacyPolicy() {
           </p>
           <p>
             <strong className="font-medium text-ink">
-              Deleting your whole account is not yet self-serve.
+              You can delete your whole account yourself,
             </strong>{" "}
-            It is being built. In the meantime, email{" "}
+            from your{" "}
+            <Link href="/settings" className={linkClass}>
+              settings page
+            </Link>
+            . It takes effect immediately and cannot be undone: your account,
+            your cubes and their cards, your drafts and your follows all go.
+            Copies other people have made of your cubes belong to them and stay.
+          </p>
+          <p>
+            One record survives a deletion. We keep a log entry saying an
+            account was deleted, holding the username, the date and a short
+            summary of what it had, so that a cube disappearing from the site
+            has an explanation later. It is not linked to your email address.
+          </p>
+          <p>
+            To ask for a copy of what we hold about you, email{" "}
             <a href={`mailto:${CONTACT}`} className={linkClass}>
               {CONTACT}
             </a>{" "}
-            from the address you signed up with and we will delete your account,
-            your cubes and your drafts. You can also ask for a copy of what we
-            hold about you at the same address.
+            from the address you signed up with.
           </p>
         </Section>
 

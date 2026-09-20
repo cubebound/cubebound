@@ -8,7 +8,7 @@
 /explore                              public cube search — ?q= &card= &sort= &page=
 /u/{username}                         public profile — their public cubes; ?q= &page=
 /profile                              redirect to your own /u/{username}
-/settings                             account settings — sign-in methods
+/settings                             account settings — sign-in methods, delete your account
 /login  /welcome  /auth/callback      magic link, username claim, PKCE exchange
 /cubes  /cubes/new                    the signed-in user's cubes; ?tab=followed &q= &page=
 /cube/{username}/{slug}               public view — visibility-gated;
@@ -33,4 +33,5 @@
 ```
 
 Server Actions live in `src/app/cube/actions.ts`, `src/app/auth/actions.ts`,
-`src/app/cube/[username]/[slug]/draft/actions.ts` and `src/app/explore/actions.ts`.
+`src/app/cube/[username]/[slug]/draft/actions.ts`, `src/app/explore/actions.ts`,
+`src/app/moderation/actions.ts` and `src/app/settings/actions.ts`.
