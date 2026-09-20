@@ -44,12 +44,22 @@ Open items:
   `github.com/cubebound/cubebound`; `master` is production — see
   "Environments".
 
-## Product vision
+## Build order
 
-Later phases, in priority order:
+**This is the list the root CLAUDE.md defers to, and the only place it is
+stated. Next up is search syntax, item 1.** The rule against building ahead of
+this order lives in the root [CLAUDE.md](../CLAUDE.md); keeping the order itself
+in one place is what lets that rule mean anything.
+
+A ✅ means the item shipped whole. Item 3 did not: its milestone A shipped and
+B and C are open, which is why the tick is missing and the note is there
+instead. Phase 2, in priority order:
+
 1. Search syntax (`domain:fury cost:2 type:unit`)
-2. ✅ Cube analytics — energy curve, domains, types, rarity, rules-text length, keywords. See "Analytics".
-3. Solo bot drafting — **milestone A is done, ahead of 1 and 2 by request**
+2. ✅ Cube analytics — energy curve, domains, types, rarity, rules-text length, keywords. See [analytics.md](analytics.md).
+3. Solo bot drafting — **milestone A is done, ahead of 1 and 2 by request.**
+   B (smart bots) and C (the post-draft deck builder) are still open. See
+   [draft.md](draft.md).
 4. Multiplayer draft lobbies (websockets)
 5. Community features (clone, changelogs, card pick data)
 6. Exports (proxy sheets, deck lists compatible with other Riftbound tools) —
@@ -69,5 +79,5 @@ Later phases, in priority order:
 6. ✅ Cube view — public page, domain/cost grouping, view toggle, clone.
 7. ✅ Deploy to Vercel with the production domain — live at cubebound.gg.
 
-Phase 1 is done, and so is bulk import. Then phase 2 in the order under
-"Product vision", starting with search syntax. Do NOT build ahead of it.
+Phase 1 is done, and so is bulk import. What comes next is under "Build order"
+above.

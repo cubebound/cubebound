@@ -39,19 +39,19 @@ as a convenience. **Stubs are pointers and hold no rules of their own.**
 
 ## Where we are
 
-**Live at https://cubebound.gg.** Phase 1 is complete — all seven milestones,
-deploy included — and **the MVP loop is closed**: sign in → create a cube →
-search and add cards → view it by domain/cost/type → share a public URL that
+**Live at https://cubebound.gg**, with the MVP loop closed: sign in, create a
+cube, search and add cards, view it by domain/cost/type, and share a public URL
 anyone can browse and clone.
 
-The core loop (MVP): create a cube → search/add cards → view it organized by domain/cost/type → share a public URL others can browse and clone.
+**[docs/roadmap-and-status.md](docs/roadmap-and-status.md) owns the build
+order.** What has shipped, what is next and in what sequence live there and
+nowhere else, so this file cannot drift from them.
 
-The MVP loop is shipped and live. Do NOT build ahead of the current phase —
-reordering is the owner's call, made explicitly, not a judgement to make while
-implementing something else.
-
-What has shipped, the card counts, the open items and the ordered phase-2 list
-are in [docs/roadmap-and-status.md](docs/roadmap-and-status.md).
+**Do NOT build ahead of that order, and read it before starting anything new.**
+The prohibition is useless without the list, and the list moves: solo drafting
+and the Draftmancer export were both brought forward by request, ahead of items
+above them. Reordering is the owner's call, made explicitly, never a judgement
+to make while implementing something else.
 
 ## Stack
 
