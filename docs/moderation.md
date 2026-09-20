@@ -56,7 +56,10 @@ moderator role beyond it yet.
   why `/settings` asks `countAdmins()` and warns on the form. And a
   **suspended account can delete itself**: `suspensionError` gates the paths
   that let an account go on building things, and refusing here would turn a
-  suspension into data retention. Both are decisions, not oversights.
+  suspension into data retention. Both are decisions, not oversights, and
+  `check:account-deletion` pins the second one — `check:moderation` reads the
+  write gates structurally and `src/app/settings/actions.ts` is deliberately not
+  among them, so without that case either answer would pass the whole gate.
 - **There is no grace period and no soft delete.** Submitting the form deletes
   the row. A window in which the account still exists means keeping the data
   you have just told someone is gone, plus a restore path and a signed-out way

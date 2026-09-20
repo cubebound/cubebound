@@ -18,6 +18,8 @@
  *  - the cascade takes the cubes, cards, drafts and follows
  *  - the log row outlives its author, with a null actor and the username kept
  *  - the dead session cookie stops working immediately
+ *  - a suspended account can still delete itself, which is a decision rather
+ *    than an accident and which nothing else in the gate would notice
  *
  * Prerequisite: DB + dev server. Creates throwaway accounts and deletes them.
  *
@@ -31,6 +33,9 @@ import { fromEnvFile } from "./lib/env";
 import { createTestAccount, deleteTestAccounts } from "./lib/test-account";
 
 import { addCubeCard, createCube } from "../src/db/queries/cubes";
+import { followCube } from "../src/db/queries/discovery";
+import { createDraftRow } from "../src/db/queries/drafts";
+import { setUserSuspended } from "../src/db/queries/moderation";
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
 
@@ -112,6 +117,34 @@ try {
   });
   await addCubeCard(bystanderCube.id, unit.id, "main");
 
+  // A real draft and a real follow, so the cascade assertions below are not
+  // vacuous. Asserting `drafts = 0` for an account that never drafted passes
+  // whatever the schema does, which is worse than not asserting it: it reads
+  // like coverage. The follow deliberately points at somebody *else's* cube, so
+  // it cannot be carried away by the owner's own cube cascading and has to be
+  // taken by `cube_follows.user_id` itself.
+  await createDraftRow({
+    cubeId: victimCube.id,
+    drafterId: victim.id,
+    seed: "check-account-deletion",
+    config: {},
+    packs: [[[unit.id]]],
+    seats: 1,
+    humanSeat: 0,
+  });
+  await followCube(bystanderCube.id, victim.id);
+
+  expect(
+    (await countWhere("drafts", "drafter_id", victim.id)) === 1,
+    "fixture: the victim should have a draft before deletion, or the cascade " +
+      "assertion below proves nothing",
+  );
+  expect(
+    (await countWhere("cube_follows", "user_id", victim.id)) === 1,
+    "fixture: the victim should follow a cube before deletion, or the cascade " +
+      "assertion below proves nothing",
+  );
+
   // ---- the no-JS submit fields, off the server-rendered form --------------
   // React only emits a form's no-JS submit fields when the action carries
   // `$$FORM_ACTION` and the form is in the server response. Both are
@@ -125,14 +158,6 @@ try {
   // once, `$ACTION_REF_n` + `$ACTION_n:0` + `$ACTION_KEY` now). What this check
   // is entitled to assert is that *some* set of them is in the markup, not
   // which.
-  const page = await fetch(`${APP}/settings`, { headers: { cookie: victim.cookie } });
-  const html = await page.text();
-
-  const anchor = html.indexOf('name="confirm"');
-  const start = anchor === -1 ? -1 : html.lastIndexOf("<form", anchor);
-  const end = anchor === -1 ? -1 : html.indexOf("</form>", anchor);
-  const formHtml = start === -1 || end === -1 ? "" : html.slice(start, end);
-
   const unescape = (value: string) =>
     value
       .replace(/&quot;/g, '"')
@@ -141,38 +166,51 @@ try {
       .replace(/&gt;/g, ">")
       .replace(/&amp;/g, "&");
 
-  const hidden = [
-    ...formHtml.matchAll(/<input type="hidden" name="([^"]+)"(?: value="([^"]*)")?\s*\/?>/g),
-  ].map(([, name, value]) => [unescape(name), unescape(value ?? "")] as const);
+  /** The delete form's hidden fields, as that account's own render emits them. */
+  const deleteFormFields = async (cookie: string) => {
+    const page = await fetch(`${APP}/settings`, { headers: { cookie } });
+    const html = await page.text();
+    const anchor = html.indexOf('name="confirm"');
+    const start = anchor === -1 ? -1 : html.lastIndexOf("<form", anchor);
+    const end = anchor === -1 ? -1 : html.indexOf("</form>", anchor);
+    const formHtml = start === -1 || end === -1 ? "" : html.slice(start, end);
+    return [
+      ...formHtml.matchAll(/<input type="hidden" name="([^"]+)"(?: value="([^"]*)")?\s*\/?>/g),
+    ].map(([, name, value]) => [unescape(name), unescape(value ?? "")] as const);
+  };
 
-  expect(
-    formHtml.length > 0,
-    "no form carrying a `confirm` field in the /settings markup: the delete " +
-      "form is no longer server-rendered, so it cannot be submitted without JS",
-  );
+  /** Submits the delete form the way a browser with no JS would. */
+  const submitDelete = async (
+    cookie: string,
+    hidden: readonly (readonly [string, string])[],
+    fields: Record<string, string>,
+  ) => {
+    // multipart/form-data, which is the encoding the rendered form declares;
+    // `FormData` on the body sets the header and boundary.
+    const form = new FormData();
+    for (const [name, value] of hidden) form.append(name, value);
+    for (const [name, value] of Object.entries(fields)) form.append(name, value);
+    const res = await fetch(`${APP}/settings`, {
+      method: "POST",
+      headers: { cookie },
+      body: form,
+      redirect: "manual",
+    });
+    await res.text();
+  };
+
+  const hidden = await deleteFormFields(victim.cookie);
   expect(
     hidden.length > 0,
-    "the delete form has no hidden action fields: React emits those only for a " +
-      "bare server action, so the action has been wrapped in a client closure " +
-      "and the pre-hydration submit path is broken",
+    "no hidden action fields on a form carrying `confirm` in the /settings " +
+      "markup: React emits those only for a bare server action in the server " +
+      "response, so either the form moved behind client state or the action was " +
+      "wrapped in a client closure, and the pre-hydration submit path is broken",
   );
 
   if (hidden.length > 0) {
-    /** Submits the delete form the way a browser with no JS would. */
-    const submit = async (cookie: string, fields: Record<string, string>) => {
-      // multipart/form-data, which is the encoding the rendered form declares;
-      // `FormData` on the body sets the header and boundary.
-      const form = new FormData();
-      for (const [name, value] of hidden) form.append(name, value);
-      for (const [name, value] of Object.entries(fields)) form.append(name, value);
-      const res = await fetch(`${APP}/settings`, {
-        method: "POST",
-        headers: { cookie },
-        body: form,
-        redirect: "manual",
-      });
-      await res.text();
-    };
+    const submit = (cookie: string, fields: Record<string, string>) =>
+      submitDelete(cookie, hidden, fields);
 
     // ---- a wrong confirmation deletes nothing -----------------------------
     await submit(victim.cookie, { confirm: "not-my-username" });
@@ -284,6 +322,38 @@ try {
     );
   }
 
+  // ---- a suspended account can still delete itself ------------------------
+  // A decision, not an accident: `suspensionError` gates the paths that let an
+  // account go on building things, and refusing here would turn a suspension
+  // into data retention. Nothing else asserts it — `check:moderation` reads the
+  // write gates structurally and this file is not one of them — so without this
+  // case either answer would pass the whole gate.
+  const suspended = await createTestAccount(sql, { prefix: "acctsus" });
+  created.push(suspended.id);
+  await setUserSuspended(suspended.id, true);
+
+  const suspendedFields = await deleteFormFields(suspended.cookie);
+  expect(
+    suspendedFields.length > 0,
+    "a suspended account must still be able to reach its own delete form",
+  );
+  if (suspendedFields.length > 0) {
+    await submitDelete(suspended.cookie, suspendedFields, { confirm: suspended.username });
+    expect(
+      (await authRows(suspended.id)) === 0,
+      "a suspended account must be able to delete itself — refusing would turn " +
+        "suspension into data retention",
+    );
+    const [{ n: suspendedLog }] = await sql<{ n: number }[]>`
+      select count(*)::int as n from moderation_log
+       where target_id = ${suspended.id}::uuid and action = 'account_self_deleted'`;
+    expect(
+      suspendedLog === 1,
+      "a suspended account's self-deletion must still be logged, since the " +
+        "snapshot is the only record a moderator has afterwards",
+    );
+  }
+
   console.log(
     "account deletion: a forged body changed nobody else, the caller's rows " +
       "cascaded away, and the log row outlived them",
@@ -292,7 +362,8 @@ try {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);
 } finally {
   // The log rows reference a deleted actor by then, which is the intent.
-  await sql`delete from moderation_log where actor_username like 'acctdel%'`;
+  await sql`delete from moderation_log where actor_username like 'acctdel%'
+                                              or actor_username like 'acctsus%'`;
   await deleteTestAccounts(sql, created);
   await sql.end();
 }
