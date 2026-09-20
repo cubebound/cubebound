@@ -10,10 +10,16 @@ on every session, which is the whole point: this file used to be 2,815 lines and
 was loaded in full before any work started, including into every subagent.
 
 Most directories also carry their own `CLAUDE.md`, three or four lines, naming
-the docs that govern the code in them. Those load on demand. **A stub fires for
-its own directory only, never the subtree beneath it**, and a directory that does
-not exist yet has none, so the table under "Where to read next" is the backstop.
-**Stubs are pointers and hold no rules of their own.**
+the docs that govern the code in them. Those are meant to load when a file tool
+touches that directory, but **do not count on it.** Measured on 19 September 2026,
+in the first real session after the split: a session that reads through `cat`,
+`grep` and `sed` inside Bash rather than through the Read tool never sees them,
+because the harness cannot observe what happens inside a shell command. A stub
+also fires for its own directory only, never the subtree beneath it, and a
+directory that does not exist yet has none at all. **The table under "Where to
+read next" is the part that always loads**, so treat it as the rule and a stub as
+a convenience that may not arrive. **Stubs are pointers and hold no rules of
+their own.**
 
 - **Keep the docs true in the same commit.** Any change to behavior, schema or
   conventions updates the doc that owns it alongside the code, not in a
@@ -248,6 +254,14 @@ The four agents, what each is for and the startup-directory trap are in
 [docs/agents.md](docs/agents.md).
 
 ## Where to read next
+
+**Read the owning doc in full before changing code in its area.** Grepping it for
+the line you came for is how you miss the rules you did not know to search for.
+That is not hypothetical: on the first change made after this split, a seat-limit
+edit to the draft engine was written against eleven lines of a 215-line doc, found
+by grep, so the pack template, the fallback rules and the determinism constraint
+were never seen. A doc is a few thousand tokens and is the cheapest part of the
+job.
 
 | Touching | Read |
 | --- | --- |
