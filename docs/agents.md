@@ -9,7 +9,7 @@ one MCP config.
 | Agent | Use it for | Notes |
 | --- | --- | --- |
 | `gate` | Running the seventeen-script manual gate before a deploy or after a card sync | Carries the PowerShell runbook, the Chrome-on-:9222 launch, and the two transient failures. **Dev only.** |
-| `data` | Any question about real usage — how many cubes, how many empty, how many drafts finish | Read-only by rule and by credential. Starts from `npm run stats`. |
+| `data` | Any question about real usage — how many cubes, how many empty, how many drafts finish | Read-only by rule and by credential. Starts from `npm run stats`, falls back to `npm run prod-read`. |
 | `planner` | Turning a roadmap item into an implementation plan before writing code | Must cite the conventions here that constrain the change, and name the checks that cover it. |
 | `docs` | Keeping the docs true after a change | Enforces the same-commit rule below. Counts and tables are where it goes stale. |
 
@@ -43,11 +43,51 @@ site — dozens of requests, and still blind to private cubes, empty cubes and d
   role granted `select` and nothing else. **That file is how production data is reached
   and the only sanctioned way**: the rule that local work cannot write to production
   survives because the credential cannot write, not because the script promises not to.
-  Never put a service key in it.
+  Never put a service key in it. Two scripts read it, this one and `prod-read`; nothing
+  else should.
 
 Dev and production hold completely different things — dev is full of artefacts from
 check scripts that create and delete accounts — so a dev figure is not a small version
 of production. Always say which one a number came from.
+
+### `npm run prod-read`
+
+[scripts/prod-read.mts](../scripts/prod-read.mts) runs a single ad-hoc `select` against
+production and prints it as a table:
+
+```
+npm run prod-read -- "select supertype, count(*) from cards group by 1"
+```
+
+**It exists because `stats` answers the standing questions and only those.** A one-off —
+a supertype breakdown, a join the report does not do — had no sanctioned path at all, so
+an agent reached for a throwaway `npx tsx` script, which nothing allowlists and which was
+refused, while the `data` agent's own brief was telling it to write ad-hoc SQL when the
+question was not in the report. The promise and the setup disagreed; this closes the gap.
+A query written twice is a figure that belongs in `stats.mts` instead.
+
+- **The read-only role is the guarantee. The script is not.** Its checks — one statement,
+  starting `select` or `with`, no forbidden word as a whole word — refuse a mistake one
+  error message earlier than the server would, and nothing more. Never conclude that
+  something is safe to run from the fact that the script would let it through.
+- **Production only**, and it reads `.env.production.readonly` directly rather than
+  through `scripts/lib/env.ts`, which falls back to `.env` — a production run must never
+  silently land on a different database. Dev needs no script and no ceremony: point
+  whatever you like at `.env.local`.
+- **Output is capped at 200 rows and cells over 60 characters are elided**, so one
+  careless query cannot bury a transcript and one long `rules_text` cannot destroy every
+  column's alignment. Aggregate in SQL rather than reading past the cap.
+
+### The allow list
+
+`.claude/settings.json` allowlists a handful of commands, `npm run stats *` and
+`npm run prod-read *` among them. **A rule matches the bare command only.** Wrapping it
+in `cd … && …`, or piping it into `head`, does not match, and the command then falls
+through to the permission classifier, which refuses it as a production read — which cost
+two production reads in one session before anyone noticed that the shape was the problem.
+Nothing in the refusal says the command itself was allowlisted, so it reads as a missing
+permission and sends you off to add a rule that is already there. Run these bare and let
+the output be long.
 
 ### The Stop hook
 

@@ -11,6 +11,7 @@
       "Bash(npm run check:*)",
       "Bash(npm run stats)",
       "Bash(npm run stats *)",
+      "Bash(npm run prod-read *)",
       "Bash(npm run typecheck)",
       "Bash(npm run lint)"
     ]

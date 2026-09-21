@@ -313,4 +313,4 @@ job.
 | A security question or claim | [docs/security.md](docs/security.md) |
 | Domains, card types, costs, rules text, deck format | [docs/riftbound.md](docs/riftbound.md) |
 | What has shipped, what to build next | [docs/roadmap-and-status.md](docs/roadmap-and-status.md) |
-| Spawning an agent, `npm run stats`, `.claude/` | [docs/agents.md](docs/agents.md) |
+| Spawning an agent, `npm run stats`, `prod-read`, `.claude/` | [docs/agents.md](docs/agents.md) |
