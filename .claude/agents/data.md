@@ -21,6 +21,16 @@ writing the same query twice, say so in your report — it belongs in the script
 `npm run stats` reads dev. `npm run stats -- --prod` reads production through a read-only
 role and is the one that answers questions about real users.
 
+**Ad-hoc SQL against production goes through `npm run prod-read -- "select …"`, and
+nothing else.** A throwaway script run with `npx tsx` is not a sanctioned path: nothing
+allowlists that shape, so it is refused, and two production reads were lost that way
+before the script existed. Dev needs no such ceremony — write whatever script you like
+against `.env.local`.
+
+**Run both of them bare.** `npm run prod-read -- "…"` matches the allow rule in
+`.claude/settings.json`; `cd … && npm run prod-read …`, or the same command piped into
+`head`, does not match it and is refused. Let the output be long rather than piping it.
+
 ## Rules that are not negotiable
 
 - **Read-only, always.** `select` and nothing else. No `insert`, `update`, `delete`,
@@ -35,6 +45,10 @@ role and is the one that answers questions about real users.
 - **Never use a service key or a write credential.** Production access is a Postgres role
   granted `select` and nothing else, in `.env.production.readonly`. If that file is
   missing, say so rather than looking for another way in.
+- **Never read or print an env file.** Not `.env.local`, not
+  `.env.production.readonly`, not with `grep`, `cat` or a script that echoes what it
+  loaded. The scripts already know where their credentials are. Printing one into a
+  transcript is the failure, whether or not anything was written with it.
 
 ## Reporting
 

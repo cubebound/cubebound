@@ -43,7 +43,8 @@
     "check:staged-edit": "tsx scripts/check-staged-edit.mts",
     "check:pack-image": "tsx scripts/check-pack-image.mts",
     "check:docs": "tsx scripts/check-docs.mts",
-    "stats": "tsx scripts/stats.mts"
+    "stats": "tsx scripts/stats.mts",
+    "prod-read": "tsx scripts/prod-read.mts"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.70.0",
