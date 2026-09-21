@@ -36,6 +36,14 @@ as a convenience. **Stubs are pointers and hold no rules of their own.**
   follow-up — a doc that lags by even one commit starts costing more than it
   saves. **Each fact lives in exactly one file**: if a rule is in a topic doc, do
   not restate it here, and vice versa.
+- **Do not write down what git, the database or a dashboard already knows.** If
+  doing the work normally would falsify a sentence, it is *state*, not
+  documentation, and the tool that owns it is never out of date while a copy
+  here starts rotting immediately. Write the rule instead of the snapshot:
+  "delete a branch when it merges" survives, "master is the only branch" did
+  not, and was wrong again within a day of being written. This is the counterpart
+  to the rule above — knowing what never belonged here is what stops the set
+  growing without end.
 
 ## Where we are
 

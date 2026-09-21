@@ -56,10 +56,17 @@ production's state before assuming a migration still needs applying there.
 happens on branches; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
-**Nothing is in flight.** `master` is the only branch, local and remote, and it
-is what cubebound.gg serves. Three others were deleted on 19 September 2026:
-`draft-screen-rollout` and `staged-cube-editor` were merged and held nothing
-`master` did not, and `main` was the retired original — a static landing page
+**Delete a branch when it merges.** `master` is then the only long-lived one,
+which is what makes "is this live?" answerable without checking. **What is in
+flight is a question for `git branch -a`, and this file deliberately does not
+keep a copy** — a sentence naming today's branches is false the next time
+anyone starts work, and it rotted twice before it was written as a rule
+instead. What does belong here is the part git cannot tell you: why a branch
+that is *gone* is not coming back.
+
+On 19 September 2026: `draft-screen-rollout` and `staged-cube-editor` were
+merged and held nothing `master` did not, and `main` was the retired original
+— a static landing page
 plus `riot.txt`, four commits that were never part of this app. **`main` lives
 on as the tag `retired-landing-page`**, because those four commits exist nowhere
 else; GitHub Pages served them at `cubebound.github.io/cubebound` until it was

@@ -62,9 +62,9 @@ open it rather than trusting this.
 
 1. ✅ CLAUDE.md cleanup, before any feature. Merged `6175c9a`, `1081b67`, `389ce8e`.
 2. ✅ The Legacy booster becomes the default everywhere. Merged `195a160`.
-3. ✅ Account deletion. Self-serve from `/settings`; `/privacy` and the "Your
-   data" copy moved in the same commit, and `check:account-deletion` guards it.
-   See [moderation.md](moderation.md).
+3. ✅ Account deletion. Merged `d9ed07d`. Self-serve from `/settings`;
+   `/privacy` and the "Your data" copy moved in the same commit, and
+   `check:account-deletion` guards it. See [moderation.md](moderation.md).
 4. **Investigate whether large imports are failing.** A 426-line buylist is the
    signal. Diagnosis before any fix, and `npm run stats` reports import sizes for
    exactly this. See [agents.md](agents.md).
