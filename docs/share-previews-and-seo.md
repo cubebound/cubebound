@@ -80,9 +80,14 @@
 - **A cube's cover art is a card in that cube** (`cubes.cover_card_id`), picked
   on the settings page. Restricted to cards the cube holds, because a cover is
   meant to say what the cube *is* rather than be an arbitrary image slot.
-  Unset falls back — a legend first, since that's what a cube is usually about,
-  then the first main card — so a cube shows art whether or not anyone chose
-  one. That resolution is **one SQL fragment**, `cubeCoverImageSql`, shared by
+  Unset falls back, so a cube shows art whether or not anyone chose one. **The
+  fallback is a card from the legends, main and battlefields sections picked by
+  `md5(cube id || card_id)`**: seeded per cube, so it holds still between
+  requests (previews are CDN-cached, and the thumbnail must match them), yet
+  differs from cube to cube. It used to take the first legend by set and
+  collector number, which made nearly every uncovered cube the same Kai'Sa. The
+  cost is that adding or removing cards can change an uncovered cube's art; a
+  chosen cover never moves. That resolution is **one SQL fragment**, `cubeCoverImageSql`, shared by
   the share previews and by every cube list: as a correlated subquery a list of
   twenty selects its covers in the same round trip, and one definition means a
   cube's thumbnail and its link preview can't come out as different cards.

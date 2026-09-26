@@ -134,9 +134,12 @@ export async function updateCube(
  *
  * Falls back rather than returning nothing: a cube with no cover still needs a
  * picture, and the owner shouldn't have to set one for a link or a search
- * result to look right. A legend is preferred because it's the card a cube is
- * usually *about*; failing that the first main card, then a battlefield. The
- * maybeboard is excluded — it isn't part of the cube.
+ * result to look right. The fallback is a random card from the legends, main
+ * and battlefields, seeded by the cube's id so it holds still between requests
+ * (the thumbnail and the link preview must agree, and previews are CDN-cached).
+ * It used to prefer the first legend by collector number, which made nearly
+ * every uncovered cube the same Kai'Sa. The maybeboard is excluded — it isn't
+ * part of the cube.
  *
  * Used by the share previews and by every cube list. Kept as one fragment
  * because two copies would drift, and then a cube's thumbnail and its link
@@ -158,9 +161,7 @@ export const cubeCoverImageSql = sql<string | null>`coalesce(
      join ${cards} art on art.id = pick.card_id
     where pick.cube_id = "cubes"."id"
       and pick.section in ('legends', 'main', 'battlefields')
-    order by case pick.section
-               when 'legends' then 0 when 'main' then 1 else 2 end,
-             art.set_code, art.collector_no
+    order by md5("cubes"."id"::text || pick.card_id)
     limit 1)
 )`;
 
