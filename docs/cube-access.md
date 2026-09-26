@@ -83,6 +83,12 @@
   without the prefix, the form previews the resulting URL as you type, and
   `cloneCubeAction` validates it with the same rules as creating a cube. A clone
   is still always private; visibility is not asked.
+- **A clone copies sections, chosen printings and quantities, and leaves out
+  tokens.** Tokens are not cards (see [card-browser.md](card-browser.md)), and
+  a cube that picked one up before the add paths refused them should not hand
+  it on to every copy, so `cloneCube` joins `cards` and drops them. The
+  description and primer do not carry over either: they are the original
+  author's writing, and the clone is a starting point for the new owner's list.
 - **Clone is a link to `/cubes/new?start=clone&from={username}/{slug}`, and a
   plain click opens the same form in a dialog instead.** Both are
   `CloneCubeForm` in `src/components/clone-cube.tsx`. The link is what renders

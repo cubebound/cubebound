@@ -26,6 +26,7 @@ import { fromEnvFile } from "./lib/env";
 
 import { db } from "../src/db";
 import { cubeCards, cubeFollows, cubes as cubesTable } from "../src/db/schema";
+import { getImportCatalog } from "../src/db/queries/cards";
 import { claimUsername } from "../src/db/queries/users";
 import { defaultSectionForType } from "../src/lib/riftbound";
 import { slugify, uniqueSlug } from "../src/lib/slug";
@@ -114,9 +115,10 @@ async function main() {
 
   // --- the card pool ----------------------------------------------------------
   // Canonical printings only: alt arts and showcase reprints would make every
-  // cube look like it runs the same card three times.
-  const pool = await sql<{ id: string; type: string }[]>`
-    select id, type from cards where base_id = id`;
+  // cube look like it runs the same card three times. The import catalog is
+  // exactly that pool with tokens left out, so seeded cubes hold only what a
+  // person could add; a raw `base_id = id` read once filled them with tokens.
+  const pool = await getImportCatalog();
   if (pool.length === 0) throw new Error("no cards in this database — run `npm run sync-cards` first");
   const byType = new Map<string, { id: string; type: string }[]>();
   for (const card of pool) {

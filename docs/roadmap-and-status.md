@@ -67,12 +67,14 @@ open it rather than trusting this.
    `check:account-deletion` guards it. See [moderation.md](moderation.md).
 4. ✅ Investigate whether large imports are failing. Closed 26 September 2026 as
    not broken, with no code change; the verdict is recorded in the build order doc.
-5. Give a new cube somewhere to start. Built on `new-cube-starting-points`, not
-   yet merged; see "Starting a cube" in [cube-editor.md](cube-editor.md).
-5b. Rename a cube while cloning it, so a clone is not stuck with `copy-of-`.
-    Built on the same branch, not yet merged.
+5. ✅ Give a new cube somewhere to start. Merged `0a1e34c`; see "Starting a
+   cube" in [cube-editor.md](cube-editor.md).
+5b. ✅ Rename a cube while cloning it, so a clone is not stuck with `copy-of-`.
+    Merged in the same `0a1e34c`.
 6. Popularity %, placed carefully.
 6b. Tokens are not cards: hide them from the browser and keep them out of cubes.
+    Built on `tokens-not-cards`, not yet merged; see the tokens bullet in
+    [card-browser.md](card-browser.md).
 
 **Next**
 

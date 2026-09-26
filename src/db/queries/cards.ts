@@ -31,6 +31,7 @@ import {
   REGIONS,
   sortByCanonical,
 } from "@/lib/riftbound";
+import { TOKEN_ID_PATTERN } from "@/lib/card-ids";
 
 export const PAGE_SIZE = 60;
 
@@ -175,7 +176,8 @@ function energyCondition(bucket: string): SQL | undefined {
 }
 
 function buildWhere(filters: CardFilters): SQL | undefined {
-  const clauses: SQL[] = [];
+  // Tokens are not cards, so no view of the pool shows one.
+  const clauses: SQL[] = [realCard];
   const term = filters.q?.trim();
   if (term) {
     const pattern = `%${escapeLike(term)}%`;
@@ -259,6 +261,28 @@ type CardSearchResult = {
  * two-definitions-must-agree arrangement `assignBaseIds` has with `0003`.
  */
 const collapseKey = sql`(lower(regexp_replace(${cards.name}, '\\s*\\([^()]*\\)\\s*$', '')) || '|' || ${cards.type})`;
+
+/**
+ * A token (Recruit, Sprite, Gold…), which is not a card: the browser, both
+ * searches, the filter lists and the import catalog all leave it out, and the
+ * cube actions refuse to add one. Supertype *or* id shape, because the retired
+ * riftscribe rows (`UNL-T01` to `UNL-T07`) are tokens with a null supertype and
+ * exist only on production. See `isTokenCard` in src/lib/card-ids.ts, which
+ * this mirrors. `check:printings` cannot import this module (it runs without
+ * an env file), so it compares a restated copy; `check:card-filters` and
+ * `check:import` test this one, through what the queries actually return.
+ *
+ * **`is not distinct from`, never `=`.** An ordinary card's supertype is null,
+ * so `supertype = 'Token'` is null for it, `not (null or false)` is null, and
+ * every ordinary card would silently drop out of the browser.
+ *
+ * Outer columns are qualified by hand, so use it only where `cards` is in
+ * scope unaliased; see database.md.
+ */
+export const tokenCard = sql`("cards"."supertype" is not distinct from 'Token' or "cards"."id" ~ ${TOKEN_ID_PATTERN})`;
+
+/** Every row that is a card: the negation of `tokenCard`. */
+export const realCard = sql`(not ${tokenCard})`;
 
 /**
  * Which printing represents a collapsed group — the `DISTINCT ON` tie-break.
@@ -460,7 +484,8 @@ export async function quickSearchCards(
       then ${cards.champion} || ', ' || ${cards.name}
       else ${cards.name}
     end)`;
-  const matches = or(ilike(cards.name, pattern), ilike(fullName, pattern));
+  // Tokens are not cards, and this is how the editor adds one.
+  const matches = and(or(ilike(cards.name, pattern), ilike(fullName, pattern)), realCard);
 
   const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
     "printing_count",
@@ -608,9 +633,11 @@ async function readFilterOptions(): Promise<FilterOptions> {
   // readable:
   //  - the set's printed name comes from the stored raw payload rather than a
   //    lookup table, so a newly synced set names itself. `min()` because the
-  //    grouping needs an aggregate; every set has exactly one label. The six
-  //    retired-source token rows have a different payload shape and yield null,
-  //    so the code stands in for them.
+  //    grouping needs an aggregate; every set has exactly one label, and the
+  //    code stands in for a row whose payload has none.
+  //  - every branch leaves tokens out, so no filter offers a value only a
+  //    token carries. Filtered per branch rather than in a CTE to keep the
+  //    statement's shape; it is still one statement.
   //  - a tag that names a champion is a champion tag, derived rather than listed
   //    so a new set's champions group themselves.
   //  - `champ` is aliased explicitly. The outer query has `cards` in scope too,
@@ -626,20 +653,23 @@ async function readFilterOptions(): Promise<FilterOptions> {
            ${cards.setCode} as value,
            min(${cards.data}->'card'->'set'->>'label') as label
       from ${cards}
+     where ${realCard}
      group by ${cards.setCode}
     union all
     select distinct 'domain'::text, d, null::text
       from ${cards}, unnest(${cards.domains}) as d
+     where ${realCard}
     union all
-    select distinct 'type'::text, ${cards.type}, null::text from ${cards}
+    select distinct 'type'::text, ${cards.type}, null::text from ${cards} where ${realCard}
     union all
-    select distinct 'rarity'::text, ${cards.rarity}, null::text from ${cards}
+    select distinct 'rarity'::text, ${cards.rarity}, null::text from ${cards} where ${realCard}
     union all
     select distinct 'trait'::text, t,
            (case when exists (
               select 1 from ${cards} champ where champ.champion = t
             ) then 'champion' end)::text
       from ${cards}, unnest(${cards.tags}) as t
+     where ${realCard}
   `);
 
   const sets: SetOption[] = [];
@@ -695,7 +725,9 @@ async function readFilterOptions(): Promise<FilterOptions> {
  *
  * Only base printings (`id = base_id`), because an import resolves a name to a
  * card and the base printing is what "the card" means here — alt arts are
- * chosen per copy afterwards. ~966 rows, small enough to match in memory,
+ * chosen per copy afterwards. No tokens, so a pasted "Gold" comes back
+ * unmatched rather than adding one; a token only ever groups with tokens
+ * (`check:printings`), so no real card's base printing is lost this way. ~966 rows, small enough to match in memory,
  * which keeps the matching rules pure and testable in src/lib/import-list.ts.
  */
 export async function getImportCatalog(): Promise<
@@ -710,21 +742,32 @@ export async function getImportCatalog(): Promise<
       champion: cards.champion,
     })
     .from(cards)
-    .where(eq(cards.id, cards.baseId))
+    .where(and(eq(cards.id, cards.baseId), realCard))
     .orderBy(cards.name);
 }
 
 /** Looks up several cards by id, for validating a confirmed import. */
 export async function getCardsByIds(
   ids: string[],
-): Promise<{ id: string; name: string; type: string; baseId: string }[]> {
+): Promise<
+  { id: string; name: string; type: string; supertype: string | null; baseId: string }[]
+> {
   if (ids.length === 0) return [];
   return db
     // `baseId` rides along so a caller can enforce the same-card rule without a
     // second read: a staged swap between two printings is only a printing
     // switch if both sides share a base, which is the same rule
     // `swapPrintingAction` applies one edit at a time.
-    .select({ id: cards.id, name: cards.name, type: cards.type, baseId: cards.baseId })
+    // `supertype` rides along for the same reason: the add paths refuse a
+    // token (`isTokenCard`) without reading the rows again. Deliberately not
+    // filtered here, so a token already in a cube can still be removed.
+    .select({
+      id: cards.id,
+      name: cards.name,
+      type: cards.type,
+      supertype: cards.supertype,
+      baseId: cards.baseId,
+    })
     .from(cards)
     .where(inArray(cards.id, ids));
 }
@@ -733,11 +776,8 @@ export async function getCardsByIds(
  * Rows that are not cards to start a cube with: tokens, the basic runes, and
  * the special-slot reprints.
  *
- * - **Tokens need both halves, and only production shows why.** Five carry
- *   `supertype = 'Token'`, but six more (`UNL-T01` to `UNL-T07`) come from the
- *   retired riftscribe source, which wrote a null supertype unconditionally. On
- *   dev those six rows do not exist, so a supertype-only filter passes every
- *   check there and still seeds tokens into production cubes.
+ * - **Tokens** by the shared rule, `realCard`, which needs both its halves; see
+ *   `tokenCard`.
  * - **Basic runes** (`supertype = 'Basic'`) are resources, not picks.
  * - **The id shape** catches what is left: `VEN-R01` to `R06` (basic runes
  *   again) and `VEN-SP1` to `SP6` (champion reprints in a special slot, whose
@@ -749,7 +789,7 @@ export async function getCardsByIds(
  * Outer columns are qualified by hand; see database.md.
  */
 const startingCard = sql`(
-  "cards"."supertype" is distinct from 'Token'
+  ${realCard}
   and "cards"."supertype" is distinct from 'Basic'
   and "cards"."id" ~ '^[A-Z]+-[0-9]+[a-z]?(-[a-z]+)?$'
 )`;

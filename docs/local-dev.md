@@ -3,9 +3,9 @@
 ## Seed data
 
 `npm run seed:discovery` fills dev with users, randomly generated cubes (real
-cards, plausible names, descriptions and primers, spread updated-dates) and a
-skewed follow graph, so Explore, search, sorting and the Followed tab have
-something to work on by hand. `-- --users N --cubes N` sizes it; `-- --clean`
+cards from the import catalog, so never a token; plausible names, descriptions
+and primers, spread updated-dates) and a skewed follow graph, so Explore,
+search, sorting and the Followed tab have something to work on by hand. `-- --users N --cubes N` sizes it; `-- --clean`
 removes it.
 
 Everything it makes is tagged with a `@seed.cubebound.test` email and `--clean`

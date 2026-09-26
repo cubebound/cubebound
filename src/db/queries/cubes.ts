@@ -12,7 +12,7 @@ import {
   type CubeChange,
   type NewCubeChange,
 } from "../schema";
-import { browseColumns, type BrowseCard } from "./cards";
+import { browseColumns, realCard, type BrowseCard } from "./cards";
 import type { DraftmancerSourceCard } from "@/lib/draftmancer-export";
 import type { CubeSection } from "@/lib/riftbound";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -652,7 +652,9 @@ export async function switchCopyPrinting(
 /**
  * Copies a cube's card list into a new private cube owned by `ownerId`.
  *
- * Sections, chosen printings and quantities all carry over. The description
+ * Sections, chosen printings and quantities all carry over, except tokens:
+ * they are not cards (see `tokenCard`), and a cube that picked one up before
+ * the add paths refused them should not hand it on to every copy. The description
  * and primer deliberately do not: they are the original author's writing, and
  * the clone is a starting point for the new owner's own list.
  */
@@ -675,7 +677,8 @@ export async function cloneCube(
         quantity: cubeCards.quantity,
       })
       .from(cubeCards)
-      .where(eq(cubeCards.cubeId, sourceCubeId));
+      .innerJoin(cards, eq(cards.id, cubeCards.cardId))
+      .where(and(eq(cubeCards.cubeId, sourceCubeId), realCard));
 
     const [clone] = await tx
       .insert(cubes)

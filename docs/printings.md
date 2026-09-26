@@ -40,4 +40,10 @@
   unification is ever wanted, it is `cardIdentityKey` in `src/lib/card-ids.ts`,
   the recompute SQL in `scripts/sync-cards.ts` and a migration mirroring `0003`,
   all three in step, with `check:printings` asserting they agree.
+- **A token only ever groups with tokens**, and `check:printings` asserts that
+  no `base_id` group mixes the two. Two things lean on it: the import catalog
+  drops tokens *after* choosing base printings, so a card whose base printing
+  were a token would vanish from import; and `swapPrintingAction`'s token
+  guard is unreachable only while it holds. Identity is name plus type, so a
+  token and a card sharing both would break it, and the check is what notices.
 - Do **not** use rules text as card identity: showcase reprints drop the parenthetical reminder text and sometimes reword the ability outright.
