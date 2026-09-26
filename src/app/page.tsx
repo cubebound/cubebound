@@ -48,7 +48,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     ? { href: "/cubes/new", label: "Create a cube" }
     : current
       ? { href: "/welcome", label: "Choose a username" }
-      : { href: "/login", label: "Sign in to build" };
+      : { href: "/login", label: "Sign in" };
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-24 sm:px-6">
