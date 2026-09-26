@@ -412,7 +412,13 @@ try {
       const before = await getCubeCards(cube.id);
       const headers: Record<string, string> = {};
       for (const [key, value] of Object.entries(forged.headers)) {
-        if (key.toLowerCase() !== "cookie") headers[key] = value;
+        // `content-length` too, unlike `replayAs` above: swapping the id can
+        // change the body's length, and a stale one would truncate it. The
+        // action would then fail for the wrong reason and this check would
+        // pass without ever reaching the refusal. Every id is seven characters
+        // today, so it has not bitten — undici sets the real length itself.
+        const name = key.toLowerCase();
+        if (name !== "cookie" && name !== "content-length") headers[key] = value;
       }
       headers.cookie = owner.cookie;
       const res = await fetch(forged.url, {
