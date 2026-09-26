@@ -200,8 +200,8 @@ Commit per logical piece of work with a descriptive message. **Do not merge to
   call site is free to wrap. Wrapping a `useActionState` action in a client
   closure is not: React's SSR only emits a form's no-JS submit fields when the
   action carries `$$FORM_ACTION`, which a wrapper drops — so guarding one
-  trades a dropped-request failure for a pre-hydration one. `clone-button.tsx`
-  and `primer-editor.tsx` are knowingly still bare for that reason; a local
+  trades a dropped-request failure for a pre-hydration one. `CloneCubeForm` in
+  `clone-cube.tsx` and `primer-editor.tsx` are knowingly still bare for that reason; a local
   error boundary, not a wrapper, is the fix if they start firing.
 - **An action ending in `redirect()` rejects too**, with a `NEXT_REDIRECT`
   digest, so any guard around one must re-throw it. Next performs the SPA

@@ -163,7 +163,8 @@ for Piltover Archive (see [draft.md](draft.md)). `src/lib/draftmancer-export.ts`
   draft happens, not in what a legend slot is, so configuring the pack template
   twice would have meant two copies of that form and eventually two answers. It
   is deliberately not on the cube page: "Draft" is already the verb that leads
-  here.
+  here. **`/guides/draftmancer` repeats the tab's three Draftmancer steps** from
+  `draftmancer-export.tsx`, so a change to either changes both.
 - **`seats` is not written to the file, and `packsPerPlayer` is.** Players sizes
   the "is this cube big enough" arithmetic and nothing else; packs becomes
   `boostersPerPlayer`, the default the Draftmancer host sees and may override.

@@ -7,7 +7,14 @@ import ProviderButtons from "@/components/provider-buttons";
 
 const initial: FormState = {};
 
-export default function LoginForm({ initialError }: { initialError?: string }) {
+export default function LoginForm({
+  initialError,
+  next,
+}: {
+  initialError?: string;
+  /** Where to land after signing in; already checked by the page. */
+  next?: string | null;
+}) {
   const [state, formAction, pending] = useActionState(signInWithEmail, initial);
   const error = state.error ?? initialError;
 
@@ -25,7 +32,7 @@ export default function LoginForm({ initialError }: { initialError?: string }) {
           <p className="mb-2 text-muted">
             Didn&rsquo;t arrive? You can sign in another way:
           </p>
-          <ProviderButtons action={signInWithProvider} />
+          <ProviderButtons action={signInWithProvider} next={next} />
         </div>
       </div>
     );
@@ -35,7 +42,7 @@ export default function LoginForm({ initialError }: { initialError?: string }) {
     <div className="space-y-4">
       {/* Providers first: they are one click, and the email path is the one
           that can silently fail. */}
-      <ProviderButtons action={signInWithProvider} />
+      <ProviderButtons action={signInWithProvider} next={next} />
 
       <div className="flex items-center gap-3 text-xs text-subtle">
         <span className="h-px flex-1 bg-sunken" />
@@ -44,6 +51,7 @@ export default function LoginForm({ initialError }: { initialError?: string }) {
       </div>
 
       <form action={formAction} className="space-y-3">
+      {next && <input type="hidden" name="next" value={next} />}
       <label htmlFor="email" className="block text-sm font-medium">
         Email
       </label>

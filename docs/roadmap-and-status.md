@@ -53,8 +53,8 @@ Open items:
 
 **The [cubebound build order](https://claude.ai/artifact/5xyrDck2rNoMExUoVtrqGW) doc
 is the roadmap, and it is the only authoritative copy.** It carries each item's
-reasoning and your own note deciding it. The list below is a **snapshot taken on
-19 September 2026** so a session with no access to that doc is not flying blind;
+reasoning and your own note deciding it. The list below is a **snapshot last refreshed
+on 26 September 2026** so a session with no access to that doc is not flying blind;
 where the two disagree, the doc wins, and if you are about to start something,
 open it rather than trusting this.
 
@@ -65,18 +65,23 @@ open it rather than trusting this.
 3. ✅ Account deletion. Merged `d9ed07d`. Self-serve from `/settings`;
    `/privacy` and the "Your data" copy moved in the same commit, and
    `check:account-deletion` guards it. See [moderation.md](moderation.md).
-4. **Investigate whether large imports are failing.** A 426-line buylist is the
-   signal. Diagnosis before any fix, and `npm run stats` reports import sizes for
-   exactly this. See [agents.md](agents.md).
-5. Give a new cube somewhere to start.
+4. ✅ Investigate whether large imports are failing. Closed 26 September 2026 as
+   not broken, with no code change; the verdict is recorded in the build order doc.
+5. Give a new cube somewhere to start. Built on `new-cube-starting-points`, not
+   yet merged; see "Starting a cube" in [cube-editor.md](cube-editor.md).
 5b. Rename a cube while cloning it, so a clone is not stuck with `copy-of-`.
+    Built on the same branch, not yet merged.
 6. Popularity %, placed carefully.
+6b. Tokens are not cards: hide them from the browser and keep them out of cubes.
 
 **Next**
 
 7. Limited formats: a sealed tab, then retail products.
 8. The Draftmancer round trip — a spike, not a build.
 9. Smarter bots. Lower priority.
+
+**Unordered**: Feature cubes on the home page, added to the build order doc on
+26 September 2026 without a place in it yet.
 
 **Workflow** (items 10 to 14, all of which are about how the work gets done rather
 than what ships)

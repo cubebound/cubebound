@@ -48,7 +48,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     ? { href: "/cubes/new", label: "Create a cube" }
     : current
       ? { href: "/welcome", label: "Choose a username" }
-      : { href: "/login", label: "Sign in to build" };
+      : { href: "/login", label: "Sign in" };
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-24 sm:px-6">
@@ -64,13 +64,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       </h1>
       <div className="mt-5 space-y-4 text-muted">
         <p>
-          Build a cube from the full card pool, organize it by domain, cost and
-          type, and write a primer explaining how it drafts.
-        </p>
-        <p>
-          Share it with a link. Anyone who opens it can clone the cube into their
-          own account and make it theirs. Test-draft it against bots, or export
-          it to Draftmancer and draft it with friends.
+          It&rsquo;s easy to get started building a cube or{" "}
+          <Link href="/guides/draftmancer" className={link}>
+            drafting with friends on Draftmancer
+          </Link>
+          .
         </p>
         {/* Above the Cube Cobra credit and below the pitch: someone who has
             never drafted a cube needs this before they need a Create button,
@@ -78,7 +76,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         <p>
           New to cubes?{" "}
           <Link href="/guides/riftbound-cube-drafting" className={link}>
-            Read how cube drafting works
+            Read how Riftbound cube drafting works
           </Link>
           : what a cube is, how legends and battlefields change drafting, and how
           many cards to include.

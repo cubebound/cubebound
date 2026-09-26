@@ -4,13 +4,17 @@
 /                                     landing
 /cards                                card browser (milestone 3)
 /guides/riftbound-cube-drafting       the format explained — static, no data
+/guides/draftmancer                   export a cube and draft it with friends — static, no data
 /privacy                              privacy policy — static, must match the code
 /explore                              public cube search — ?q= &card= &sort= &page=
 /u/{username}                         public profile — their public cubes; ?q= &page=
 /profile                              redirect to your own /u/{username}
 /settings                             account settings — sign-in methods, delete your account
 /login  /welcome  /auth/callback      magic link, username claim, PKCE exchange
-/cubes  /cubes/new                    the signed-in user's cubes; ?tab=followed &q= &page=
+/cubes                                the signed-in user's cubes; ?tab=followed &q= &page=
+/cubes/new                            choose how a new cube starts;
+                                      ?start=clone|list|set|empty,
+                                      &from={username}/{slug} pre-fills the clone form
 /cube/{username}/{slug}               public view — visibility-gated;
                                       307s the cube's own owner to /edit
 /cube/{username}/{slug}/edit          owner editor;

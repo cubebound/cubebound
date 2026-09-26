@@ -68,3 +68,32 @@ export function resolveSiteUrl(headers?: Headers | null): string {
 export function authCallbackUrl(headers?: Headers | null): string {
   return `${resolveSiteUrl(headers)}/auth/callback`;
 }
+
+/**
+ * A path on this site worth sending someone back to after they sign in, or
+ * null if the value is not one.
+ *
+ * It arrives from a query string, so it is checked rather than trusted: only a
+ * same-site absolute path. `//evil.example` and `/\evil.example` start with a
+ * slash too, and a browser reads both as another host, so both are refused.
+ */
+export function safeReturnPath(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0 || value.length > 512) return null;
+  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return null;
+  if (/[\u0000-\u001f\u007f]/.test(value)) return null;
+  return value;
+}
+
+/**
+ * The callback URL, carrying where to land afterwards when there is somewhere.
+ * Without a return path this is exactly `authCallbackUrl`, so a plain sign-in
+ * sends Supabase the same `redirectTo` it always has.
+ */
+export function authCallbackUrlWithNext(headers: Headers | null, next: unknown): string {
+  const base = authCallbackUrl(headers);
+  const path = safeReturnPath(next);
+  if (!path) return base;
+  const url = new URL(base);
+  url.searchParams.set("next", path);
+  return url.toString();
+}

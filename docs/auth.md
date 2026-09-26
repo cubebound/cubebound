@@ -44,6 +44,24 @@ section of that page, and the rules governing it are
   and falls through to `/` — so a link that *worked* looked exactly like one
   that failed. The banner additionally checks the provider really is on the
   account rather than trusting the query parameter, since a URL can be typed.
+- **Sign-in returns to where it started, through `?next=` on `/login`.** A
+  signed-out Clone button links to `/login?next=/cube/{username}/{slug}`, because
+  landing on the home page after signing in turned a one-click Clone into a hunt
+  for the cube. The path rides as a hidden field on the email form and both
+  provider forms, onto the callback URL, and — for a first-time user — through
+  `/welcome?next=` and `UsernameForm`, so `claimUsernameAction` redirects there
+  rather than to `/`. A signed-in visitor to `/login?next=` goes straight there.
+  **Every hop re-checks it with `safeReturnPath`** in `src/lib/site-url.ts`: only
+  a same-site absolute path, refusing `//` and `/\` (a browser reads both as
+  another host), control characters, and anything over 512 characters. It
+  arrives from a query string at each step, so no step trusts the one before.
+- **`authCallbackUrlWithNext` is exactly `authCallbackUrl` when there is no safe
+  `next`**, so a plain sign-in sends Supabase the same `redirectTo` it always
+  has and the allowlist question only arises for a return path. If Supabase
+  ever rejects the query-carrying URL, it falls back to the Site URL, the `/`
+  near-miss forwarding below self-heals the code, and the visitor lands home:
+  the old behaviour, not a broken sign-in. Linking has relied on a `next` on
+  `redirectTo` since it shipped.
 - **"Has a backup" is not "has two identities".** Magic link works for any
   address on the account, including one that arrived from Discord — so a
   Discord-only account already has two ways in, while an email-only account has

@@ -27,7 +27,9 @@
   Might of Demacia and Lady of Luminosity exist only as an OGS "(Starter)"
   printing and an OPP plain one, and OGS sorts first, so without it the
   collapsed row would be titled "Dark Child (Starter)".
-- **The fix is in the two queries that collapse printings, and nowhere else.**
+- **The fix is in the three queries that collapse printings, and nowhere else**:
+  `searchCards`, `quickSearchCards`, and `getSetStarterCards`, which builds "one of each card
+  from a set" for a new cube (`getStarterSets` counts by the same key).
   Deliberately: `base_id` is stored and read by the printing picker, the
   contents switcher, the swap guard, the import catalog and the Draftmancer
   rarity resolution, so rewriting it is a migration plus a re-sync per

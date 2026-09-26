@@ -9,10 +9,10 @@ Audited before the first wide share. What was checked, and what it turned up.
   see [cube-access.md](cube-access.md) for why it exists rather than SELECT policies.
 - **No secret has ever been committed.** `.env*` is gitignored bar the example,
   and a scan of full history turns up only placeholders.
-- **Every mutation is gated.** All 25 server actions in the four files
+- **Every mutation is gated.** All 27 server actions in the four files
   `check:cube-ownership` reads call one of `requireOwnedCube` /
   `requireDraftableCube` / `requireOwnDraft` / `requireFollowableCube` /
-  `requireAdmin` / `getCurrentUser`, and the check fails the build if a new one
+  `requireAdmin` / `requireCreator` / `getCurrentUser`, and the check fails the build if a new one
   doesn't. **The fifth `"use server"` file, `src/app/auth/actions.ts`, is not
   among them** — its five sign-in actions are gated on their own provider
   allowlist and on `getUser()`, but they sit outside that structural guarantee
@@ -27,7 +27,9 @@ Audited before the first wide share. What was checked, and what it turned up.
   without a matching `Origin` is rejected.
 - **The auth callback's `next=` cannot leave the origin.** `${origin}${next}`
   was tested against `//evil`, `/\evil`, `///evil` and an absolute URL: the
-  authority is already fixed by the time the path is appended.
+  authority is already fixed by the time the path is appended. Since sign-in
+  began carrying a return path, `safeReturnPath` also refuses those shapes
+  before they get that far; see [auth.md](auth.md).
 - **No `dangerouslySetInnerHTML` anywhere**, and the only rendered email
   address is your own on `/welcome`.
 

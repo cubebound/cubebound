@@ -30,6 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.9,
     },
+    { url: `${site}/guides/draftmancer`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${site}/privacy`, changeFrequency: "yearly", priority: 0.2 },
   ];
 

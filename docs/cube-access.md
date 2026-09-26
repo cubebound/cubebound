@@ -76,6 +76,35 @@
   it takes `prominent={false}`; `check:public-cube` asserts both that it is
   there and that it is *not* wearing `btn.primarySm`. The action lands on the
   copy's editor, which is also what makes a double-click harmless.
+- **Clone asks for the copy's name before the copy exists.** The slug is taken
+  from the name once and never changes on rename, so naming it "Copy of …" and
+  letting the owner rename it afterwards left the most active cube on the site
+  at `copy-of-the-blevins-cube` for good. The name is pre-filled from the source
+  without the prefix, the form previews the resulting URL as you type, and
+  `cloneCubeAction` validates it with the same rules as creating a cube. A clone
+  is still always private; visibility is not asked.
+- **Clone is a link to `/cubes/new?start=clone&from={username}/{slug}`, and a
+  plain click opens the same form in a dialog instead.** Both are
+  `CloneCubeForm` in `src/components/clone-cube.tsx`. The link is what renders
+  on the server, so a click before hydration or with no JS still lands on a
+  working page, and a modified click (new tab) is left to the browser. Signed
+  out, it routes to `/login` rather than hiding the feature from the people who
+  need an account to use it, carrying the cube as the return path so they land
+  back on it; see [auth.md](auth.md).
+- **The clone page checks `canUseCube` before reading anything out of the
+  source**, so a private cube's name never pre-fills for a stranger who guesses
+  its path. Anything that does not resolve falls back to the clone list rather
+  than calling `notFound()`: the route sits under `/cubes/loading.tsx`, so a
+  404 there would be a soft one. `canUseCube` rather than `canViewCube` for the
+  same reason the action uses it; see [moderation.md](moderation.md).
+- **With no `from`, the clone page lists cubes worth starting from**: the 12
+  most followed public cubes holding at least
+  `totalMainCardsNeeded(DEFAULT_DRAFT_CONFIG)` cards, so every one could run the
+  default draft. The count excludes only the maybeboard, so it is a floor rather
+  than a guarantee, which is all a starting list needs. The page copy no
+  longer states the floor, so a small cube missing from the list is this rule,
+  not a bug. It asks `searchCubes`
+  for no cover art, since it shows none; Explore is linked for everything else.
 - **The editor's header controls are all `btn.secondarySm`.** Draft and Settings
   were hand-written `py-1.5` strings that came out 34px against Share's 36, so
   the row was already a little ragged before Clone arrived and made it obvious.

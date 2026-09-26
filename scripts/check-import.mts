@@ -21,9 +21,17 @@ import postgres from "postgres";
 
 import { fromEnvFile } from "./lib/env";
 
-import { getImportCatalog } from "../src/db/queries/cards";
+import { readFileSync } from "node:fs";
+
+import {
+  getImportCatalog,
+  getSetStarterCards,
+  getStarterSets,
+  STARTER_SET_MIN_CARDS,
+} from "../src/db/queries/cards";
 import {
   addCubeCard,
+  addCubeCards,
   createCube,
   getCubeCards,
   listCubeChanges,
@@ -40,6 +48,7 @@ import {
   resolveLine,
   type CatalogCard,
 } from "../src/lib/import-list";
+import { collapseIdentityKey } from "../src/lib/card-ids";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 
@@ -329,9 +338,8 @@ try {
   // The real merge/validate the action runs, not a copy of it.
   const merge = mergeImportRows(rows, MAX_CARD_QUANTITY);
   if (!merge.ok) throw new Error(`merge rejected a valid import: ${merge.error}`);
-  for (const entry of merge.rows) {
-    await addCubeCard(cube.id, entry.cardId, entry.section, entry.quantity);
-  }
+  // The action's own write: one multi-row upsert, not a loop of single adds.
+  await addCubeCards(cube.id, merge.rows);
   const copies = merge.totalCopies;
 
   const contents = await getCubeCards(cube.id);
@@ -367,6 +375,85 @@ try {
   const imports = changes.filter((c) => c.kind === "cards_imported");
   expect(imports.length === 1, `an import should log exactly one entry, got ${imports.length}`);
   expect(imports[0]?.quantity === 9, `the entry should record 9 copies, got ${imports[0]?.quantity}`);
+
+  // --- 7. Starting points on the new-cube screen ----------------------------
+  // Both previews, the editor's and the cube-less one, must share one helper,
+  // or the size caps above stop meaning the same thing on both screens.
+  const actionsSource = readFileSync("src/app/cube/actions.ts", "utf8");
+  const bodyOf = (name: string) =>
+    actionsSource.split(/export async function /).find((b) => b.startsWith(`${name}(`)) ?? "";
+  for (const name of ["previewImportAction", "previewImportListAction"]) {
+    expect(
+      // Up to the function's closing brace, so a helper defined after it in
+      // the same chunk cannot satisfy this on its behalf.
+      /\bpreviewPastedList\(/.test(bodyOf(name).split(/\r?\n}\r?\n/)[0]),
+      `${name} should preview through previewPastedList, which holds the caps`,
+    );
+  }
+
+  // A cube created with its cards is one write: both land or neither does.
+  const seeded = await createCube(
+    { ownerId: user.id, name: "Seeded Cube", description: null, visibility: "private" },
+    [
+      { cardId: daisy.id, section: "main", quantity: 2 },
+      { cardId: legend.id, section: "legends", quantity: 1 },
+    ],
+  );
+  const seededCopies = (await getCubeCards(seeded.id)).reduce((n, c) => n + c.quantity, 0);
+  expect(seededCopies === 3, `a cube created with cards should hold them, got ${seededCopies}`);
+  let rolledBack = false;
+  try {
+    await createCube(
+      { ownerId: user.id, name: "Doomed Cube", description: null, visibility: "private" },
+      [{ cardId: "NOT-A-CARD", section: "main", quantity: 1 }],
+    );
+  } catch {
+    rolledBack = true;
+  }
+  const [{ doomed }] = await sql<{ doomed: number }[]>`
+    select count(*)::int as doomed from cubes where owner_id = ${user.id}::uuid and name = 'Doomed Cube'`;
+  expect(rolledBack && doomed === 0, "a failed card write must not leave an empty cube behind");
+
+  // "One of each card from a set": offered sets clear the floor, and each list
+  // is one row per card with no tokens, basic runes, special-slot reprints or
+  // cross-set Showcase reprints. Asserted against the rows themselves, not the
+  // filter's SQL, so a filter that stops working fails here. The riftscribe
+  // tokens with a null supertype exist only on production; the id-shape rule
+  // that catches them is asserted here, on whatever this database holds.
+  const sets = await getStarterSets();
+  expect(sets.length > 0, "at least one set should be offered as a starting point");
+  let starterCards = 0;
+  for (const set of sets) {
+    expect(set.cards >= STARTER_SET_MIN_CARDS, `${set.code} is offered below the floor (${set.cards})`);
+    const starter = await getSetStarterCards(set.code);
+    starterCards += starter.length;
+    expect(starter.length === set.cards, `${set.code}: offered as ${set.cards} cards, lists ${starter.length}`);
+    const detail = await sql<
+      { id: string; name: string; type: string; supertype: string | null; set_code: string; rarity: string; base_set: string }[]
+    >`
+      select c.id, c.name, c.type, c.supertype, c.set_code, c.rarity, b.set_code as base_set
+        from cards c join cards b on b.id = c.base_id
+       where c.id = any(${starter.map((row) => row.id)})`;
+    const bad = detail.filter(
+      (c) =>
+        c.set_code !== set.code ||
+        c.supertype === "Token" ||
+        c.supertype === "Basic" ||
+        !/^[A-Z]+-[0-9]+[a-z]?(-[a-z]+)?$/.test(c.id) ||
+        (c.rarity === "Showcase" && c.base_set !== c.set_code),
+    );
+    expect(
+      bad.length === 0,
+      `${set.code} starts a cube with ${bad.length} card(s) it should not: ` +
+        bad.slice(0, 5).map((c) => `${c.id} "${c.name}"`).join("; "),
+    );
+    const keys = new Set(detail.map((c) => collapseIdentityKey(c)));
+    expect(keys.size === detail.length, `${set.code} lists the same card more than once`);
+  }
+
+  console.log(
+    `starting points: ${sets.map((s) => `${s.code} ${s.cards}`).join(", ")} (${starterCards} cards checked)`,
+  );
 
   console.log(
     `import: ${preview.matchedCount} matched, ${preview.unmatchedCount} unmatched, ` +

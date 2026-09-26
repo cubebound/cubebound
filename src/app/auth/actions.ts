@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { claimUsername } from "@/db/queries/users";
 import { getAuthUser } from "@/lib/auth";
 import { isOAuthProvider } from "@/lib/auth-providers";
-import { authCallbackUrl } from "@/lib/site-url";
+import { authCallbackUrl, authCallbackUrlWithNext, safeReturnPath } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 import { checkUsername } from "@/lib/username";
 
@@ -44,7 +44,10 @@ export async function signInWithEmail(
     email,
     // Derived from this request's own origin — see src/lib/site-url.ts for why
     // an env var alone is not enough.
-    options: { emailRedirectTo: authCallbackUrl(await headers()) },
+    // `next` rides along when sign-in started from somewhere worth returning
+    // to, such as a cube someone tried to clone. Absent, this is exactly
+    // `authCallbackUrl`, so the allowlisted URL is unchanged.
+    options: { emailRedirectTo: authCallbackUrlWithNext(await headers(), formData.get("next")) },
   });
 
   if (error) return { error: error.message };
@@ -75,7 +78,7 @@ export async function signInWithProvider(
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: authCallbackUrl(await headers()) },
+    options: { redirectTo: authCallbackUrlWithNext(await headers(), formData.get("next")) },
   });
 
   if (error) return { error: error.message };
@@ -151,5 +154,6 @@ export async function claimUsernameAction(
   if (!result.ok) return { error: result.error };
 
   revalidateAuthUi();
-  redirect("/");
+  // Back to wherever sign-in started, when that was somewhere specific.
+  redirect(safeReturnPath(formData.get("next")) ?? "/");
 }

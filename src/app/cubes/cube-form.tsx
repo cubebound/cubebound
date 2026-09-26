@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, type ReactNode } from "react";
 
 import type { ActionState } from "@/app/cube/actions";
 import type { Cube } from "@/db/schema";
@@ -19,10 +19,13 @@ export default function CubeForm({
   action,
   cube,
   submitLabel,
+  children,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   cube?: Cube;
   submitLabel: string;
+  /** Extra fields above the submit button, e.g. the new-cube screen's set picker. */
+  children?: ReactNode;
 }) {
   const [state, formAction, pending] = useActionState(action, initial);
 
@@ -30,6 +33,36 @@ export default function CubeForm({
     <form action={formAction} className="space-y-4">
       {cube && <input type="hidden" name="cubeId" value={cube.id} />}
 
+      <CubeFields cube={cube} />
+      {children}
+
+      {state.error && (
+        <p role="alert" className={errorText}>
+          {state.error}
+        </p>
+      )}
+
+      <button
+        type="submit"
+        disabled={pending}
+        className={btn.primary}
+      >
+        {pending ? "Saving…" : submitLabel}
+      </button>
+    </form>
+  );
+}
+
+/**
+ * Name, description and visibility, as named form fields.
+ *
+ * Its own export because the new-cube screen's paste option needs the same
+ * fields without this form's submit: there the confirmed list is what creates
+ * the cube, so it reads these through `FormData` at commit time instead.
+ */
+export function CubeFields({ cube }: { cube?: Cube }) {
+  return (
+    <>
       <div>
         <label htmlFor="name" className={`mb-1 ${labelClass}`}>
           Name
@@ -80,20 +113,6 @@ export default function CubeForm({
           ))}
         </div>
       </fieldset>
-
-      {state.error && (
-        <p role="alert" className={errorText}>
-          {state.error}
-        </p>
-      )}
-
-      <button
-        type="submit"
-        disabled={pending}
-        className={btn.primary}
-      >
-        {pending ? "Saving…" : submitLabel}
-      </button>
-    </form>
+    </>
   );
 }

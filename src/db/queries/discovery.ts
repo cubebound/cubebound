@@ -49,6 +49,14 @@ export interface CubeSearchOptions {
   followedBy?: string;
   /** Explore passes false; the owner's own listings pass true. */
   includeNonPublic?: boolean;
+  /** Only cubes holding at least this many cards, maybeboard excluded. */
+  minCards?: number;
+  /**
+   * Skip the cover art and return `coverImage: null`. The cover subquery is
+   * most of what this query costs (see page-speed.md), so a list that shows
+   * no art should not pay for it.
+   */
+  omitCover?: boolean;
 }
 
 /**
@@ -117,6 +125,7 @@ function conditions(options: CubeSearchOptions) {
     options.ownerId ? eq(cubes.ownerId, options.ownerId) : undefined,
     keywordFilter(options.keywords),
     cardFilter(options.cardName),
+    options.minCards ? sql`${cardCount} >= ${options.minCards}` : undefined,
     options.followedBy
       ? exists(
           db
@@ -160,7 +169,7 @@ export async function searchCubes(
       updatedAt: cubes.updatedAt,
       cardCount,
       followers: followerCount,
-      coverImage: cubeCoverImageSql,
+      coverImage: options.omitCover ? sql<string | null>`null` : cubeCoverImageSql,
     })
     .from(cubes)
     .innerJoin(users, eq(users.id, cubes.ownerId))

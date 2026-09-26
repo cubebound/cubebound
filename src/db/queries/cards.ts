@@ -728,3 +728,123 @@ export async function getCardsByIds(
     .from(cards)
     .where(inArray(cards.id, ids));
 }
+
+/**
+ * Rows that are not cards to start a cube with: tokens, the basic runes, and
+ * the special-slot reprints.
+ *
+ * - **Tokens need both halves, and only production shows why.** Five carry
+ *   `supertype = 'Token'`, but six more (`UNL-T01` to `UNL-T07`) come from the
+ *   retired riftscribe source, which wrote a null supertype unconditionally. On
+ *   dev those six rows do not exist, so a supertype-only filter passes every
+ *   check there and still seeds tokens into production cubes.
+ * - **Basic runes** (`supertype = 'Basic'`) are resources, not picks.
+ * - **The id shape** catches what is left: `VEN-R01` to `R06` (basic runes
+ *   again) and `VEN-SP1` to `SP6` (champion reprints in a special slot, whose
+ *   real printings are in other sets). An ordinary id is `SET-NNN`, optionally
+ *   with an alt-art letter or a `-star` style suffix. Checked against
+ *   production on 26 September 2026: those 19 rows, the tokens included, are
+ *   every id that does not fit.
+ *
+ * Outer columns are qualified by hand; see database.md.
+ */
+const startingCard = sql`(
+  "cards"."supertype" is distinct from 'Token'
+  and "cards"."supertype" is distinct from 'Basic'
+  and "cards"."id" ~ '^[A-Z]+-[0-9]+[a-z]?(-[a-z]+)?$'
+)`;
+
+/**
+ * A Showcase printing of a card whose real printing is in a different set:
+ * `SFD-227` "Ahri, Inquisitive" reprints `OGN-119`. "One of each card from
+ * SFD" should mean SFD's own cards, so these are left out. A
+ * Showcase reprint *within* its own set needs no rule; the collapse already
+ * prefers the real one. A reprint at an ordinary rarity (`VEN-168` Jinx) is
+ * in that set's packs and stays.
+ */
+const crossSetShowcase = sql`("cards"."rarity" = 'Showcase' and exists (
+  select 1 from ${cards} as base_card
+   where base_card.id = "cards"."base_id" and base_card.set_code <> "cards"."set_code"
+))`;
+
+/** Everything the set starting point keeps from one set. */
+function starterFilter(setCode?: string) {
+  return and(
+    setCode ? eq(cards.setCode, setCode) : undefined,
+    startingCard,
+    sql`not ${crossSetShowcase}`,
+  );
+}
+
+/**
+ * One of each card from a set, for the new-cube screen's set starting point.
+ *
+ * Collapsed by the browser's own rule (`collapseKey`, `canonicalFirst`), so a
+ * promo treatment spelled into the name ("(Metal)", "(Starter)") and an alt art
+ * are one card, represented by its plainest printing. That makes this the third
+ * query that collapses printings, deliberately; see printings.md. Only `id` and
+ * `type` come back, because the caller files each card by type and nothing
+ * else.
+ */
+export async function getSetStarterCards(
+  setCode: string,
+): Promise<{ id: string; type: string }[]> {
+  if (typeof setCode !== "string" || setCode.length === 0) return [];
+  return db
+    .selectDistinctOn([collapseKey], { id: cards.id, type: cards.type })
+    .from(cards)
+    .where(starterFilter(setCode))
+    .orderBy(collapseKey, ...canonicalFirst);
+}
+
+/**
+ * A set is offered as a starting point only when its starter list is at least
+ * this long. Derived from the data rather than a list of codes, so a new set
+ * appears on its own. Measured on production, 26 September 2026: the four main
+ * sets give 176 to 288 cards, while the promo, judge and starter sets give 101
+ * (OPP), 24, 12 and 3, and "one of each" from those is not a cube. 150 sits in
+ * the gap with room on both sides; 100 would have let OPP in by one card.
+ */
+export const STARTER_SET_MIN_CARDS = 150;
+
+export interface StarterSet {
+  code: string;
+  label: string;
+  cards: number;
+}
+
+let starterSetsMemo: { at: number; value: StarterSet[] } | null = null;
+
+/**
+ * Sets worth starting a cube from, with how many cards each would give.
+ *
+ * One grouped statement, memoised on the card-pool TTL for the same reason as
+ * the filter options: it describes the pool, which changes only when
+ * `sync-cards` runs. Labels come from the filter options, which are memoised
+ * already, so a warm instance answers this without a query.
+ */
+export async function getStarterSets(): Promise<StarterSet[]> {
+  const now = Date.now();
+  if (starterSetsMemo && now - starterSetsMemo.at < CARD_POOL_TTL_MS) {
+    return starterSetsMemo.value;
+  }
+
+  const [counts, options] = await Promise.all([
+    db
+      .select({ code: cards.setCode, cards: countDistinct(collapseKey) })
+      .from(cards)
+      .where(starterFilter())
+      .groupBy(cards.setCode),
+    getFilterOptions(),
+  ]);
+
+  const sizes = new Map(counts.map((row) => [row.code, Number(row.cards)]));
+  // Filter options are already ordered by printed name.
+  const value = options.sets.flatMap((set) => {
+    const size = sizes.get(set.code) ?? 0;
+    return size >= STARTER_SET_MIN_CARDS ? [{ code: set.code, label: set.label, cards: size }] : [];
+  });
+
+  starterSetsMemo = { at: now, value };
+  return value;
+}

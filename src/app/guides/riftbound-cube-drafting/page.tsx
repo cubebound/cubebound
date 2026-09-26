@@ -249,7 +249,7 @@ export default function CubeDraftingGuide() {
               Explore
             </Link>{" "}
             lists public cubes, and any of them can be cloned into your own
-            account in one click and changed from there.
+            account under a name you choose and changed from there.
           </p>
           <p>
             When you are ready to test it, you can{" "}
@@ -259,6 +259,14 @@ export default function CubeDraftingGuide() {
             against bots without waiting for a group, choosing seats, packs, pack
             size and how legends and battlefields are dealt. The bots are very
             stupid for now, but it is so satisfying to see your cube at work!
+          </p>
+          <p>
+            When you have a group, any cube exports to Draftmancer, which runs
+            the draft for the whole table in the browser.{" "}
+            <Link href="/guides/draftmancer" className={linkClass}>
+              Here&rsquo;s how to draft with friends on Draftmancer
+            </Link>
+            .
           </p>
           <p className="font-medium text-zinc-900 dark:text-zinc-100">
             Good luck out on the Rift and happy cube-ing!
