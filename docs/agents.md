@@ -31,7 +31,9 @@ remembering — nothing announces that an agent is missing until you try to spaw
 ### `npm run stats`
 
 [scripts/stats.mts](../scripts/stats.mts) prints what the site holds: cubes by visibility,
-the size distribution including empty ones, accounts, drafts started and completed,
+the size distribution including empty ones, accounts, active accounts (edited a cube or
+drafted in the last 7 and 30 days — there is no login timestamp, so browsing is invisible),
+drafts started and completed, drafts on the drafter's own cube versus someone else's,
 primer and maybeboard adoption, follows, clones, import sizes, and recent activity.
 **Read-only `select` and nothing else.**
 
@@ -88,6 +90,11 @@ two production reads in one session before anyone noticed that the shape was the
 Nothing in the refusal says the command itself was allowlisted, so it reads as a missing
 permission and sends you off to add a rule that is already there. Run these bare and let
 the output be long.
+
+**Spawning `data` is a separate permission from the commands it runs.** On 25 September
+2026 the auto mode classifier refused the `Agent` call itself, before any command ran, even
+though both commands were allowlisted. `Agent(data)` in the allow list and a matching
+`autoMode.allow` entry now cover the spawn; the read-only role is still what makes it safe.
 
 ### The Stop hook
 
