@@ -234,6 +234,19 @@
   one server-side through `mergeImportRows`. Imports append and increment, and
   log as a single `cards_imported` batch. No name in the pool maps to two cards
   today, so `check:import` covers ambiguity with a synthetic catalog.
+- **The importer is `src/components/import-cards.tsx`, and it takes its actions
+  as props.** Two screens use it: the editor's Import mode, adding to a cube
+  that exists, and the new-cube screen, where the confirmed list *creates* the
+  cube. The editor passes `previewImportAction`/`commitImportAction` bound to
+  the cube id, so the component never imports a server value. **Both previews
+  go through `previewPastedList`**, which holds the size caps; a second copy of
+  the caps would let the two screens drift into accepting different lists.
+- **An empty mainboard points at Paste a list, not only at Edit.** An empty
+  cube's first job is reaching a few hundred cards, and Edit adds one at a time,
+  so an empty state naming only Edit pointed at the slow road. It is a
+  `panelEmpty` block linking to `?mode=import`. The maybeboard keeps its own
+  empty message: `cube-contents.tsx` used to overwrite whatever message it was
+  given with "Press Edit…", so the maybeboard's never showed.
 - **The maybeboard is not part of the cube.** It holds cards you are
   *considering*; the sideboard holds cards deliberately taken out. Neither is
   drafted, and the maybeboard is excluded from the cube's card count and from
@@ -249,6 +262,55 @@
   never warn about their absence or treat any section as required.
 - **An account holds at most `MAX_CUBES_PER_USER` (25) cubes.** Not a product
   decision so much as an abuse ceiling: field lengths were capped but nothing
-  bounded the row count. Enforced at write time on **both** creation paths —
-  creating and cloning — because a cap on one of them is not a cap, and cloning
-  is the easier one to automate.
+  bounded the row count. Enforced at write time on **every** creation path
+  (empty, from a set, from a pasted list, and cloning), because a cap on some
+  of them is not a cap, and cloning is the easiest one to automate.
+
+## Starting a cube
+
+- **`/cubes/new` offers four starting points, and none of them creates the cube
+  until you submit.** Clone a cube, paste a list, one of each card from a set,
+  or start empty, chosen by `?start=` so each is a plain link that works before
+  hydration. The name-only form it replaced produced empty cubes: four of the
+  first 25 public ones never got a card. Walking away halfway through any
+  option leaves nothing behind. Cloning is described in
+  [cube-access.md](cube-access.md).
+- **A cube and its first cards land in one transaction.** `createCube` takes
+  optional entries, already collapsed to one per (card, section), and writes
+  both or neither; a starting point that created the cube and then failed on
+  the cards would leave exactly the empty cube this screen exists to stop.
+  `createCubeWithLog` records one `cube_created` entry and, when cards came
+  with it, one `cards_imported` batch rather than a line per card.
+- **Paste a list is gated on the account, not a cube.** There is no cube to
+  own yet, so `previewImportListAction` and `createCubeFromListAction` go
+  through `requireCreator` (signed in, a username, not suspended), and the
+  create adds `underCubeLimit`. The name fields are `CubeFields`, split out of
+  `cube-form.tsx` and read through `FormData` at commit time; the server
+  re-validates them with the same rules as any other create, and re-validates
+  the rows exactly as `commitImportAction` does. **It returns `{ path }` rather
+  than calling `redirect()`**, so the importer's dropped-request guard has no
+  `NEXT_REDIRECT` to tell apart from a real failure.
+- **One of each card from a set is `createCubeAction` with a `set` field**, and
+  the list is built server-side from the code alone, never from anything the
+  client sends about which cards that means. The code must be one
+  `getStarterSets()` offers, so the floor below cannot be skipped by URL.
+  `getSetStarterCards` collapses printings by the browser's rule (see
+  [printings.md](printings.md)) and files each card by `defaultSectionForType`.
+- **A starter list leaves out what is not a card to start a cube with.** Tokens
+  and basic runes by supertype, and anything whose id is not an ordinary
+  `SET-NNN` shape (`^[A-Z]+-[0-9]+[a-z]?(-[a-z]+)?$`). **The id rule is not
+  redundant**: production holds riftscribe token rows (`UNL-T0n`) with a null
+  supertype that dev does not, so a supertype-only filter passes every check on
+  dev and still seeds tokens into production cubes. The same rule catches the
+  `VEN-R0n` basic runes and the `VEN-SPn` special-slot reprints. A Showcase
+  printing whose base printing is in another set is left out too, since "one of
+  each card from SFD" means SFD's own cards; a reprint at an ordinary rarity is
+  in that set's packs and stays.
+- **A set is offered only when its starter list reaches
+  `STARTER_SET_MIN_CARDS` (150).** Derived from the data rather than a list of
+  codes, so a new set appears on its own. Measured on 26 September 2026, the
+  main sets give 176 to 288 cards and the promo, judge and starter sets 101 or
+  fewer, and "one of each" from those is not a cube; 100 would have let OPP in
+  by one card. `getStarterSets` is memoised on `CARD_POOL_TTL_MS`, like the
+  filter options, because it describes the pool and the pool changes only when
+  `sync-cards` runs.

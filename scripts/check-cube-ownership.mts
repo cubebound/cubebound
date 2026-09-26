@@ -74,10 +74,27 @@ try {
       why: "creates a cube from nothing; there is no existing cube to own",
     },
     cloneCubeAction: {
-      gate: "canViewCube",
+      gate: "canUseCube",
       why: "reads a cube the caller may only be able to *view*, and writes a new one they own",
     },
+    previewImportListAction: {
+      gate: "requireCreator",
+      why: "previews a list for a cube that does not exist yet; it writes nothing",
+    },
+    createCubeFromListAction: {
+      gate: "requireCreator",
+      why: "creates a cube from nothing, with its cards; there is no existing cube to own",
+    },
   };
+
+  // Whether a body *calls* a gate, with comments stripped first. A plain
+  // `includes` passed `cloneCubeAction` for months on the strength of a comment
+  // reading "canUseCube, not canViewCube" while this table named the wrong
+  // gate: delete the real call and keep the comment, and it still passed.
+  const calls = (body: string, gate: string) =>
+    new RegExp(`\\b${gate}\\(`).test(
+      body.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""),
+    );
 
   // Draft actions live in their own file and are gated on *viewing* a cube
   // rather than owning it — anyone who can open a cube can draft it. They are
@@ -166,14 +183,14 @@ try {
     const name = body.slice(0, body.indexOf("("));
     const exemption = OTHER_GATES[name];
     if (exemption) {
-      if (!body.includes(exemption.gate)) {
+      if (!calls(body, exemption.gate)) {
         failures.push(
           `${name} is exempt from requireOwnedCube (${exemption.why}) but does not call ${exemption.gate} either`,
         );
       }
       continue;
     }
-    if (!body.includes("requireOwnedCube")) {
+    if (!calls(body, "requireOwnedCube")) {
       failures.push(`${name} does not call requireOwnedCube`);
     }
   }

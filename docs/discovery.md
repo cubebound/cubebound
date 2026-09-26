@@ -2,8 +2,8 @@
 
 One query backs every cube list on the site — `searchCubes` in
 `src/db/queries/discovery.ts`, rendered by `src/components/cube-results.tsx`.
-Explore, Your cubes and Followed cubes are the same call with a different
-restriction, so a row cannot come to mean two different things depending on
+Explore, Your cubes, Followed cubes and the new-cube screen's clone list are the
+same call with a different restriction, so a row cannot come to mean two different things depending on
 where you meet it. The listing `queries/cubes.ts` used to own is gone; it
 counted the maybeboard, which nothing else does.
 
@@ -30,6 +30,12 @@ counted the maybeboard, which nothing else does.
   printings appears once, and it **skips the maybeboard**: "which cubes run
   this card" must not answer with cubes that are only thinking about it. Card
   counts skip it for the same reason.
+- **`minCards` and `omitCover` exist for lists that are not Explore.**
+  `minCards` counts the same way every card count does, maybeboard excluded.
+  `omitCover` returns a null cover without running the cover subquery, which is
+  most of what this query costs (see [page-speed.md](page-speed.md)), so a list
+  that shows no art does not pay for it. The new-cube screen's clone list uses
+  both; see [cube-access.md](cube-access.md).
 - Sorting by follows falls back to recency as the tie-break — among cubes
   nobody follows yet, the freshest is the more useful answer.
 - **The search lives in the URL**, as a plain GET form rather than client

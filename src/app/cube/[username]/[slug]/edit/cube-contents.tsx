@@ -139,8 +139,7 @@ export default function CubeContents({
         cards={cards}
         view={view}
         {...(sections ? { sections } : {})}
-        {...(emptyMessage ? { emptyMessage } : {})}
-        emptyMessage="No cards yet. Press Edit to start adding cards."
+        emptyMessage={emptyMessage ?? "No cards yet. Press Edit to start adding cards."}
         detailFooter={(card, retarget) => (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">

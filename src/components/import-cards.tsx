@@ -3,15 +3,15 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import {
-  commitImportAction,
-  previewImportAction,
-  type ImportCommitRow,
+import type {
+  ActionState,
+  ImportCommitRow,
+  ImportPreviewState,
 } from "@/app/cube/actions";
 import type { CatalogCard, ImportPreview, PreviewRow } from "@/lib/import-list";
 import { MAX_IMPORT_LINES } from "@/lib/import-list";
 import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
-import { btn } from "@/lib/ui";
+import { btn, errorText } from "@/lib/ui";
 
 const PLACEHOLDER = `# Paste a card list, one per line
 2 Fury Rune
@@ -40,13 +40,23 @@ function statusLabel(row: PreviewRow): string {
  * The preview is the point: nothing reaches the cube until the user confirms,
  * and lines the importer could not resolve are shown as their own problem to
  * solve rather than being dropped quietly or guessed at.
+ *
+ * Two places use it, which is why it lives here: the editor's Import mode,
+ * adding to a cube that exists, and the new-cube screen, where the confirmed
+ * list *creates* the cube. The actions come in as props (bound server actions
+ * from the editor, a closure over the name fields from the new-cube screen), so
+ * this file never imports a server value.
  */
 export default function ImportCards({
-  cubeId,
-  editorPath,
+  preview: previewAction,
+  commit: commitAction,
+  target,
 }: {
-  cubeId: string;
-  editorPath: string;
+  preview: (text: string) => Promise<ImportPreviewState>;
+  commit: (rows: ImportCommitRow[]) => Promise<ActionState & { added?: number; path?: string }>;
+  /** An existing cube, whose editor the success message links back to, or a
+   *  cube that is created by the commit and opened when it lands. */
+  target: { kind: "cube"; editorPath: string } | { kind: "new" };
 }) {
   const router = useRouter();
   const [text, setText] = useState("");
@@ -61,7 +71,7 @@ export default function ImportCards({
     setDone(null);
     startTransition(async () => {
       try {
-        const result = await previewImportAction(cubeId, text);
+        const result = await previewAction(text);
         if (result.error) {
           setError(result.error);
           setPreview(null);
@@ -74,7 +84,7 @@ export default function ImportCards({
         // the next render — which takes out the whole editor through error.tsx
         // and loses the pasted list with it. Nothing reached the cube on a
         // preview, so a retry is safe to offer outright.
-        setError("Couldn't reach the server. Your list is still here — try again.");
+        setError("Couldn't reach the server. Your list is still here, so try again.");
         setPreview(null);
       }
     });
@@ -108,9 +118,14 @@ export default function ImportCards({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await commitImportAction(cubeId, rows);
+        const result = await commitAction(rows);
         if (result.error) {
           setError(result.error);
+          return;
+        }
+        if (result.path) {
+          // The cube was created by this commit; its editor is the result.
+          router.push(result.path);
           return;
         }
         setDone(result.added ?? 0);
@@ -124,7 +139,9 @@ export default function ImportCards({
         // it as failed would walk the user into a second import, so say only
         // what is actually known.
         setError(
-          "Lost contact with the server. The import may or may not have gone through — reload the cube and check before trying again.",
+          target.kind === "cube"
+            ? "Lost contact with the server. The import may or may not have gone through, so reload the cube and check before trying again."
+            : "Lost contact with the server. The cube may or may not have been created, so check Your cubes before trying again.",
         );
       }
     });
@@ -182,25 +199,29 @@ export default function ImportCards({
               disabled={pending || resolvedCount === 0}
               className={btn.secondarySm}
             >
-              Add {resolvedCount} {resolvedCount === 1 ? "line" : "lines"} to the cube
+              {target.kind === "cube" ? "Add" : "Create the cube with"} {resolvedCount}{" "}
+              {resolvedCount === 1 ? "line" : "lines"}
+              {target.kind === "cube" ? " to the cube" : ""}
             </button>
             <span className="text-sm text-muted">
-              Nothing is added until you confirm.
+              {target.kind === "cube"
+                ? "Nothing is added until you confirm."
+                : "Nothing is created until you confirm."}
             </span>
           </>
         )}
       </div>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className={errorText}>
           {error}
         </p>
       )}
 
-      {done !== null && (
+      {done !== null && target.kind === "cube" && (
         <p role="status" className="text-sm text-green-700 dark:text-green-400">
           Imported {done} {done === 1 ? "copy" : "copies"}.{" "}
-          <a href={editorPath} className="underline underline-offset-2">
+          <a href={target.editorPath} className="underline underline-offset-2">
             Back to the cube
           </a>
         </p>

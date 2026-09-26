@@ -32,6 +32,7 @@ import {
 } from "../src/db/queries/cubes";
 import { canEditCube, canViewCube } from "../src/lib/cube-access";
 import { defaultSectionForType } from "../src/lib/riftbound";
+import { slugify } from "../src/lib/slug";
 import { btn } from "../src/lib/ui";
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
@@ -107,10 +108,23 @@ try {
   expect(sourceTotal === sourceRows.length + 1, "the source cube should hold one multiple");
 
   // --- clone -----------------------------------------------------------------
-  const clone = await cloneCube(cube.id, stranger.id, `Copy of ${cube.name}`);
+  // The copy is named by its new owner before it exists, because the slug is
+  // taken from the name once and never changes. Naming it "Copy of …" first is
+  // how a live cube ended up at `copy-of-the-blevins-cube` for good.
+  const cloneName = "Stranger's Variant";
+  const clone = await cloneCube(cube.id, stranger.id, cloneName);
   const clonedRows = await getCubeCards(clone.id);
   expect(clone.visibility === "private", `clones should be private, got ${clone.visibility}`);
-  expect(clone.name === "Copy of Public View Cube", `unexpected clone name: ${clone.name}`);
+  expect(clone.name === cloneName, `the clone should carry the chosen name, got ${clone.name}`);
+  expect(
+    clone.slug === slugify(cloneName) && !clone.slug.startsWith("copy-of"),
+    `the clone's slug should come from the chosen name, got ${clone.slug}`,
+  );
+  const again = await cloneCube(cube.id, stranger.id, cloneName);
+  expect(
+    again.slug === `${slugify(cloneName)}-2`,
+    `a second clone under the same name should get a numbered slug, got ${again.slug}`,
+  );
   expect(clone.ownerId === stranger.id, "the clone should belong to the caller");
   expect(clone.description === null, "the clone should not inherit the original's description");
   expect(
@@ -250,6 +264,20 @@ try {
     `the editor's Share should carry the absolute URL ${APP}${publicPath}`,
   );
 
+  // Clone is a link to the clone form as a page, which a click turns into a
+  // dialog. The page is the no-JS path, so it has to work on its own: it names
+  // the source and offers the form.
+  const clonePage = `/cubes/new?start=clone&from=${encodeURIComponent(`${owner.username}/${cube.slug}`)}`;
+  expect(
+    visitorHtml.includes(`href="${clonePage.replace(/&/g, "&amp;")}"`),
+    "a visitor's Clone should link to the clone form",
+  );
+  const clonePageHtml = await body(clonePage, stranger.cookie);
+  expect(
+    clonePageHtml.includes("Clone Public View Cube") && clonePageHtml.includes(">Clone cube<"),
+    "the clone page should offer the form for a cube the visitor can open",
+  );
+
   await updateCube(cube.id, {
     name: cube.name,
     description: cube.description,
@@ -268,6 +296,14 @@ try {
   expect(
     privateBounce.to.includes(`${publicPath}/edit`),
     "a private cube should send its owner to the editor rather than 404",
+  );
+
+  // Nor may the clone page read a private cube's name out to a stranger who
+  // guesses its path: it falls back to the list instead of pre-filling.
+  const privateClonePage = await body(clonePage, stranger.cookie);
+  expect(
+    !privateClonePage.includes("Public View Cube"),
+    "the clone page must not reveal a private cube's name to a stranger",
   );
 
   // A stranger must not be able to clone a private cube, even knowing its path.

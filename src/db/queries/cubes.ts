@@ -96,12 +96,23 @@ export async function countCubesForOwner(ownerId: string): Promise<number> {
 // "how many cards is that" cannot mean two different things. The listing this
 // file used to own counted the maybeboard, which the rest of the app does not.
 
-export async function createCube(input: {
-  ownerId: string;
-  name: string;
-  description: string | null;
-  visibility: CubeVisibility;
-}): Promise<Cube> {
+/**
+ * Creates a cube, optionally with its first cards.
+ *
+ * **Cube and cards land in one transaction.** A starting point that created
+ * the cube and then failed on the cards would leave exactly what the new-cube
+ * screen exists to stop producing: another empty cube. Callers pass entries
+ * already collapsed to one per (card, section), as `addCubeCards` requires.
+ */
+export async function createCube(
+  input: {
+    ownerId: string;
+    name: string;
+    description: string | null;
+    visibility: CubeVisibility;
+  },
+  entries: { cardId: string; section: CubeSection; quantity: number }[] = [],
+): Promise<Cube> {
   const existing = await db
     .select({ slug: cubes.slug })
     .from(cubes)
@@ -109,11 +120,18 @@ export async function createCube(input: {
 
   const slug = uniqueSlug(slugify(input.name), new Set(existing.map((r) => r.slug)));
 
-  const [cube] = await db
-    .insert(cubes)
-    .values({ ...input, slug })
-    .returning();
-  return cube;
+  return db.transaction(async (tx) => {
+    const [cube] = await tx
+      .insert(cubes)
+      .values({ ...input, slug })
+      .returning();
+    if (entries.length > 0) {
+      await tx
+        .insert(cubeCards)
+        .values(entries.map((entry) => ({ cubeId: cube.id, ...entry })));
+    }
+    return cube;
+  });
 }
 
 export async function updateCube(

@@ -1,5 +1,5 @@
-Shared components: card tiles and art, the cube table and sections, charts, the filter bar, the primer and its toolbar.
+Shared components: card tiles and art, the cube table and sections, charts, the filter bar, the primer and its toolbar, the importer, and Clone with its dialog.
 
-Read before changing anything here: [docs/cube-views.md](../../docs/cube-views.md), [docs/chrome-and-theme.md](../../docs/chrome-and-theme.md), [docs/card-images.md](../../docs/card-images.md), [docs/analytics.md](../../docs/analytics.md).
+Read before changing anything here: [docs/cube-views.md](../../docs/cube-views.md), [docs/chrome-and-theme.md](../../docs/chrome-and-theme.md), [docs/card-images.md](../../docs/card-images.md), [docs/analytics.md](../../docs/analytics.md), [docs/cube-editor.md](../../docs/cube-editor.md), [docs/cube-access.md](../../docs/cube-access.md).
 
 Rules live in those docs and in the root [CLAUDE.md](../../CLAUDE.md), never in this file.

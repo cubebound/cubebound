@@ -10,7 +10,10 @@
 /profile                              redirect to your own /u/{username}
 /settings                             account settings — sign-in methods, delete your account
 /login  /welcome  /auth/callback      magic link, username claim, PKCE exchange
-/cubes  /cubes/new                    the signed-in user's cubes; ?tab=followed &q= &page=
+/cubes                                the signed-in user's cubes; ?tab=followed &q= &page=
+/cubes/new                            choose how a new cube starts;
+                                      ?start=clone|list|set|empty,
+                                      &from={username}/{slug} pre-fills the clone form
 /cube/{username}/{slug}               public view — visibility-gated;
                                       307s the cube's own owner to /edit
 /cube/{username}/{slug}/edit          owner editor;

@@ -34,7 +34,7 @@ import {
 import { resolveSiteUrl } from "@/lib/site-url";
 import { btn, panelEmpty, tab as tabStyle } from "@/lib/ui";
 
-import CloneButton from "../clone-button";
+import CloneButton from "@/components/clone-cube";
 import ShareButton from "../share-button";
 
 interface RouteParams {
@@ -249,7 +249,8 @@ export default async function CubePage({
             <CloneButton
               username={cube.ownerUsername}
               slug={cube.slug}
-              signedIn={Boolean(current?.profile)}
+              sourceName={cube.name}
+              viewerUsername={current?.profile?.username ?? null}
               prominent
             />
           </div>

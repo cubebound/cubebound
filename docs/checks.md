@@ -9,11 +9,11 @@
 | `check:browse-grid` | a grouped tile is a card, an all-printings tile is itself | Supabase + dev server | manual gate |
 | `check:card-filters` | multi-select ORs within a filter and ANDs across; energy buckets partition the pool; sorting uses the game's order | DB (read-only) | manual gate |
 | `check:copies-and-log` | quantity 2 lists as two entries; per-copy edits move one copy; edits reach the log | Supabase + dev server | manual gate |
-| `check:public-cube` | visibility gating, cloning, quantity-aware counts, that Clone is the prominent action (it imports `btn.primarySm` from `src/lib/ui.ts` rather than matching a palette string, so styling changes cannot break it), and that the owner gets a real **307** to `/edit` rather than the page — a 200 there means the redirect degraded to a client-side hop | Supabase + dev server | manual gate |
+| `check:public-cube` | visibility gating, cloning (the copy takes the name chosen for it, and a repeat gets `-2`), that Clone links to the clone page, which renders for a public cube and does not reveal a private cube's name to a stranger, quantity-aware counts, that Clone is the prominent action (it imports `btn.primarySm` from `src/lib/ui.ts` rather than matching a palette string, so styling changes cannot break it), and that the owner gets a real **307** to `/edit` rather than the page — a 200 there means the redirect degraded to a client-side hop | Supabase + dev server | manual gate |
 | `check:auth-flow` | claiming a username refreshes the nav (`revalidatePath`) | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:cube-ownership` | replays an Add under another session and with no cookie | Supabase + dev server + Chrome :9222 | manual gate |
 | `check:magic-link` | the `redirect_to` actually sent to Supabase, and `/?code=` self-heal | `dev:probe` server + Chrome :9222 | manual gate |
-| `check:import` | import parsing, matching, the line cap and the committed result | DB | manual gate |
+| `check:import` | import parsing, matching, the line cap and the committed result, written through `addCubeCards` as the action does; that both previews go through `previewPastedList`; that `createCube` with cards is atomic, so a bad card leaves no cube; and that every offered set's starter list clears the floor and holds no token, basic rune, special-slot reprint, cross-set Showcase row or duplicate card | DB | manual gate |
 | `check:draft` | a full seeded 8-seat draft: quantities, pack template, passing, bots, determinism | nothing | **CI** |
 | `check:discovery` | explore is public-only, keywords AND, the card filter, sorting, follow state, both `/cubes` tabs | Supabase + dev server | manual gate |
 | `check:analytics` | copies not rows, costless cards off the curve, Multi bucketing, keyword normalisation | nothing | **CI** |
@@ -52,7 +52,11 @@ fixing those checks the same way.**
 
 `check:cube-ownership` is also structural: it fails if a new action in
 `src/app/cube/actions.ts` skips `requireOwnedCube` without a documented
-exemption naming the gate it uses instead. It scans the **draft** and **follow**
+exemption naming the gate it uses instead. **The gate has to be called, not
+mentioned**: the scan strips comments and looks for `gate(`. A plain substring
+match passed `cloneCubeAction` for months on a comment reading "canUseCube, not
+canViewCube" while the exemption named the wrong gate, so deleting the real
+call and keeping the comment would still have passed. It scans the **draft** and **follow**
 actions the same way, against their own gates — a mutation living in a file the
 check does not read would escape the guarantee entirely, which is worse than an
 exemption.

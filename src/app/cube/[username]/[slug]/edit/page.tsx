@@ -15,7 +15,7 @@ import {
   getCubeHoldingsForBases,
   listCubeChanges,
 } from "@/db/queries/cubes";
-import { btn, tab as tabStyle } from "@/lib/ui";
+import { btn, panelEmpty, tab as tabStyle } from "@/lib/ui";
 import { getPrintingsForBases } from "@/db/queries/cards";
 import { loadCube, loadViewer } from "@/lib/cube-request";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
@@ -38,11 +38,12 @@ import {
 import { countCopies } from "@/lib/cube-cards";
 import { resolveSiteUrl } from "@/lib/site-url";
 
-import CloneButton from "../clone-button";
+import CloneButton from "@/components/clone-cube";
 import ShareButton from "../share-button";
 import AddCards from "./add-cards";
 import CubeContents from "./cube-contents";
-import ImportCards from "./import-cards";
+import ImportCards from "@/components/import-cards";
+import { commitImportAction, previewImportAction } from "@/app/cube/actions";
 import PrimerEditor from "./primer-editor";
 import EditPanel from "./edit-panel";
 import CubeAnalyticsView from "@/components/cube-analytics-view";
@@ -241,7 +242,8 @@ export default async function EditCubePage({
             <CloneButton
               username={cube.ownerUsername}
               slug={cube.slug}
-              signedIn
+              sourceName={cube.name}
+              viewerUsername={cube.ownerUsername}
               prominent={false}
             />
             <Link href={`${publicPath}/settings`} className={btn.secondarySm}>
@@ -326,7 +328,11 @@ export default async function EditCubePage({
             what matched before anything is added, and imports append to what the
             cube already holds.
           </p>
-          <ImportCards cubeId={cube.id} editorPath={basePath} />
+          <ImportCards
+            preview={previewImportAction.bind(null, cube.id)}
+            commit={commitImportAction.bind(null, cube.id)}
+            target={{ kind: "cube", editorPath: basePath }}
+          />
         </section>
       ) : onAnalytics ? (
         <CubeAnalyticsView cards={contents} />
@@ -388,12 +394,29 @@ export default async function EditCubePage({
       ) : (
         <div className="grid gap-6">
           <section className="min-w-0">
-            <CubeContents
-              cubeId={cube.id}
-              cards={contents}
-              view={view}
-              printingsByBase={printingsByBase}
-            />
+            {/* An empty cube's first job is getting to a few hundred cards, and
+                a pasted list is the only realistic way there. Edit adds one card
+                at a time, so an empty state that named only Edit was pointing
+                at the slow road. */}
+            {contents.length === 0 ? (
+              <div className={panelEmpty}>
+                <p>This cube is empty.</p>
+                <p className="mt-1">
+                  Paste a card list to add many cards at once, or press Edit to
+                  add them one at a time.
+                </p>
+                <Link href={`${basePath}?mode=import`} className={`mt-4 ${btn.secondarySm}`}>
+                  Paste a list
+                </Link>
+              </div>
+            ) : (
+              <CubeContents
+                cubeId={cube.id}
+                cards={contents}
+                view={view}
+                printingsByBase={printingsByBase}
+              />
+            )}
           </section>
         </div>
       )}

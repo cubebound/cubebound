@@ -21,7 +21,8 @@ moderator role beyond it yet.
   the account being switched off, so it applies to them too. Admins see
   everything, since reviewing what you hid is the job.
 - **Suspension stops the account acting, not only being seen.** `suspensionError`
-  is checked in `requireOwnedCube`, `createCubeAction`, the clone path, the draft
+  is checked in `requireOwnedCube`, `createCubeAction`, `requireCreator` (the
+  paste-a-list starting point), the clone path, the draft
   gate and the follow gate. It was missing at first: a suspended account could go
   on creating and editing cubes — invisible to everyone, but still accumulating
   against the 25-cube ceiling, and a suspension that lets you keep working is not

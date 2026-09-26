@@ -7,6 +7,8 @@ import {
   getCardById,
   getCardsByIds,
   getImportCatalog,
+  getSetStarterCards,
+  getStarterSets,
   quickSearchCards,
   type BrowseCard,
 } from "@/db/queries/cards";
@@ -111,12 +113,31 @@ function revalidateCube(username: string, slug: string): void {
   revalidatePath("/cubes");
 }
 
-function readMetadata(formData: FormData):
-  | { ok: true; name: string; description: string | null; visibility: CubeVisibility }
-  | { ok: false; error: string } {
-  const name = String(formData.get("name") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
-  const visibility = String(formData.get("visibility") ?? "public");
+type CubeMetadata = { name: string; description: string | null; visibility: CubeVisibility };
+
+function readMetadata(
+  formData: FormData,
+): ({ ok: true } & CubeMetadata) | { ok: false; error: string } {
+  return validateMetadata({
+    name: formData.get("name"),
+    description: formData.get("description"),
+    visibility: formData.get("visibility"),
+  });
+}
+
+/**
+ * The one set of rules for a cube's name, description and visibility, whether
+ * they arrive as a form or as an action argument. Everything is coerced from
+ * `unknown`: an action's arguments are whatever the client chose to send.
+ */
+function validateMetadata(raw: {
+  name: unknown;
+  description: unknown;
+  visibility: unknown;
+}): ({ ok: true } & CubeMetadata) | { ok: false; error: string } {
+  const name = String(raw.name ?? "").trim();
+  const description = String(raw.description ?? "").trim();
+  const visibility = String(raw.visibility ?? "public");
 
   if (name.length === 0) return { ok: false, error: "Give your cube a name." };
   if (name.length > NAME_MAX)
@@ -172,23 +193,69 @@ export async function createCubeAction(
   const parsed = readMetadata(formData);
   if (!parsed.ok) return { error: parsed.error };
 
-  const cube = await createCube({
-    ownerId: current.profile.id,
-    name: parsed.name,
-    description: parsed.description,
-    visibility: parsed.visibility,
-  });
+  // "One of each card from a set" is this same form with a set picked. The
+  // list is built here from the code alone, never from anything the client
+  // sends about which cards that means.
+  const setCode = String(formData.get("set") ?? "").trim();
+  let entries: { cardId: string; section: CubeSection; quantity: number }[] = [];
+  if (setCode) {
+    // Only the sets the screen offers: a promo set's handful of cards is not a
+    // cube, and the floor that says so should not be skippable by URL.
+    const offered = await getStarterSets();
+    if (!offered.some((set) => set.code === setCode)) return { error: "Pick a set from the list." };
+    const starter = await getSetStarterCards(setCode);
+    if (starter.length === 0) return { error: "Pick a set from the list." };
+    entries = starter.map((card) => ({
+      cardId: card.id,
+      section: defaultSectionForType(card.type),
+      quantity: 1,
+    }));
+  }
 
-  await recordCubeChange({
-    cubeId: cube.id,
-    actorId: current.profile.id,
-    actorUsername: current.profile.username,
-    kind: "cube_created",
-    toValue: cube.name,
-  });
+  const cube = await createCubeWithLog(
+    { id: current.profile.id, username: current.profile.username },
+    parsed,
+    entries,
+  );
 
   revalidatePath("/cubes");
   redirect(editorPath(current.profile.username, cube.slug));
+}
+
+/**
+ * Creates a cube with its first cards and logs both, the way every starting
+ * point on the new-cube screen does it: one `cube_created` entry and, when
+ * cards came with it, one `cards_imported` batch rather than a line per card.
+ */
+async function createCubeWithLog(
+  owner: { id: string; username: string },
+  metadata: CubeMetadata,
+  entries: { cardId: string; section: CubeSection; quantity: number }[],
+): Promise<Cube> {
+  const cube = await createCube(
+    {
+      ownerId: owner.id,
+      name: metadata.name,
+      description: metadata.description,
+      visibility: metadata.visibility,
+    },
+    entries,
+  );
+  const actor = { cubeId: cube.id, actorId: owner.id, actorUsername: owner.username };
+  await recordCubeChanges([
+    { ...actor, kind: "cube_created", toValue: cube.name },
+    ...(entries.length > 0
+      ? [
+          {
+            ...actor,
+            kind: "cards_imported" as const,
+            quantity: entries.reduce((sum, entry) => sum + entry.quantity, 0),
+            toValue: String(entries.length),
+          },
+        ]
+      : []),
+  ]);
+  return cube;
 }
 
 export async function updateCubeAction(
@@ -423,12 +490,6 @@ export async function listPrintingsAction(cubeId: string, baseId: string) {
 }
 
 /**
- * Copies a cube into a new private one owned by the caller.
- *
- * Read access is re-checked here, not assumed from the page that rendered the
- * button: a private cube can only be cloned by its owner.
- */
-/**
  * Chooses the card whose art represents the cube.
  *
  * Restricted to cards already in the cube — a cover is meant to say what this
@@ -455,6 +516,18 @@ export async function setCubeCoverAction(
   return {};
 }
 
+/**
+ * Copies a cube into a new private one owned by the caller, under the name
+ * they chose.
+ *
+ * Read access is re-checked here, not assumed from the page that rendered the
+ * button: a private cube can only be cloned by its owner.
+ *
+ * **The name is asked for up front** because the slug comes from it once and
+ * never changes on rename. Naming the copy "Copy of …" before its owner saw it
+ * is how the most active cube on the site ended up at `copy-of-the-blevins-cube`
+ * for good.
+ */
 export async function cloneCubeAction(
   _prev: ActionState,
   formData: FormData,
@@ -477,11 +550,12 @@ export async function cloneCubeAction(
   // around the moderation.
   if (!canUseCube(source, current.profile.id)) return { error: "Cube not found." };
 
-  const clone = await cloneCube(
-    source.id,
-    current.profile.id,
-    `Copy of ${source.name}`.slice(0, 100),
-  );
+  // Same rules as naming any other cube. Visibility is not asked: a clone is
+  // private until its owner decides otherwise.
+  const named = validateMetadata({ name: formData.get("name"), description: null, visibility: "private" });
+  if (!named.ok) return { error: named.error };
+
+  const clone = await cloneCube(source.id, current.profile.id, named.name);
 
   await recordCubeChange({
     cubeId: clone.id,
@@ -556,7 +630,23 @@ export async function previewImportAction(
 ): Promise<ImportPreviewState> {
   const owned = await requireOwnedCube(cubeId);
   if ("error" in owned) return { error: owned.error };
+  return previewPastedList(text);
+}
 
+/**
+ * The same preview for a cube that does not exist yet — the new-cube screen's
+ * "paste a list" starting point. Gated on being a signed-in, unsuspended
+ * account rather than on a cube, because there is no cube to own; it writes
+ * nothing and reveals nothing but the public card pool.
+ */
+export async function previewImportListAction(text: string): Promise<ImportPreviewState> {
+  const creator = await requireCreator();
+  if ("error" in creator) return { error: creator.error };
+  return previewPastedList(text);
+}
+
+/** Both previews, so the size caps and the catalog are the same for each. */
+async function previewPastedList(text: unknown): Promise<ImportPreviewState> {
   if (typeof text !== "string" || text.trim().length === 0) {
     return { error: "Paste a list of card names first." };
   }
@@ -566,6 +656,66 @@ export async function previewImportAction(
 
   const catalog = await getImportCatalog();
   return { preview: previewImport(text, catalog) };
+}
+
+/**
+ * Who may make a new cube: signed in, with a username, not suspended, and
+ * under the per-account cap. The one gate for every creation path that does
+ * not come through a form.
+ */
+async function requireCreator(): Promise<{ profile: User } | { error: string }> {
+  const current = await getCurrentUser();
+  if (!current?.profile) return { error: "You need to be signed in." };
+  const suspended = suspensionError(current.profile);
+  if (suspended) return suspended;
+  return { profile: current.profile };
+}
+
+/**
+ * Creates a cube from a confirmed paste: the cube and its cards in one go.
+ *
+ * Nothing is written until here, so someone who pastes a list and walks away
+ * leaves no empty cube behind. The rows are re-validated exactly as
+ * `commitImportAction` does it. Returns the editor path rather than calling
+ * `redirect()`, so the caller's dropped-request guard has no `NEXT_REDIRECT`
+ * to tell apart from a real failure.
+ */
+export async function createCubeFromListAction(
+  metadata: { name: unknown; description: unknown; visibility: unknown },
+  rows: ImportCommitRow[],
+): Promise<ActionState & { added?: number; path?: string }> {
+  const creator = await requireCreator();
+  if ("error" in creator) return { error: creator.error };
+
+  const atLimit = await underCubeLimit(creator.profile.id);
+  if (atLimit) return atLimit;
+
+  const parsed = validateMetadata({
+    name: metadata?.name,
+    description: metadata?.description,
+    visibility: metadata?.visibility,
+  });
+  if (!parsed.ok) return { error: parsed.error };
+
+  const merge = mergeImportRows(rows, MAX_CARD_QUANTITY);
+  if (!merge.ok) return { error: merge.error };
+
+  const known = await getCardsByIds(merge.rows.map((entry) => entry.cardId));
+  const knownIds = new Set(known.map((card) => card.id));
+  const unknown = merge.rows.find((entry) => !knownIds.has(entry.cardId));
+  if (unknown) return { error: `That card no longer exists: ${unknown.cardId}` };
+
+  const cube = await createCubeWithLog(
+    { id: creator.profile.id, username: creator.profile.username },
+    parsed,
+    merge.rows,
+  );
+
+  revalidatePath("/cubes");
+  return {
+    added: merge.totalCopies,
+    path: editorPath(creator.profile.username, cube.slug),
+  };
 }
 
 /** One resolved row the user confirmed. */
