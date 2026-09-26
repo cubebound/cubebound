@@ -130,6 +130,25 @@ try {
   row("with a cube of 300+ cards", people.with_real_cube, "cubes, not accounts");
   row("suspended", people.suspended);
 
+  /**
+   * Active accounts. There is no login timestamp, so "active" means the account
+   * left a trace: a `cube_changes` row it authored, or a draft it started. That
+   * makes it a floor — someone who only browses leaves nothing here.
+   */
+  const [active] = await sql<{ last_7: number; last_30: number }[]>`
+    with traces as (
+      select actor_id as user_id, created_at from cube_changes where actor_id is not null
+      union all
+      select drafter_id, created_at from drafts
+    )
+    select
+      count(distinct user_id) filter (where created_at > now() - interval '7 days')::int as last_7,
+      count(distinct user_id) filter (where created_at > now() - interval '30 days')::int as last_30
+    from traces
+  `;
+  row("active in the last 7 days", active.last_7, "edited a cube or drafted");
+  row("active in the last 30 days", active.last_30, "edited a cube or drafted");
+
   // --- drafting --------------------------------------------------------------
   const [drafts] = await sql<
     {
@@ -150,11 +169,24 @@ try {
       count(distinct drafter_id)::int as drafters
     from drafts
   `;
+  /**
+   * Whose cube gets drafted. Solo drafting against bots is the only mode, so a
+   * draft on your own cube is playtesting and one on someone else's is the
+   * discovery loop working.
+   */
+  const [ownership] = await sql<{ own: number; others: number }[]>`
+    select
+      count(*) filter (where c.owner_id = d.drafter_id)::int as own,
+      count(*) filter (where c.owner_id <> d.drafter_id)::int as others
+    from drafts d join cubes c on c.id = d.cube_id
+  `;
   heading("Drafts");
   row("started", drafts.total);
   row("completed", drafts.complete);
   row("distinct cubes drafted", drafts.cubes_drafted);
   row("distinct drafters", drafts.drafters);
+  row("on the drafter's own cube", ownership.own);
+  row("on someone else's cube", ownership.others);
   row("started in the last 7 days", drafts.last_7);
   row("started in the last 30 days", drafts.last_30);
 

@@ -13,7 +13,14 @@
       "Bash(npm run stats *)",
       "Bash(npm run prod-read *)",
       "Bash(npm run typecheck)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "Agent(data)"
+    ]
+  },
+  "autoMode": {
+    "allow": [
+      "$defaults",
+      "Spawning the `data` subagent is allowed. It reads production only through `npm run stats -- --prod` and `npm run prod-read`, which connect as a Postgres role granted SELECT and nothing else, so it cannot write to production."
     ]
   },
   "hooks": {
