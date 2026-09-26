@@ -80,6 +80,9 @@ open it rather than trusting this.
 8. The Draftmancer round trip — a spike, not a build.
 9. Smarter bots. Lower priority.
 
+**Unordered**: Feature cubes on the home page, added to the build order doc on
+26 September 2026 without a place in it yet.
+
 **Workflow** (items 10 to 14, all of which are about how the work gets done rather
 than what ships)
 

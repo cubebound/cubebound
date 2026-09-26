@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { getProfileById } from "@/db/queries/users";
+import { safeReturnPath } from "@/lib/site-url";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -10,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next");
+  const next = safeReturnPath(searchParams.get("next"));
 
   if (!code) {
     const reason = searchParams.get("error_description") ?? "Missing sign-in code";
@@ -29,9 +30,13 @@ export async function GET(request: NextRequest) {
   }
 
   const profile = await getProfileById(data.user.id);
-  if (!profile) return NextResponse.redirect(`${origin}/welcome`);
+  // A first-time user claims a username before anything else, and the return
+  // path waits for them on the far side of that.
+  if (!profile) {
+    const welcome = next ? `/welcome?next=${encodeURIComponent(next)}` : "/welcome";
+    return NextResponse.redirect(`${origin}${welcome}`);
+  }
 
-  // Only allow same-site redirects.
-  const destination = next?.startsWith("/") ? next : "/";
-  return NextResponse.redirect(`${origin}${destination}`);
+  // Only same-site paths; see `safeReturnPath`.
+  return NextResponse.redirect(`${origin}${next ?? "/"}`);
 }

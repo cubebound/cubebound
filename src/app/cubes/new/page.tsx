@@ -33,7 +33,7 @@ const START_COPY: Record<Start, { title: string; body: string }> = {
   },
   set: {
     title: "One of each card from a set",
-    body: "Every card in a set, one copy each, filed by type. Then cut it down.",
+    body: "Every card in a set, one copy each, filed by type.",
   },
   empty: {
     title: "Start empty",
@@ -90,10 +90,7 @@ export default async function NewCubePage({
 
       {start === null && (
         <>
-          <p className="mt-1 mb-6 text-sm text-muted">
-            A drafted cube runs to a few hundred cards, so pick where yours
-            starts from. Nothing is created until you confirm.
-          </p>
+          <p className="mt-1 mb-6 text-sm text-muted">Pick how to get started.</p>
           <ul className="grid gap-3 sm:grid-cols-2">
             {STARTS.map((option) => (
               <li key={option}>
@@ -210,10 +207,9 @@ async function FromClone({
 
   return (
     <>
-      <p className="mt-1 mb-6 text-sm text-muted">
-        The most followed public cubes with at least {minCards} cards, enough to
-        draft. You get a private copy of the cards to change however you like.
-      </p>
+      {/* Only cubes of at least `minCards` are listed; the page no longer says
+          so, but it is why a small cube is missing from here. */}
+      <p className="mt-1 mb-6 text-sm text-muted">The most followed public cubes.</p>
       {cubes.length === 0 ? (
         <p className={help}>No public cube is that big yet.</p>
       ) : (

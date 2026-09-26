@@ -7,15 +7,19 @@ import { USERNAME_MAX, USERNAME_MIN } from "@/lib/username";
 
 const initial: FormState = {};
 
-export default function UsernameForm() {
+export default function UsernameForm({ next }: { next?: string | null }) {
   const [state, formAction, pending] = useActionState(claimUsernameAction, initial);
 
   return (
     <form action={formAction} className="space-y-3">
+      {next && <input type="hidden" name="next" value={next} />}
       <label htmlFor="username" className="block text-sm font-medium">
         Username
       </label>
-      <div className="flex items-center rounded-md border border-line bg-sunken focus-within:border-line-strong">
+      {/* The prefix and the input read as one field, so they take one focus
+          ring. Left to the global `:focus-visible` rule, the ring drew around
+          the input alone and the prefix looked like it sat outside the box. */}
+      <div className="flex items-center rounded-md border border-line bg-sunken focus-within:border-line-strong focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-strong">
         <span className="pl-3 text-sm text-subtle select-none">cubebound.gg/cube/</span>
         <input
           id="username"
@@ -28,7 +32,7 @@ export default function UsernameForm() {
           maxLength={USERNAME_MAX}
           pattern="[A-Za-z0-9_\-]+"
           placeholder="your-name"
-          className="h-10 min-w-0 flex-1 bg-transparent px-1 text-sm text-ink placeholder:text-subtle"
+          className="h-10 min-w-0 flex-1 bg-transparent px-1 text-sm text-ink placeholder:text-subtle focus-visible:outline-none"
         />
       </div>
       {state.error && (

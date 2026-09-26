@@ -55,8 +55,13 @@ export default function CloneButton({
   const buttonClass = prominent ? btn.primarySm : btn.secondarySm;
 
   if (!viewerUsername) {
+    // Back to this cube once signed in, so Clone is one click away again
+    // rather than a hunt from the home page.
     return (
-      <Link href="/login" className={buttonClass}>
+      <Link
+        href={`/login?next=${encodeURIComponent(`/cube/${username}/${slug}`)}`}
+        className={buttonClass}
+      >
         Clone
       </Link>
     );
@@ -166,10 +171,7 @@ export function CloneCubeForm({
 
       <div>
         <h2 className="text-lg font-semibold">{`Clone ${sourceName}`}</h2>
-        <p className="mt-1 text-sm text-muted">
-          You get your own private copy of its cards to change however you
-          like. The original stays as it is.
-        </p>
+        <p className="mt-1 text-sm text-muted">Make your own copy of the cube.</p>
       </div>
 
       <div>

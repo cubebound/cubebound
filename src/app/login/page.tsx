@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/auth";
+import { safeReturnPath } from "@/lib/site-url";
 
 import LoginForm from "./login-form";
 
@@ -14,10 +15,15 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const current = await getCurrentUser();
-  if (current) redirect(current.profile ? "/" : "/welcome");
+  const [current, params] = await Promise.all([getCurrentUser(), searchParams]);
+  // Where sign-in started, e.g. a cube someone tried to clone while signed out.
+  // It travels through the callback and `/welcome` so they land back there.
+  const next = safeReturnPath(Array.isArray(params.next) ? params.next[0] : params.next);
+  if (current) {
+    if (current.profile) redirect(next ?? "/");
+    redirect(next ? `/welcome?next=${encodeURIComponent(next)}` : "/welcome");
+  }
 
-  const params = await searchParams;
   const error = Array.isArray(params.error) ? params.error[0] : params.error;
 
   return (
@@ -26,7 +32,7 @@ export default async function LoginPage({
       <p className="mt-2 mb-6 text-sm text-muted">
         Sign in to build and share cubes.
       </p>
-      <LoginForm initialError={error} />
+      <LoginForm initialError={error} next={next} />
     </div>
   );
 }

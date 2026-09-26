@@ -27,7 +27,9 @@ Audited before the first wide share. What was checked, and what it turned up.
   without a matching `Origin` is rejected.
 - **The auth callback's `next=` cannot leave the origin.** `${origin}${next}`
   was tested against `//evil`, `/\evil`, `///evil` and an absolute URL: the
-  authority is already fixed by the time the path is appended.
+  authority is already fixed by the time the path is appended. Since sign-in
+  began carrying a return path, `safeReturnPath` also refuses those shapes
+  before they get that far; see [auth.md](auth.md).
 - **No `dangerouslySetInnerHTML` anywhere**, and the only rendered email
   address is your own on `/welcome`.
 

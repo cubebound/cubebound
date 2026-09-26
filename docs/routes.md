@@ -4,6 +4,7 @@
 /                                     landing
 /cards                                card browser (milestone 3)
 /guides/riftbound-cube-drafting       the format explained — static, no data
+/guides/draftmancer                   export a cube and draft it with friends — static, no data
 /privacy                              privacy policy — static, must match the code
 /explore                              public cube search — ?q= &card= &sort= &page=
 /u/{username}                         public profile — their public cubes; ?q= &page=

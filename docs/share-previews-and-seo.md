@@ -63,6 +63,10 @@
   it. `/guides/riftbound-cube-drafting` exists as the one page that explains the
   format rather than serving the tool — a crawler meeting only a login wall and
   a list of other people's cubes has nothing to understand the site by.
+  `/guides/draftmancer` is its sibling for the multiplayer path, linked from the
+  home page beside it. Both make no database call and so have no `loading.tsx`:
+  there is nothing for a skeleton to stand in for. **A new guide goes in the
+  sitemap's static list**, which is hand-written.
 - **`/privacy` describes what the code actually does, so it changes with the
   code.** Its cookie list is the sign-in cookies plus `THEME_COOKIE`,
   `CUBE_VIEW_COOKIE`, `CARDS_PER_ROW_COOKIE` and `BACKUP_NOTICE_COOKIE`, and the

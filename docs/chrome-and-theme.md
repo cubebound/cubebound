@@ -52,7 +52,10 @@
   `focus:outline-none` with only a border tint to replace it, so keyboard users
   had no reliable indicator. Defining it globally means it also reaches
   controls no component file touches. **Never add `focus:outline-none`
-  again** without providing a replacement indicator in the same change.
+  again** without providing a replacement indicator in the same change. The
+  `/welcome` username field is that case: its prefix and input take one
+  `focus-within:` ring on the wrapper and the input opts out of its own, because
+  the global ring around the input alone left the prefix looking outside the box.
 - **One cursor rule in `globals.css` gives every button a pointer**, next to
   that focus rule and there for the same reason. **Tailwind v4's Preflight
   leaves `<button>` on the browser default of `cursor: default`; v3 set

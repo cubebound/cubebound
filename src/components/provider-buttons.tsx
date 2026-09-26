@@ -52,16 +52,19 @@ function ProviderForm({
   action,
   provider,
   verb,
+  next,
 }: {
   action: ProviderAction;
   provider: OAuthProvider;
   verb: string;
+  next?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(action, initial);
 
   return (
     <form action={formAction}>
       <input type="hidden" name="provider" value={provider} />
+      {next && <input type="hidden" name="next" value={next} />}
       <button
         type="submit"
         disabled={pending}
@@ -83,8 +86,11 @@ export default function ProviderButtons({
   action,
   hide = [],
   verb = "Continue with",
+  next,
 }: {
   action: ProviderAction;
+  /** Where to land after signing in. Sign-in only; linking sets its own. */
+  next?: string | null;
   /** Providers already on the account. Only the OAuth ones can be hidden, so
    *  passing the whole list — `email` included — is harmless. */
   hide?: string[];
@@ -97,7 +103,7 @@ export default function ProviderButtons({
   return (
     <div className="space-y-2">
       {offered.map((provider) => (
-        <ProviderForm key={provider} action={action} provider={provider} verb={verb} />
+        <ProviderForm key={provider} action={action} provider={provider} verb={verb} next={next} />
       ))}
     </div>
   );
