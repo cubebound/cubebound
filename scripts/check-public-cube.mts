@@ -31,6 +31,7 @@ import {
   updateCube,
 } from "../src/db/queries/cubes";
 import { canEditCube, canViewCube } from "../src/lib/cube-access";
+import { TOKEN_ID_PATTERN } from "../src/lib/card-ids";
 import { defaultSectionForType } from "../src/lib/riftbound";
 import { slugify } from "../src/lib/slug";
 import { btn } from "../src/lib/ui";
@@ -98,6 +99,7 @@ try {
     select id, type from (
       select id, type, row_number() over (partition by type order by id) as rn
       from cards where base_id = id and type in ('Unit','Spell','Legend','Rune','Battlefield')
+        and not (supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN})
     ) ranked where rn <= 2`;
   for (const card of spread) {
     await addCubeCard(cube.id, card.id, defaultSectionForType(card.type));
@@ -111,6 +113,16 @@ try {
   // The copy is named by its new owner before it exists, because the slug is
   // taken from the name once and never changes. Naming it "Copy of …" first is
   // how a live cube ended up at `copy-of-the-blevins-cube` for good.
+  //
+  // A token in the source stands in for a cube that picked one up before the
+  // add paths refused them. It is written straight through the query layer,
+  // which does not refuse, and taken out again once both clones exist.
+  const [token] = await sql<{ id: string }[]>`
+    select id from cards
+     where supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN}
+     order by id limit 1`;
+  expect(Boolean(token), "no token row in this database; the clone's token rule is untested");
+  if (token) await addCubeCard(cube.id, token.id, "main");
   const cloneName = "Stranger's Variant";
   const clone = await cloneCube(cube.id, stranger.id, cloneName);
   const clonedRows = await getCubeCards(clone.id);
@@ -125,6 +137,13 @@ try {
     again.slug === `${slugify(cloneName)}-2`,
     `a second clone under the same name should get a numbered slug, got ${again.slug}`,
   );
+  if (token) {
+    await sql`delete from cube_cards where cube_id = ${cube.id}::uuid and card_id = ${token.id}`;
+    expect(
+      !clonedRows.some((r) => r.id === token.id),
+      `the clone copied the token ${token.id}; tokens are not cards`,
+    );
+  }
   expect(clone.ownerId === stranger.id, "the clone should belong to the caller");
   expect(clone.description === null, "the clone should not inherit the original's description");
   expect(
