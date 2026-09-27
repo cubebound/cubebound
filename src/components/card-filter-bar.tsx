@@ -16,6 +16,7 @@ import {
   ENERGY_BUCKETS,
   ENERGY_BUCKET_LABELS,
 } from "@/lib/riftbound";
+import { btn } from "@/lib/ui";
 
 interface Props {
   options: FilterOptions;
@@ -251,7 +252,7 @@ export default function CardFilterBar({
     energy.length,
     active.type,
     active.trait,
-    active.sort,
+    active.sort && active.sort !== defaultSort,
     active.allPrintings,
   ].filter(Boolean).length;
 
@@ -263,7 +264,7 @@ export default function CardFilterBar({
       energy.length ||
       active.type ||
       active.trait ||
-      active.sort ||
+      (active.sort && active.sort !== defaultSort) ||
       active.allPrintings,
   );
 
@@ -334,7 +335,7 @@ export default function CardFilterBar({
           onClick={() => setFiltersOpen((open) => !open)}
           aria-expanded={filtersOpen}
           aria-controls="card-filters"
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-sunken px-3 text-sm text-ink"
+          className={`${btn.secondarySm} gap-2`}
         >
           {filtersOpen ? "Hide filters" : "Filters"}
           {activeGroups > 0 && (

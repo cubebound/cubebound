@@ -215,27 +215,14 @@ function powerCostText(powerCost: Record<string, number> | null): string {
 }
 
 /**
- * The source HTML-escapes its rules text (`[Reaction][&gt;]`, `&quot;`). The
- * sync now decodes it (`richToRulesText`), so this is a guard for rows synced
- * before that, which is production until its next forced sync. It matters here
- * because the text lands in a plain-text JSON field that Draftmancer shows
- * verbatim, so it has to be real characters. Only the five predefined XML entities, decoded `&amp;` last so a
- * literal `&amp;gt;` does not become `>`.
- */
-function decodeEntities(text: string): string {
-  return text
-    .replace(/&gt;/g, ">")
-    .replace(/&lt;/g, "<")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&");
-}
-
-/**
  * Everything `mana_cost` cannot carry, in the field Draftmancer searches.
  *
  * Power cost and might have no MTG equivalent, and the rules text has to go
  * through `rulesTextToPlain` or it arrives full of `:rb_energy_1:` tokens.
+ * That also decodes HTML character codes (`[Reaction][&gt;]`, `&quot;`),
+ * which matters here more than anywhere: the text lands in a plain-text JSON
+ * field that Draftmancer shows verbatim. This file used to decode a second
+ * time, which turned a literal `&amp;gt;` into `>`.
  */
 function oracleText(card: DraftmancerSourceCard): string {
   const parts: string[] = [];
@@ -243,7 +230,7 @@ function oracleText(card: DraftmancerSourceCard): string {
   if (power) parts.push(`Power: ${power}`);
   if (card.might !== null) parts.push(`Might ${card.might}`);
   if (card.rulesText?.trim()) {
-    parts.push(decodeEntities(rulesTextToPlain(card.rulesText)));
+    parts.push(rulesTextToPlain(card.rulesText));
   }
   return parts.join("\n");
 }

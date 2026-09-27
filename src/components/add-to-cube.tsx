@@ -10,7 +10,7 @@ import {
   listCubeChoicesAction,
 } from "@/app/cube/actions";
 import type { CubeChoice } from "@/db/queries/cubes";
-import { btn, inputSm, link } from "@/lib/ui";
+import { btn, errorText, link, selectSm } from "@/lib/ui";
 
 type Choice = CubeChoice & { editPath: string };
 
@@ -116,12 +116,17 @@ export default function AddToCube({ cardId }: { cardId: string }) {
     setPicking(true);
     if (choices) return;
     startTransition(async () => {
+      // A failed load closes the picker again, so Change is back on screen to
+      // retry; left open, its select sat disabled on "Loading" for good.
       try {
         const result = await listCubeChoicesAction();
-        if ("error" in result) setError(result.error);
-        else setChoices(result.cubes);
+        if ("error" in result) {
+          setError(result.error);
+          setPicking(false);
+        } else setChoices(result.cubes);
       } catch {
         setError(LOST);
+        setPicking(false);
       }
     });
   };
@@ -176,7 +181,7 @@ export default function AddToCube({ cardId }: { cardId: string }) {
             onChange={(event) => choose(event.target.value)}
             onBlur={() => choices && setPicking(false)}
             disabled={!choices}
-            className={`${inputSm} max-w-60`}
+            className={`${selectSm} max-w-60`}
           >
             {!choices && <option value={target?.id ?? ""}>Loading your cubes…</option>}
             {choices?.map((choice) => (
@@ -209,7 +214,7 @@ export default function AddToCube({ cardId }: { cardId: string }) {
       </div>
       <p className="text-xs text-subtle" aria-live="polite">
         {error ? (
-          <span className="text-red-600 dark:text-red-400">{error}</span>
+          <span className={errorText}>{error}</span>
         ) : message ? (
           `${message} ${copies} ${copies === 1 ? "copy" : "copies"} in the cube now.`
         ) : copies > 0 ? (

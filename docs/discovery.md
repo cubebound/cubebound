@@ -105,10 +105,14 @@ of them is the pure module `src/lib/card-popularity.ts`, which
   rather than a page of sixty. The promise is cleared in a `finally` so one bad
   read does not wedge every later caller onto a rejected one. `check:pool`
   asserts both halves, the coalescing by object identity rather than by timing.
-- **It throws rather than returning an empty snapshot**, matching
-  `getFilterOptions`: a silent zero would publish "0% of cubes" under a card
-  people do cube, which is a wrong statement rather than a missing one, so a
-  caller that would rather degrade than fail catches it itself. **Everywhere
+- **A failed refresh serves the last good snapshot**, reported to Sentry, and
+  the memo keeps its old time so the next request tries again: numbers an hour
+  or two old are still true, and throwing would take every card page down with
+  it. **With nothing to fall back on it throws rather than returning an empty
+  snapshot**, matching `getFilterOptions`: a silent zero would publish "0% of
+  cubes" under a card people do cube, which is a wrong statement rather than a
+  missing one, so a caller that would rather degrade than fail catches it
+  itself. **Everywhere
   the stat is an extra, a caller does:** the card browser and both cube pages
   load it through `loadCardPopularityIfAvailable`, which reports to Sentry and
   returns null so the modal shows no line, and the "Most played" sort falls back

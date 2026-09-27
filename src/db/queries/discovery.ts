@@ -1,5 +1,7 @@
 import { and, desc, eq, exists, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 
+import * as Sentry from "@sentry/nextjs";
+
 import { db } from "..";
 import { cards, cubeCards, cubeFollows, cubes, users } from "../schema";
 import { collapseKeyOf, realCard } from "./cards";
@@ -379,7 +381,9 @@ let popularityInFlight: Promise<PopularitySnapshot> | null = null;
  * coalescing, a cold instance under that burst fires the whole-table read once
  * per request in flight.
  *
- * It **throws** rather than returning an empty snapshot, matching
+ * It **throws** only when there is no earlier snapshot to fall back on; a failed
+ * refresh keeps serving the last good one. It never returns an empty snapshot,
+ * matching
  * `getFilterOptions`: a silent zero here would render "In 0% of cubes" under
  * every card, which is a wrong statement rather than a missing one. Callers
  * that would rather degrade than fail — `sitemap.ts` — catch it themselves.
@@ -397,6 +401,18 @@ export async function getCardPopularity(): Promise<PopularitySnapshot> {
       const value = summarise(await readCubeCardSets());
       popularityMemo = { at: Date.now(), value };
       return value;
+    } catch (error) {
+      // A failed *refresh* keeps serving the last good snapshot: numbers an
+      // hour or two old are still true statements, whereas throwing would take
+      // every card page to an error and the popularity line off every other
+      // page. It is reported, and the memo keeps its old time so the next
+      // request tries again. Only a read with nothing to fall back on throws.
+      if (popularityMemo) {
+        Sentry.captureException(error);
+        console.error("card popularity refresh failed; serving the previous snapshot", error);
+        return popularityMemo.value;
+      }
+      throw error;
     } finally {
       // Cleared on failure too, so one bad read does not wedge every later
       // caller onto a rejected promise for the rest of the instance's life.

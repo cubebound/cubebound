@@ -167,9 +167,9 @@ export function splitCardName(
  * (`[Empowered][&gt;]`, `&quot;`). The symbol tokens and `[bracket]` markers
  * are in `rich` exactly as in `plain`, so the renderer needs nothing else.
  *
- * Breaks and paragraphs become newlines, a list item becomes a "• " line, any
- * other tag is dropped, and character references are decoded. Falls back to
- * `plain` (decoded) when a card has no `rich`.
+ * Breaks and every block boundary become newlines, a list item becomes a "• "
+ * line, any other tag is dropped, and character references are decoded. Falls
+ * back to `plain` (decoded) when a card has no `rich`.
  */
 export function richToRulesText(
   rich: string | null | undefined,
@@ -179,9 +179,10 @@ export function richToRulesText(
   if (!source) return null;
   const text = decodeEntities(
     source
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/p>\s*<p[^>]*>/gi, "\n")
-      .replace(/<li[^>]*>/gi, "\n• ")
+      .replace(/<li\b[^>]*>/gi, "\n• ")
+      // Every block boundary is a line boundary, whichever block follows
+      // which: `</ul><p>` ends a list as surely as `</p><p>` ends a paragraph.
+      .replace(/<br\s*\/?>|<\/?(p|ul|ol|div)\b[^>]*>|<\/li>/gi, "\n")
       .replace(/<[^>]+>/g, ""),
   );
   const cleaned = text

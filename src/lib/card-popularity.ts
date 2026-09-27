@@ -363,12 +363,29 @@ export function cardPageName(card: Pick<PopularityCard, "name" | "type" | "champ
  * cannot be wrong, and it makes the canonical form the *only* form: a request
  * for `/cards/Unit/Kaisa` matches nothing and 404s, rather than serving a
  * second URL for one page.
+ *
+ * The path of every card is built once per card list, not once per lookup: a
+ * card page resolves itself three times (layout, metadata, page) and the list
+ * is the memoised one from `getCardIdentities`, so the same array comes back
+ * until the card pool's memo expires and the index goes with it. The first
+ * card to claim a path keeps it, as `find` did.
  */
+const pathIndexes = new WeakMap<readonly object[], Map<string, unknown>>();
+
 export function findCardByPath<T extends Pick<PopularityCard, "name" | "type" | "champion">>(
   cards: readonly T[],
   path: string,
 ): T | null {
-  return cards.find((card) => cardPagePath(card) === path) ?? null;
+  let index = pathIndexes.get(cards) as Map<string, T> | undefined;
+  if (!index) {
+    index = new Map();
+    for (const card of cards) {
+      const cardPath = cardPagePath(card);
+      if (!index.has(cardPath)) index.set(cardPath, card);
+    }
+    pathIndexes.set(cards, index);
+  }
+  return index.get(path) ?? null;
 }
 
 /**
