@@ -84,7 +84,6 @@ open it rather than trusting this.
 
 **Next**
 
-7. Limited formats: a sealed tab, then retail products.
 8. The Draftmancer round trip — a spike, not a build.
 9. Smarter bots. Lower priority.
 
@@ -102,7 +101,10 @@ than what ships)
 
 **Parked, with the decision already made — do not re-argue these.** Multiplayer
 draft lobbies are **not being built**: item 8, the Draftmancer handoff, is the
-answer instead. Also parked: one shared filter expression language (the card pool
+answer instead. **Limited formats are not being built either**, decided 27
+September 2026: no sealed tab, no retail sealed or retail draft at printed odds,
+because Rift Atlas's sealed builder already does it well; item 7 was removed
+for that reason, and 8 and 9 keep their numbers. Also parked: one shared filter expression language (the card pool
 is small enough that it is not required yet), proxy sheets, a deck builder over a
 drafted pool, cube snapshots, a public read API, surfacing draftability on the cube
 page, and anything needing a migration. The doc records your reason for each.
