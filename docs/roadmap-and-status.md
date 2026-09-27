@@ -38,6 +38,11 @@ us bandwidth, and the reason it is the one export that needs an account. See
 `/settings`, and `/privacy` describes what that does. See
 [moderation.md](moderation.md).
 
+**Card popularity has shipped** — every card says how often it is cubed,
+`/cards` opens on "Most played", each widely cubed card has a page of the cards
+cubed alongside it, and a signed-in owner can add a card to a cube from any
+card's detail box. See [card-browser.md](card-browser.md).
+
 Open items:
 - **The production origin is derived from the request**, not from config —
   `resolveSiteUrl` reads the forwarded host, so cubebound.gg, preview
@@ -54,7 +59,7 @@ Open items:
 **The [cubebound build order](https://claude.ai/artifact/5xyrDck2rNoMExUoVtrqGW) doc
 is the roadmap, and it is the only authoritative copy.** It carries each item's
 reasoning and your own note deciding it. The list below is a **snapshot last refreshed
-on 26 September 2026** so a session with no access to that doc is not flying blind;
+on 27 September 2026** so a session with no access to that doc is not flying blind;
 where the two disagree, the doc wins, and if you are about to start something,
 open it rather than trusting this.
 
@@ -71,12 +76,12 @@ open it rather than trusting this.
    cube" in [cube-editor.md](cube-editor.md).
 5b. ✅ Rename a cube while cloning it, so a clone is not stuck with `copy-of-`.
     Merged in the same `0a1e34c`.
-6. Popularity %, placed carefully.
-6a-1. Built on the `popularity` branch and **not merged**, so nothing below is
-    live yet: how often a card is cubed on every surface showing a card, "Most
-    played" sorting in the browser, and the "Cards commonly cubed with" page at
-    `/cards/{type}/{slug}`. The read is in [discovery.md](discovery.md), the
-    arithmetic is `check:popularity`'s, and the surfaces are in
+6. ✅ Popularity %, placed carefully. Merged `943841c`: how often a card is
+    cubed on every surface showing a card, `/cards` opening on "Most played",
+    a "Cards commonly cubed with" page per card at `/cards/{type}/{slug}`
+    ranked by pairing strength, and adding a card to a cube from its detail
+    box. The read is in [discovery.md](discovery.md), the arithmetic is
+    `check:popularity`'s, and the surfaces are in
     [card-browser.md](card-browser.md).
 6b. ✅ Tokens are not cards: hide them from the browser and keep them out of
     cubes. Merged `351526a`; see the tokens bullet in
