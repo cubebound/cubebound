@@ -40,7 +40,12 @@ moderator role beyond it yet.
   `includeNonPublic` branch**, so it applies to *every* listing — Explore, a
   profile, the followed tab, the sitemap, and the owner's own `/cubes`. That
   last one is the point: the owner's list is where a hidden cube would
-  otherwise still be advertised.
+  otherwise still be advertised. **A listing calls `conditions()` rather than
+  writing its own `where`**, however narrow its select: the sitemap's query
+  restated `visibility = 'public'` and the card floor, which looked complete and
+  silently dropped the moderation pair, so a hidden cube and a suspended owner's
+  cube stayed in `/sitemap.xml` — the worst place to leak one, because a crawler
+  fetches, indexes and caches it long after the row changed.
 - **It reaches the card statistics too, and that is the one place a miss would
   be invisible.** The percentages are computed over cubes their owners marked
   private, so nobody reading "in 34% of cubes" can see which cubes those were; a

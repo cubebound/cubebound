@@ -14,7 +14,8 @@
  *  - `canUseCube` refuses even the owner, so cloning or drafting cannot route
  *    around moderation
  *  - moderated content disappears from every listing, including the owner's own
- *    `/cubes`, which is the one that would otherwise still advertise it
+ *    `/cubes`, which is the one that would otherwise still advertise it, and
+ *    the sitemap, which has its own query and so is the one that drifted
  *  - and out of the card statistics, which are computed over private cubes and
  *    so are the one surface where a miss would be invisible to everyone
  *  - a non-admin calling the actions changes nothing
@@ -34,8 +35,10 @@ import { createTestAccount, deleteTestAccounts } from "./lib/test-account";
 import { addCubeCard, addCubeCards, createCube, getCubeById } from "../src/db/queries/cubes";
 import {
   getCardPopularity,
+  listPublicCubesForSitemap,
   resetCardPopularityMemo,
   searchCubes,
+  SITEMAP_MIN_CARDS,
 } from "../src/db/queries/discovery";
 import {
   deleteUserAccount,
@@ -94,7 +97,11 @@ try {
     description: "public and findable",
     visibility: "public",
   });
-  await addCubeCard(cube.id, unit.id, "main");
+  // Enough cards to clear the sitemap's thin-content floor, so the sitemap
+  // assertions below are about moderation rather than about the floor. Card
+  // counts sum quantities, so one card at that quantity is a cube of that size
+  // by the site's own counting, and it costs one insert instead of twenty.
+  await addCubeCard(cube.id, unit.id, "main", SITEMAP_MIN_CARDS);
 
   const findable = async (label: string) => {
     const rows = await searchCubes({ keywords: label, limit: 20 });
@@ -106,9 +113,26 @@ try {
     const rows = await searchCubes({ ownerId: owner.id, includeNonPublic: true, limit: 50 });
     return rows.some((row) => row.id === cube.id);
   };
+  // ...and the sitemap, which is the listing that does *not* go through
+  // `searchCubes`: it skips the cover and follower subqueries because it runs
+  // for two thousand rows rather than twenty. That separate query is how it
+  // came to restate `visibility = 'public'` and the floor while dropping the
+  // moderation pair, so a hidden cube and a suspended owner's cube stayed in
+  // it. Rows carry no id, so match on the slug and the throwaway username.
+  // 2000 is the cap `sitemap.ts` itself passes.
+  const inSitemap = async () => {
+    const rows = await listPublicCubesForSitemap(2000);
+    return rows.some(
+      (row) => row.slug === cube.slug && row.ownerUsername === owner.username,
+    );
+  };
 
   expect(await findable(cube.name), "the cube should be findable before moderation");
   expect(await inOwnList(), "the cube should be in its owner's list before moderation");
+  // The positive case is load-bearing, not symmetry: without it a cube that
+  // silently fell under the floor would make every absence below pass while
+  // testing nothing.
+  expect(await inSitemap(), "the cube should be in the sitemap before moderation");
 
   await setCubeHidden(cube.id, true, "check: hidden");
   expect(!(await findable(cube.name)), "a hidden cube must drop out of Explore");
@@ -116,6 +140,11 @@ try {
     !(await inOwnList()),
     "a hidden cube must drop out of its owner's own list too — that is the list " +
       "they look at, and it would otherwise still advertise it",
+  );
+  expect(
+    !(await inSitemap()),
+    "a hidden cube must drop out of the sitemap — a listing a crawler submits, " +
+      "indexes and caches is the worst place for moderated content to survive",
   );
 
   const reloaded = await getCubeById(cube.id);
@@ -131,6 +160,7 @@ try {
 
   await setCubeHidden(cube.id, false, null);
   expect(await findable(cube.name), "unhiding must restore it");
+  expect(await inSitemap(), "unhiding must restore it to the sitemap");
   const unhidden = await getCubeById(cube.id);
   expect(unhidden?.hiddenReason === null, "unhiding must clear the reason");
 
@@ -138,6 +168,11 @@ try {
   await setUserSuspended(owner.id, true);
   expect(!(await findable(cube.name)), "a suspended owner's cubes must drop out of Explore");
   expect(!(await inOwnList()), "a suspended owner's cubes must drop out of their own list");
+  expect(
+    !(await inSitemap()),
+    "a suspended owner's public cube must drop out of the sitemap — and its owner's " +
+      "profile with it, since the profile entries are derived from these rows",
+  );
   const underSuspension = await getCubeById(cube.id);
   expect(
     Boolean(underSuspension?.ownerSuspendedAt),
@@ -150,6 +185,7 @@ try {
 
   await setUserSuspended(owner.id, false);
   expect(await findable(cube.name), "unsuspending must restore the account's cubes");
+  expect(await inSitemap(), "unsuspending must restore them to the sitemap");
 
   // ---- suspension stops the account writing, not just being seen -------
   // Found by audit rather than by this check: a suspended account could still
@@ -333,8 +369,9 @@ try {
   );
 
   console.log(
-    `moderation: hide, suspend and delete all took effect, in the listings and ` +
-      `in the card statistics; the log survived a cascading account delete`,
+    `moderation: hide, suspend and delete all took effect, in Explore, the ` +
+      `owner's own list, the sitemap and the card statistics; the log survived a ` +
+      `cascading account delete`,
   );
 } catch (error) {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);
