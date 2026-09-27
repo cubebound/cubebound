@@ -21,9 +21,12 @@ import { readFileSync, existsSync } from "node:fs";
 
 import {
   CARD_PAGE_MIN_OWNERS,
+  cardPageName,
   cardPagePath,
+  cardPagesFor,
   cardSlug,
   commonlyCubedWith,
+  findCardByPath,
   hasCardPage,
   popularityForCards,
   popularityLabel,
@@ -316,6 +319,73 @@ const k = (name: string) => `${name}|Unit`;
     cardPagePath({ name: "Battlefield Name", type: "Battlefield", champion: null }) ===
       "/cards/battlefield/battlefield-name",
     "the type segment is the game's own vocabulary",
+  );
+
+  // The name in the title and the copy must be spelled the way the URL is, or
+  // a legend's page is headed "Nine-Tailed Fox" at /cards/legend/ahri-...
+  expect(
+    cardPageName({ name: "Nine-Tailed Fox (Metal)", type: "Legend", champion: "Ahri" }) ===
+      "Ahri, Nine-Tailed Fox",
+    "the page's name restores the champion and drops the treatment",
+  );
+}
+
+// --- resolving a request back to a card ---------------------------------------
+{
+  // Slugs are lossy, so resolution has to go forwards. The cases that matter
+  // are the ones that must *not* resolve: a second spelling of a real page is
+  // a duplicate URL, which is exactly what the canonical tag exists to avoid.
+  const pool = [
+    { id: "OGN-001", name: "Poro Herder", type: "Unit", champion: null },
+    { id: "OGN-002", name: "Kai'Sa", type: "Unit", champion: null },
+    { id: "SFD-224", name: "Nine-Tailed Fox (Metal)", type: "Legend", champion: "Ahri" },
+  ];
+
+  expect(
+    findCardByPath(pool, "/cards/unit/poro-herder")?.id === "OGN-001",
+    "an exact path resolves",
+  );
+  expect(
+    findCardByPath(pool, "/cards/unit/kaisa")?.id === "OGN-002",
+    "a lossy slug still resolves, because the comparison is forwards",
+  );
+  expect(
+    findCardByPath(pool, "/cards/legend/ahri-nine-tailed-fox")?.id === "SFD-224",
+    "a legend resolves under its champion",
+  );
+  expect(
+    findCardByPath(pool, "/cards/Unit/Poro-Herder") === null,
+    "a non-canonical case must not resolve, or one page has two URLs",
+  );
+  expect(
+    findCardByPath(pool, "/cards/spell/poro-herder") === null,
+    "the type segment is part of the identity, not decoration",
+  );
+  expect(findCardByPath(pool, "/cards/unit/nothing-here") === null, "an unknown slug is null");
+  expect(findCardByPath([], "/cards/unit/poro-herder") === null, "an empty pool resolves nothing");
+
+  // The sitemap and the page must agree about which pages exist, or the
+  // sitemap publishes URLs that 404.
+  const sets: CubeCardSet[] = [];
+  for (let i = 0; i < 5; i += 1) {
+    sets.push({ cubeId: `c${i}`, ownerId: `owner${i}`, keys: ["poro herder|Unit"] });
+  }
+  // Two cubes, one owner: real, and below the floor.
+  sets.push({ cubeId: "d0", ownerId: "solo", keys: ["kai'sa|Unit"] });
+  sets.push({ cubeId: "d1", ownerId: "solo", keys: ["kai'sa|Unit"] });
+  const listed = cardPagesFor(summarise(sets), pool);
+
+  expect(
+    listed.join(",") === "/cards/unit/poro-herder",
+    `only cards over the owner floor are listed, got ${listed.join(", ") || "nothing"}`,
+  );
+  expect(
+    listed.every((path) => findCardByPath(pool, path) !== null),
+    "every listed path must resolve back to a card, or the sitemap 404s",
+  );
+  expect(
+    cardPagesFor(summarise([]), pool).length === 0,
+    "an empty corpus advertises no card pages at all",
   );
 }
 

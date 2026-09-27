@@ -72,6 +72,12 @@ open it rather than trusting this.
 5b. ✅ Rename a cube while cloning it, so a clone is not stuck with `copy-of-`.
     Merged in the same `0a1e34c`.
 6. Popularity %, placed carefully.
+6a-1. Built on the `popularity` branch and **not merged**, so nothing below is
+    live yet: how often a card is cubed on every surface showing a card, "Most
+    played" sorting in the browser, and the "Cards commonly cubed with" page at
+    `/cards/{type}/{slug}`. The read is in [discovery.md](discovery.md), the
+    arithmetic is `check:popularity`'s, and the surfaces are in
+    [card-browser.md](card-browser.md).
 6b. ✅ Tokens are not cards: hide them from the browser and keep them out of
     cubes. Merged `351526a`; see the tokens bullet in
     [card-browser.md](card-browser.md).

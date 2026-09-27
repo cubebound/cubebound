@@ -18,6 +18,7 @@ import type { SearchParams } from "@/lib/card-search-params";
 import { CubeModerationPanel } from "@/components/moderation-panel";
 import { canViewCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
+import { metaDescription } from "@/lib/meta";
 import { CARDS_PER_ROW_COOKIE, resolveCardsPerRow } from "@/lib/cards-per-row";
 import {
   CUBE_TAB_LABELS,
@@ -41,25 +42,6 @@ import ShareButton from "../share-button";
 interface RouteParams {
   username: string;
   slug: string;
-}
-
-/**
- * A cube's own description, fit for a `<meta>` tag.
- *
- * The column is free text a user wrote for the page, so it can be paragraphs
- * long and carry newlines. Search engines cut a description around 155
- * characters, and a snippet cut mid-word reads as broken — so collapse the
- * whitespace and clip at the last word that fits. Kept here rather than in
- * `src/lib/` because this is its only caller; move it if a second appears.
- */
-const META_DESCRIPTION_MAX = 155;
-
-function metaDescription(text: string): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  if (flat.length <= META_DESCRIPTION_MAX) return flat;
-  const cut = flat.slice(0, META_DESCRIPTION_MAX);
-  const lastSpace = cut.lastIndexOf(" ");
-  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[,;:.\s]+$/, "")}…`;
 }
 
 export async function generateMetadata({

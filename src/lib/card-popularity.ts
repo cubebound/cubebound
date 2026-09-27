@@ -311,6 +311,51 @@ export function cardSlug(value: string): string {
  * unique across every identity in the pool.
  */
 export function cardPagePath(card: Pick<PopularityCard, "name" | "type" | "champion">): string {
-  const name = withChampionPrefix(nameWithoutTreatment(card.name), card);
-  return `/cards/${cardSlug(card.type)}/${cardSlug(name)}`;
+  return `/cards/${cardSlug(card.type)}/${cardSlug(cardPageName(card))}`;
+}
+
+/**
+ * A card's name as its own page spells it: no treatment, champion restored.
+ *
+ * The same two transformations `cardPagePath` applies, so the URL, the title
+ * and every mention in the copy agree. A legend stored as "Nine-Tailed Fox"
+ * with champion "Ahri" reads "Ahri, Nine-Tailed Fox" here, which is how anyone
+ * would refer to it and how the exports already spell it.
+ */
+export function cardPageName(card: Pick<PopularityCard, "name" | "type" | "champion">): string {
+  return withChampionPrefix(nameWithoutTreatment(card.name), card);
+}
+
+/**
+ * Which card a request is for, resolved **forwards**.
+ *
+ * Slugification is lossy: the apostrophe in Kai'Sa and the accent in Kled's
+ * Bribe are gone, so `/cards/unit/kaisa` cannot be turned back into a name.
+ * Building the path for every card and comparing is the only resolution that
+ * cannot be wrong, and it makes the canonical form the *only* form: a request
+ * for `/cards/Unit/Kaisa` matches nothing and 404s, rather than serving a
+ * second URL for one page.
+ */
+export function findCardByPath<T extends Pick<PopularityCard, "name" | "type" | "champion">>(
+  cards: readonly T[],
+  path: string,
+): T | null {
+  return cards.find((card) => cardPagePath(card) === path) ?? null;
+}
+
+/**
+ * Every card page worth crawling: the ones that clear the owner floor.
+ *
+ * The same rule that decides whether the button renders, so the sitemap can
+ * never advertise a URL the layout would 404 — a sitemap entry that 404s is a
+ * crawl error against the whole domain, and this one would be published from a
+ * *different* code path than the page it points at unless they share this.
+ */
+export function cardPagesFor(
+  snapshot: PopularitySnapshot,
+  cards: readonly Pick<PopularityCard, "name" | "type" | "champion">[],
+): string[] {
+  return cards
+    .filter((card) => hasCardPage(snapshot, collapseIdentityKey(card)))
+    .map(cardPagePath);
 }

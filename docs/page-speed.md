@@ -101,6 +101,9 @@ Two things dominate, and neither is the amount of data.
   is nearby is how a screen that needs two fields ends up shipping eighteen.
   `CardPrinting` is its own interface rather than `Pick<BrowseCard, …>` so that
   spreading the wide list back in has to be a decision rather than an autocomplete.
+  A card page's pairing list is the same call: `getRepresentativeCardsByKeys`
+  selects seven columns for the at-most-twenty-five rows it renders, because
+  that list is a thumbnail and a name rather than a card being shown.
 - **None of that data is ever server-rendered.** The detail modal lives behind
   `useState(null)` in `cube-sections.tsx`, so `detailFooter` — the only consumer
   of `printingsByBase` — never runs during SSR. Verified with 40 cards that all

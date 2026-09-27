@@ -888,6 +888,91 @@ export async function getSetStarterCards(
 }
 
 /**
+ * One row per card, with just enough to build its page URL and title.
+ *
+ * Slugs are lossy — apostrophes and accents fold away — so `/cards/unit/kaisa`
+ * cannot be turned back into a name. The only honest resolution is forward:
+ * build the path for every card once and look the request up in the result.
+ * That needs the whole pool, which is why this is memoised on the card-pool TTL
+ * like the filter options; it is five columns over about 1,300 rows.
+ *
+ * Collapsed by the same rule as the browser, so a treatment printing does not
+ * get a second identity, and the representative is the plainest printing — the
+ * name on the page is "Nine-Tailed Fox", never "Nine-Tailed Fox (Metal)". This
+ * and `getRepresentativeCardsByKeys` below are the fifth and sixth queries
+ * collapsing printings; see printings.md.
+ */
+export interface CardIdentity {
+  /** The collapsed identity key, which is what the popularity snapshot uses. */
+  key: string;
+  /** The representative printing, for `popularityForCards` and for art. */
+  id: string;
+  name: string;
+  type: string;
+  champion: string | null;
+}
+
+let identitiesMemo: { at: number; value: CardIdentity[] } | null = null;
+
+export async function getCardIdentities(): Promise<CardIdentity[]> {
+  const now = Date.now();
+  if (identitiesMemo && now - identitiesMemo.at < CARD_POOL_TTL_MS) {
+    return identitiesMemo.value;
+  }
+
+  const rows = await db
+    .selectDistinctOn([collapseKey], {
+      key: sql<string>`${collapseKey}`.as("collapse_key"),
+      id: cards.id,
+      name: cards.name,
+      type: cards.type,
+      champion: cards.champion,
+    })
+    .from(cards)
+    .where(realCard)
+    .orderBy(collapseKey, ...canonicalFirst);
+
+  identitiesMemo = { at: Date.now(), value: rows };
+  return rows;
+}
+
+/**
+ * The representative printing of each of the given cards, for a pairing list.
+ *
+ * Seven columns rather than `browseColumns`' eighteen: the list renders a
+ * thumbnail, a domain dot, a name and an energy chip, and pulling rules text,
+ * tags, power costs and the full-size art for twenty-five rows is the cost this
+ * page has no reason to pay. A query rather than a second pass over
+ * `getCardIdentities`, whose five columns cannot draw a card.
+ */
+export interface PairedCard {
+  id: string;
+  name: string;
+  type: string;
+  champion: string | null;
+  domains: string[];
+  energyCost: number | null;
+  imageThumb: string | null;
+}
+
+export async function getRepresentativeCardsByKeys(keys: string[]): Promise<PairedCard[]> {
+  if (keys.length === 0) return [];
+  return db
+    .selectDistinctOn([collapseKey], {
+      id: cards.id,
+      name: cards.name,
+      type: cards.type,
+      champion: cards.champion,
+      domains: cards.domains,
+      energyCost: cards.energyCost,
+      imageThumb: cards.imageThumb,
+    })
+    .from(cards)
+    .where(and(inArray(collapseKey, keys), realCard))
+    .orderBy(collapseKey, ...canonicalFirst);
+}
+
+/**
  * A set is offered as a starting point only when its starter list is at least
  * this long. Derived from the data rather than a list of codes, so a new set
  * appears on its own. Measured on production, 26 September 2026: the four main

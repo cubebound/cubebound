@@ -14,6 +14,16 @@
  *      that turns private drops out of it
  *   7. the pages render: /explore shows a public cube and its Follow control,
  *      /cubes?tab=followed shows the followed one
+ *   8. a card's "commonly cubed with" page 404s with a real **status** rather
+ *      than a soft 404, and the sitemap and the page agree about which exist
+ *
+ * **On (8) and the one-hour memo.** The popularity snapshot is memoised for an
+ * hour *per process*, so this script's own view of which cards clear the owner
+ * floor can be up to an hour out of step with the running dev server's. The
+ * eligible page it tests is therefore read out of the server's own
+ * `/sitemap.xml` rather than computed here: the two then cannot disagree,
+ * whatever either memo is holding. If (8) fails right after seeding cubes,
+ * restart `npm run dev` before looking for a bug.
  *
  * Prerequisite: npm run dev. Creates throwaway accounts and deletes them again.
  *
@@ -24,6 +34,7 @@ import postgres from "postgres";
 import { fromEnvFile } from "./lib/env";
 import { createTestAccount, deleteTestAccounts } from "./lib/test-account";
 
+import { getCardIdentities } from "../src/db/queries/cards";
 import { addCubeCard, createCube, updateCube } from "../src/db/queries/cubes";
 import {
   countCubes,
@@ -32,6 +43,7 @@ import {
   searchCubes,
   unfollowCube,
 } from "../src/db/queries/discovery";
+import { cardPagePath } from "../src/lib/card-popularity";
 import { canViewCube } from "../src/lib/cube-access";
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
@@ -332,6 +344,72 @@ try {
 
   const navHtml = await body("/");
   expect(navHtml.includes(">Explore<"), "Explore should be in the nav");
+
+  // --- a card's "commonly cubed with" page ----------------------------------
+  // **Status codes, not page bodies.** This route has a `loading.tsx`, and a
+  // flushed loading shell commits HTTP 200 — after which a `notFound()` in the
+  // page swaps the body for the 404 UI but cannot change the status. That is a
+  // soft 404: a crawler indexes it as a real page. The gate therefore lives in
+  // `layout.tsx`, and the only way to tell whether it still does is to read the
+  // status off the wire.
+  const unknownCard = await fetch(`${APP}/cards/unit/${TAG}-no-such-card`);
+  expect(
+    unknownCard.status === 404,
+    `an unknown card slug must answer 404, got ${unknownCard.status} — a 200 means ` +
+      `the gate moved out of layout.tsx and below the loading boundary`,
+  );
+  const wrongCase = await fetch(`${APP}/cards/Unit/${TAG}-no-such-card`);
+  expect(
+    wrongCase.status === 404,
+    `a non-canonical path must answer 404 too, got ${wrongCase.status}`,
+  );
+
+  // The server's own list of eligible pages, so this cannot disagree with it
+  // over a stale memo. See the note in the header.
+  const sitemap = await body("/sitemap.xml");
+  const listedCardPages = [...sitemap.matchAll(/<loc>[^<]*?(\/cards\/[^<]+)<\/loc>/g)].map(
+    (match) => match[1],
+  );
+
+  if (listedCardPages.length === 0) {
+    console.log(
+      "card pages: none in the sitemap yet — no card is in cubes from five " +
+        "different owners in this database, so the eligible-page assertions are skipped",
+    );
+  } else {
+    const eligible = listedCardPages[0];
+    const page = await fetch(`${APP}${eligible}`);
+    expect(page.status === 200, `${eligible} is in the sitemap but answered ${page.status}`);
+    const html = await page.text();
+    expect(
+      html.includes(`rel="canonical" href="${eligible}"`) ||
+        html.includes(`rel="canonical" href="http://localhost:3000${eligible}"`),
+      `${eligible} should carry a bare canonical of itself`,
+    );
+    expect(
+      html.includes("of cubes"),
+      `${eligible} should state how often the card is cubed`,
+    );
+    expect(
+      html.includes("No cube or owner is ever named"),
+      `${eligible} should carry the footnote saying what was counted`,
+    );
+  }
+
+  // A real card that is *not* in the sitemap must 404, and look no different
+  // from a card that does not exist: "this card has no page yet" is itself a
+  // statement about how few people run it.
+  const identities = await getCardIdentities();
+  const ineligible = identities
+    .map(cardPagePath)
+    .find((path) => !listedCardPages.includes(path));
+  if (ineligible) {
+    const below = await fetch(`${APP}${ineligible}`);
+    expect(
+      below.status === 404,
+      `${ineligible} is below the owner floor and must answer 404, got ${below.status}`,
+    );
+  }
 
   // An out-of-range page clamps rather than 404s, the same as /drafts.
   const clamped = await fetch(`${APP}/explore?q=${TAG}&page=99`);

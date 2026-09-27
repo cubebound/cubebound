@@ -135,8 +135,24 @@ only how those numbers reach a page.
   how the distinct-owner floor reaches the UI: below it `popularityForCards`
   hands over a label and no link, so a pairing list that would really be a
   description of one or two people's cubes has no button to reach it. The
-  destination is `cardPagePath`; the page itself is the remaining step of
-  roadmap item 6a-1 and is not built yet.
+  destination is `cardPagePath`, and that page exists: it lists the cards
+  showing up alongside this one more often than they do in cubes overall, each
+  with both percentages, under a line saying how often the card itself is cubed
+  and above a footnote saying private cubes were counted and that no cube or
+  owner is ever named. The floor is the same one the button checks, applied
+  again in the route; what 404s there and why is [routes.md](routes.md)'s.
+- **That page's URL is resolved forwards, never parsed.** Slugifying is lossy —
+  Kai'Sa becomes `kaisa`, and a legend's slug carries the champion its `name`
+  column does not — so `findCardByPath` builds the path for every card and
+  compares, rather than trying to turn a slug back into a name. The consequence
+  is the one worth having: the canonical spelling is the *only* one that
+  resolves, so `/cards/Unit/Kaisa` 404s instead of becoming a second URL for one
+  page. It costs a whole-pool read, `getCardIdentities`, memoised on
+  `CARD_POOL_TTL_MS` like the filter options and wrapped in `cache()` as
+  `loadCardIdentities` because the layout, the metadata and the page each ask
+  for it. `check:printings` asserts those paths are unique across the pool and
+  identical across a card's printings: a collision would make one of the pair
+  unreachable and let pool order decide which.
 - **The map is built for the cards a page actually renders, and never for the
   pool.** Keyed by printing id, because the modal opens a *printing* while
   popularity is a property of the card. `/cards` folds it into the existing

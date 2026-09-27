@@ -55,6 +55,24 @@
   that it is worth reading, so the sitemap makes that claim only where it is
   true. The cubes stay public and reachable either way; this is about what is
   *advertised*, not what exists.
+- **The sitemap also lists every card page that exists**, from `cardPagesFor` —
+  the same owner floor the page's own layout 404s on, so the sitemap cannot
+  advertise a URL the page refuses, which would be a crawl error counted against
+  the whole domain. They are gathered in their **own** `try/catch`, not the
+  cubes': a whole-pool read is the likeliest thing on that route to fail, and one
+  shared catch would drop the cubes along with them. **They carry no
+  `lastModified`.** Nothing records when a percentage last moved, and a date
+  taken from `Date.now()` would tell a crawler every card page changed on every
+  crawl, which is a worse claim than no claim at all.
+- **A card page's title is `"Cards commonly cubed with <name> — Riftbound cube
+  stats"`**, since "cards commonly cubed with" is the question someone would
+  type and the card's name alone carries none of the rest. Its description goes
+  through the same `metaDescription`, which now lives in `src/lib/meta.ts`
+  because the cube page and these pages both call it, and its canonical is bare
+  like everything else. **It has no `opengraph-image`**, so a share falls back to
+  the site-wide card: there is no cover art and nothing cube-specific to draw,
+  and a per-card render would cost a DB read and a card-art fetch every time a
+  chat client re-scraped one.
 - **Page titles carry the words people search, not just the brand.** The
   homepage default was `cubebound.gg`, which ranked for nothing because nobody
   searches a brand they have not heard of; it is now

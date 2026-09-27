@@ -1,5 +1,6 @@
 import { cache } from "react";
 
+import { getCardIdentities } from "@/db/queries/cards";
 import { getCubeByOwnerAndSlug, type CubeWithOwner } from "@/db/queries/cubes";
 import { getCardPopularity } from "@/db/queries/discovery";
 import { getUserByUsername } from "@/db/queries/users";
@@ -43,3 +44,13 @@ export const loadUserByUsername = cache(async (username: string) =>
  * promise that may not have resolved into the memo yet.
  */
 export const loadCardPopularity = cache(async () => getCardPopularity());
+
+/**
+ * Every card's identity and page URL, once per request.
+ *
+ * A card page asks three times over: the layout resolves the slug and gates on
+ * it, `generateMetadata` needs the name for the title, and the page needs it
+ * again for the copy. All three are the same lookup, and only the layout's can
+ * 404.
+ */
+export const loadCardIdentities = cache(async () => getCardIdentities());
