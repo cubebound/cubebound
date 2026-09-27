@@ -286,8 +286,9 @@ export function wordCountDistribution(cards: readonly AnalyticsCard[]): WordCoun
  * Bracket contents that are not keywords.
  *
  * The source wraps a few non-keyword markers in the same brackets: `>` and `>>`
- * arrive HTML-escaped as `&gt;` and separate an ability's cost from its effect,
- * and `NO TEXT` is a placeholder on cards with none. Listing them beats a
+ * separate a condition from its effect (`parseRulesText` now gives them their
+ * own arrow node, so they rarely get this far), and `NO TEXT` is a placeholder
+ * on cards with none. Listing them beats a
  * general "must look like a word" rule, which would also drop a future keyword
  * that happens to be punctuated.
  */

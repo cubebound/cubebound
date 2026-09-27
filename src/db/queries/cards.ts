@@ -23,6 +23,7 @@ import {
   CARD_TYPES,
   type CardSort,
   COLORLESS,
+  DEFAULT_CARD_SORT,
   DOMAINS,
   ENERGY_HIGH,
   ENERGY_MAX_BUCKET,
@@ -259,8 +260,17 @@ type CardSearchResult = {
  * Mirrors `collapseIdentityKey` in src/lib/card-ids.ts, which is what
  * `check:printings` compares this against on every row — the same
  * two-definitions-must-agree arrangement `assignBaseIds` has with `0003`.
+ *
+ * Takes its columns rather than closing over `cards`, because the popularity
+ * reader in discovery.ts needs the identical expression and a second copy of a
+ * rule this fiddly is a copy that will drift. `collapseKey` below is the only
+ * form this file uses.
  */
-const collapseKey = sql`(lower(regexp_replace(${cards.name}, '\\s*\\([^()]*\\)\\s*$', '')) || '|' || ${cards.type})`;
+export function collapseKeyOf(nameCol: SQLWrapper, typeCol: SQLWrapper): SQL {
+  return sql`(lower(regexp_replace(${nameCol}, '\\s*\\([^()]*\\)\\s*$', '')) || '|' || ${typeCol})`;
+}
+
+const collapseKey = collapseKeyOf(cards.name, cards.type);
 
 /**
  * A token (Recruit, Sprite, Gold…), which is not a card: the browser, both
@@ -309,9 +319,16 @@ const canonicalFirst = [
  * `/cards` with nothing set is the same 60 rows for every visitor and is the
  * page people land on, so it was the most repeated query on the site — and it
  * counts across all 1,288 rows before returning any of them. The cache is
- * deliberately **only** the default view: two entries at most (grouped and all
- * printings), no key-building, no way for a crafted querystring to grow it.
- * Anything with a filter, a sort or a page number reads through as before.
+ * deliberately **only** the unfiltered first page, in the two orders a page
+ * can open in: printed order (the editor's browse view) and most played (what
+ * `/cards` opens on, see `DEFAULT_CARD_SORT`). Four entries at most, and no
+ * way for a crafted querystring to grow it. Anything with a filter, another
+ * sort or a page number reads through as before.
+ *
+ * The most-played entry follows the popularity snapshot at most five minutes
+ * late, which is well inside that snapshot's own hour. If its read failed, the
+ * entry holds the printed-order fallback for those five minutes, the same
+ * degradation any one request would have shown.
  *
  * Same TTL and same reasoning as the filter options: this describes the card
  * pool, which changes only when `sync-cards` runs.
@@ -321,7 +338,8 @@ const canonicalFirst = [
  */
 const defaultBrowseMemo = new Map<string, { at: number; value: CardSearchResult }>();
 
-/** True when the filters are the bare `/cards` view — no filter, sort or page. */
+/** True when the filters are a bare opening view: no filter or page, and either
+ *  no sort or the one `/cards` opens on. */
 function isDefaultBrowse(filters: CardFilters): boolean {
   return (
     !filters.q &&
@@ -331,14 +349,14 @@ function isDefaultBrowse(filters: CardFilters): boolean {
     !filters.energy?.length &&
     !filters.type &&
     !filters.trait &&
-    !filters.sort &&
+    (!filters.sort || filters.sort === "set" || filters.sort === DEFAULT_CARD_SORT) &&
     (filters.page ?? 1) === 1
   );
 }
 
 export async function searchCards(filters: CardFilters): Promise<CardSearchResult> {
   if (isDefaultBrowse(filters)) {
-    const key = filters.allPrintings ? "all" : "grouped";
+    const key = `${filters.sort ?? "set"}:${filters.allPrintings ? "all" : "grouped"}`;
     const hit = defaultBrowseMemo.get(key);
     if (hit && Date.now() - hit.at < CARD_POOL_TTL_MS) return hit.value;
     const value = await runSearchCards(filters);
@@ -384,6 +402,43 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
   const sort = filters.sort ?? "set";
 
   /**
+   * How many cubes run each card, as **one bound jsonb parameter**.
+   *
+   * Sorting by a number that lives outside the database is the awkward part of
+   * this sort: the counts come from a memo, not from a column. Shipping them as
+   * a single `$1::jsonb` and looking each row up with `->>` keeps it to one
+   * parameter whatever the pool size, and — the part that matters — keeps the
+   * values *bound*. Building a `CASE WHEN name = '…'` ladder by interpolation
+   * would put card names, which come from a synced source, straight into SQL
+   * text. Only cubed cards are in the map, so it is a few hundred keys rather
+   * than the whole pool, and everything else coalesces to zero.
+   *
+   * **Imported lazily**, because `discovery.ts` imports this module and
+   * `cubes.ts` imports it too: a static import here would close the loop
+   * `cards → discovery → cubes → cards`, which ESM resolves by handing one of
+   * them a half-initialised module and failing at some unrelated line. Awaited
+   * here rather than inside `orderFor`, which has to stay synchronous.
+   *
+   * **A failed read falls back to the printed order** rather than failing the
+   * search: it is the same cards in a different order, and the browser and the
+   * editor's browse tab are too central to lose to a statistic. Reported
+   * explicitly, because a caught error never reaches `onRequestError`.
+   */
+  let playedCounts: SQL | null = null;
+  if (sort === "played") {
+    try {
+      const { getCardPopularity } = await import("./discovery");
+      const snapshot = await getCardPopularity();
+      const counts: Record<string, number> = {};
+      for (const [key, stats] of snapshot.byKey) counts[key] = stats.cubes;
+      playedCounts = sql`${JSON.stringify(counts)}::jsonb`;
+    } catch (error) {
+      Sentry.captureException(error);
+      console.error("card popularity unavailable, sorting in printed order", error);
+    }
+  }
+
+  /**
    * The ORDER BY for a sort, over either `cards` or the grouped subquery.
    *
    * Every ordering ends with the printed order as its tie-break, so equal
@@ -418,6 +473,20 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
         return [canonicalRank(col.type as SQLWrapper, CARD_TYPE_ORDER), ...printed];
       case "rarity":
         return [canonicalRank(col.rarity as SQLWrapper, RARITIES), ...printed];
+      // Ties are many and deliberate: below the first page or two most cards
+      // are in the same handful of cubes, so `name` keeps them alphabetical
+      // rather than in whatever order the plan returns.
+      case "played":
+        return playedCounts
+          ? [
+              sql`coalesce((${playedCounts} ->> ${collapseKeyOf(
+                col.name as SQLWrapper,
+                col.type as SQLWrapper,
+              )})::int, 0) desc`,
+              col.name as never,
+              ...printed,
+            ]
+          : printed;
       default:
         return printed;
     }
@@ -834,6 +903,77 @@ export async function getSetStarterCards(
     .selectDistinctOn([collapseKey], { id: cards.id, type: cards.type })
     .from(cards)
     .where(starterFilter(setCode))
+    .orderBy(collapseKey, ...canonicalFirst);
+}
+
+/**
+ * One row per card, with just enough to build its page URL and title.
+ *
+ * Slugs are lossy — apostrophes and accents fold away — so `/cards/unit/kaisa`
+ * cannot be turned back into a name. The only honest resolution is forward:
+ * build the path for every card once and look the request up in the result.
+ * That needs the whole pool, which is why this is memoised on the card-pool TTL
+ * like the filter options; it is five columns over about 1,300 rows.
+ *
+ * Collapsed by the same rule as the browser, so a treatment printing does not
+ * get a second identity, and the representative is the plainest printing — the
+ * name on the page is "Nine-Tailed Fox", never "Nine-Tailed Fox (Metal)". This
+ * and `getRepresentativeCardsByKeys` below are the fifth and sixth queries
+ * collapsing printings; see printings.md.
+ */
+export interface CardIdentity {
+  /** The collapsed identity key, which is what the popularity snapshot uses. */
+  key: string;
+  /** The representative printing, for `popularityForCards` and for art. */
+  id: string;
+  name: string;
+  type: string;
+  champion: string | null;
+}
+
+let identitiesMemo: { at: number; value: CardIdentity[] } | null = null;
+
+export async function getCardIdentities(): Promise<CardIdentity[]> {
+  const now = Date.now();
+  if (identitiesMemo && now - identitiesMemo.at < CARD_POOL_TTL_MS) {
+    return identitiesMemo.value;
+  }
+
+  const rows = await db
+    .selectDistinctOn([collapseKey], {
+      key: sql<string>`${collapseKey}`.as("collapse_key"),
+      id: cards.id,
+      name: cards.name,
+      type: cards.type,
+      champion: cards.champion,
+    })
+    .from(cards)
+    .where(realCard)
+    .orderBy(collapseKey, ...canonicalFirst);
+
+  identitiesMemo = { at: Date.now(), value: rows };
+  return rows;
+}
+
+/**
+ * The representative printing of each of the given cards, as full browse cards.
+ *
+ * Full rather than narrow because a card page's rows open the card's detail
+ * box, which shows rules text, full art and every stat; a second request on
+ * click would put a spinner in the one place the reader is already waiting.
+ * At most twenty-five rows, so the width is affordable. A query rather than a
+ * second pass over `getCardIdentities`, whose five columns cannot draw a card.
+ * `printingCount` is computed before the collapse, as the browser does.
+ */
+export async function getRepresentativeCardsByKeys(keys: string[]): Promise<BrowseCard[]> {
+  if (keys.length === 0) return [];
+  const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
+    "printing_count",
+  );
+  return db
+    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
+    .from(cards)
+    .where(and(inArray(collapseKey, keys), realCard))
     .orderBy(collapseKey, ...canonicalFirst);
 }
 

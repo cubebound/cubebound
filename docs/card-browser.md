@@ -61,9 +61,9 @@
 - **The unfiltered first page of `/cards` is memoised the same way and for the
   same reason** — it is the identical 60 rows for every visitor, on the page
   people land on, and it counts across all 1,288 rows before returning any of
-  them. **Only the default view is cached**: no filter, sort or page number, so
-  at most two entries (grouped and all printings) and no way for a crafted
-  querystring to grow the map. Anything else reads through. The cached object is
+  them. **Only the opening views are cached**: no filter or page number, in
+  printed order or most played (the two orders a page opens in), so at most
+  four entries and no way for a crafted querystring to grow the map. Anything else reads through. The cached object is
   shared between requests, so nothing may mutate it — callers render it and
   nothing more; if that changes, copy on read.
 - **A set's printed name comes from the stored raw payload**
@@ -71,7 +71,17 @@
   names itself like every other filter value. Ordered
   by **name**, not code: the codes interleave promos through the real sets
   (JDG, OGN, OGS, OPP, PR…), which reads as no order at all.
-- **Sorting is `?sort=` over set (default), name, energy, type, rarity.** Rarity
+- **Sorting is `?sort=` over set, played ("Most played", see below), name,
+  energy, type and rarity.** `CARD_SORTS` order is the dropdown's order, and
+  "Most played" sits second because at the bottom of the list nobody found it.
+  **`/cards` opens on most played** (`DEFAULT_CARD_SORT`): someone browsing
+  cards is usually choosing what to cube, and "what does everyone run" is the
+  most useful first screen. **The editor's browse view stays on set order**,
+  because `searchCards` itself still defaults to it and only `/cards` opts in,
+  passing the default to the filter bar so its dropdown shows the order the
+  results are in. A sort someone *chose* is always written to the URL, never
+  dropped as "the default", since the two pages disagree about which that is;
+  otherwise picking Set order on `/cards` would revert on page two. Rarity
   and type rank against the canonical lists rather than sorting alphabetically,
   and **`CARD_TYPE_ORDER` is not `CARD_TYPES`** — the latter is display
   vocabulary including "Champion Unit" and "Signature Spell", which are a `type`
@@ -91,6 +101,14 @@
   the dropdown filter uses exact array containment so "Zaun" can't also match a
   future "Zaunite". `keywords` is empty on every row and is not searched.
 
+- **Below `sm` the filters fold behind one button.** The eleven controls took
+  three rows on a phone, so the first screen was filters with no cards on it.
+  Now the search box stays, and a single "Filters" button opens and closes every
+  dropdown together, showing a count of the active groups so a closed panel
+  never hides that results are narrowed; the result count moves beside it. It
+  is client state rather than a URL parameter (how you are looking, not what
+  you are looking for), and it stays open across filtering because the bar
+  stays mounted. From `sm` up nothing changes, and the rule below still holds.
 - **The filter bar's controls are fixed-width, and the page always reserves a
   scrollbar.** Both exist because adjusting a filter made the whole page
   twitch, and the causes were three separate things — measured, not guessed:
@@ -113,3 +131,142 @@
   viewports no longer depend on the filters either, which is the property that
   matters: a filter change must never change the layout.
 - Filter navigation must not throw away the reader's scroll position. `scroll: false` alone is not enough — the router still pulls the viewport to the top of the refreshed segment — so `CardFilterBar` captures `window.scrollY` before navigating and reapplies it when the transition settles.
+
+## How often a card is cubed, on screen
+
+The snapshot and its arithmetic belong elsewhere: the read is
+[discovery.md](discovery.md)'s, and the rounding and floor rules are
+`src/lib/card-popularity.ts`'s, asserted by `check:popularity`. What follows is
+only how those numbers reach a page.
+
+- **A client component receives a label, never a number.** `CardDetail` takes an
+  optional `CardPopularityView` — one formatted string ("In 34% of cubes") and a
+  href — and renders it as a bordered block at the very bottom, **below** the
+  caller's `footer`: in the editor the Section picker and the remove buttons are
+  why the box was opened, and outside it the Add control below is, and the
+  statistics are context. Nothing on
+  the browser side divides, rounds or decides a threshold, so the
+  never-a-false-0% and never-a-false-100% rules cannot be reimplemented
+  differently on each surface that shows the modal. A card nobody has
+  cubed is **absent from the map** rather than present at 0%, so the block does
+  not render at all and the prop stays optional: a surface that has not built a
+  map is unchanged.
+- **"Cards commonly cubed with {card}" is a plain text link, gated on the href
+  being non-null**, which is
+  how the distinct-owner floor reaches the UI: below it `popularityForCards`
+  hands over a label and no link, so a pairing list that would really be a
+  description of one or two people's cubes has no link to reach it. The
+  destination is `cardPagePath`, and that page exists: a table, ranked by
+  pairing strength, of the cards showing up alongside this one more often than they do in cubes
+  overall, under a line saying how often the card itself is cubed and above a
+  one-line footnote giving the denominator: every cube with at least
+  `STATS_MIN_CARDS` cards. That private cubes are counted and nobody is named is
+  `/privacy`'s to say, not repeated on every card page. The floor is the same one the link checks, applied again in the route;
+  what 404s there and why is [routes.md](routes.md)'s.
+- **Each row of that table opens the same detail box the browser does.** The
+  image and the name both open `CardDetail`, with its own popularity line, so a
+  reader can judge a card without leaving the page; the arrow in the last column
+  goes to that card's own page and is drawn only when it clears the owner floor.
+  That is why `getRepresentativeCardsByKeys` returns full `BrowseCard`s rather
+  than a narrow row: the box shows rules text and full art, and fetching them on
+  click would put a spinner where the reader is already waiting.
+- **The "With {card}" and "Overall" dials are filled from the rounded label,
+  never from a ratio.** `pairing-table.tsx` parses the fill back out of "46%",
+  because an exact share of a small denominator (6/13) is a cube count by
+  another name, and the browser must receive nothing more precise than what is
+  printed. "under 1%" draws as a sliver and prints "<1%", making the same
+  promise the label does: present means not zero.
+- **The Pairing column ("3.1×") is what the table is sorted by, and it is the
+  two printed percentages divided, not the exact lift.** `pairingStrength`
+  divides the *rounded* labels to one decimal, reading "under 1%" as 1, and
+  `commonlyCubedWith` sorts on that first, then exact lift, shared cubes and
+  key. Two reasons. Sorting by exact lift while showing a rounded ratio put
+  "3.1×" under "2.8×", which reads as a broken order; and an exact ratio of
+  small counts would disclose them, which is what the percentages exist to
+  prevent. Which cards make the list is unchanged: lift above 1, with
+  `MIN_SHARED_CUBES` support.
+- **That page's URL is resolved forwards, never parsed.** Slugifying is lossy —
+  Kai'Sa becomes `kaisa`, and a legend's slug carries the champion its `name`
+  column does not — so `findCardByPath` builds the path for every card and
+  compares, rather than trying to turn a slug back into a name. The consequence
+  is the one worth having: the canonical spelling is the *only* one that
+  resolves, so `/cards/Unit/Kaisa` 404s instead of becoming a second URL for one
+  page. It costs a whole-pool read, `getCardIdentities`, memoised on
+  `CARD_POOL_TTL_MS` like the filter options and wrapped in `cache()` as
+  `loadCardIdentities` because the layout, the metadata and the page each ask
+  for it. `check:printings` asserts those paths are unique across the pool and
+  identical across a card's printings: a collision would make one of the pair
+  unreachable and let pool order decide which.
+- **The map is built for the cards a page actually renders, and never for the
+  pool.** Keyed by printing id, because the modal opens a *printing* while
+  popularity is a property of the card. `/cards` folds it into the existing
+  `Promise.all` over the page's results; the cube page builds it over the
+  maybeboard rows or the cube rows depending on the tab, and only when the tab
+  shows cards at all; the editor builds it over the browse results in browse mode
+  and over `rendered` otherwise, and only in the three modes with a modal to put
+  a line in; a card page builds it over its pairing rows. Two reasons it is not built wider: at most sixty cards are on screen
+  against a snapshot covering every qualifying cube, and — the part that is not
+  an optimisation — **`PopularitySnapshot` must never cross to the browser**,
+  because it carries per-cube card lists for cubes their owners marked private.
+  `popularityForCards` is the reduction that makes the value safe to serialise,
+  so a new surface calls it rather than passing the snapshot down.
+- **`sort=played` ships the counts as one bound `jsonb` parameter.** It is the
+  only ordering whose key is not a column: `orderFor` reads
+  `$1::jsonb ->> collapseKeyOf(name, type)`, coalesced to 0 for everything the
+  snapshot does not mention. One parameter whatever the pool size, and — the part
+  that matters — the values stay **bound**. The obvious alternative, a
+  `CASE WHEN name = '…'` ladder built by concatenation, would put names that come
+  from a synced source straight into SQL text. Ties break on **name** and then the
+  printed order, because past the staples most of the pool shares a count and
+  alphabetical beats whatever the plan happens to return.
+- **The snapshot is imported lazily, inside `runSearchCards`.** A static
+  `import` of `queries/discovery.ts` here closes the cycle
+  `cards → discovery → cubes → cards`, which ESM resolves by handing one module a
+  half-initialised import and failing at some unrelated line. It is awaited in
+  `runSearchCards` rather than in `orderFor`, which has to stay synchronous.
+- `check:card-filters` asserts the ordering against the snapshot itself, because
+  both halves of that lookup fail *quietly*: a key that never matches coalesces
+  to zero for every row, which is a page in plain alphabetical order and reads as
+  a choice rather than a fault.
+- **The page behind an open detail box does not scroll**, on any width: a
+  wheel or swipe used to move the grid underneath, so closing the box found you
+  somewhere else. `CardDetail` sets `overflow: hidden` on `html` while open and
+  restores it on close, and the box's own scroller is `overscroll-contain`.
+  Nothing shifts sideways because `html` keeps `scrollbar-gutter: stable` (the
+  rule above), which still reserves the scrollbar's width under `hidden`.
+  **Do not add padding to compensate**: `clientWidth` reads as though the
+  gutter vanished, but measured by element position the page does not move,
+  and padding shifted it the other way.
+
+## Adding to a cube from the detail box
+
+Outside the editor, the detail box on `/cards` and on a card page carries
+`AddToCube` (`src/components/add-to-cube.tsx`) as its `footer`: "Add to {cube}
+· Change" and an Add button, for a signed-in owner. Signed out, it renders
+nothing.
+
+- **The target is resolved when the box opens, in one request, not when the
+  page renders.** `addTargetAction` answers `signedOut`, or the target cube and
+  how many copies of the card it holds, counted across printings by `base_id`.
+  The root layout already verifies the viewer for the nav, so deciding at render
+  time would be a second auth call on every `/cards` load for a control most
+  visitors never touch. With no session cookie the signed-out answer costs no
+  network call.
+- **The default is the cube the reader last had open, and the server decides
+  whether that still counts.** The editor page renders `RememberCube`, which
+  writes the cube id to `localStorage` (`cubebound:last-cube`); choosing or
+  adding writes it too. That value is a per-device convenience and nothing
+  more: `addTargetAction` re-checks it with `canEditCube` like any id from a
+  client, and falls back to the owner's most recently edited cube,
+  `listCubeChoices(ownerId, 1)`. Storage access is wrapped in `try`, because it
+  throws in some private windows.
+- **The full list loads only when the reader presses Change.** Most people are
+  adding to one cube, and it is already on screen, so `listCubeChoicesAction`
+  waits to be asked; `cubeCopiesAction` re-reads the count after a switch.
+  `listCubeChoices` is deliberately not `searchCubes`: a picker shows no card
+  count and no cover, and those are what that query costs.
+- **The add itself is the editor's `addCardAction`**, so this is one more add
+  path under the guards [cube-editor.md](cube-editor.md) describes rather than a
+  new one: ownership, suspension, the token refusal, the default section and the
+  change log all apply unchanged. Every call in the component catches a rejected
+  promise, per the root rule.

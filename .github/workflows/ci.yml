@@ -1,6 +1,6 @@
 # Typecheck, lint, build and the checks that need no database and no credentials.
 #
-# The other sixteen checks are deliberately NOT here — see docs/checks.md and
+# The other seventeen checks are deliberately NOT here — see docs/checks.md and
 # docs/gate-runbook.md. Several INSERT directly into `auth.users` and exchange a password
 # grant against a live GoTrue endpoint, so they need a real Supabase project
 # rather than a Postgres container; others drive Chrome over CDP against a
@@ -106,6 +106,15 @@ jobs:
       # the save fails on a constraint rather than on anything the reader did.
       - name: Check staged cube edits
         run: npm run check:staged-edit
+
+      # The percentages the site publishes about cards, computed over cubes
+      # their owners marked private. The failure mode is invisible twice over: a
+      # wrong percentage looks exactly like a right one, and no reader can check
+      # it against the underlying cubes, because those are not theirs to see.
+      # The owner floor it guards alongside is the whole of the anonymity
+      # promise /privacy makes.
+      - name: Check card popularity
+        run: npm run check:popularity
 
       # Auth invariants, and pure: the backup rule, the provider allowlist, and
       # that both sign-in actions still validate their input and build their

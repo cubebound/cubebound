@@ -3,7 +3,10 @@ import type { Metadata } from "next";
 import CardFilterBar from "@/components/card-filter-bar";
 import CardPagination from "@/components/card-pagination";
 import { PAGE_SIZE, searchCards, getFilterOptions } from "@/db/queries/cards";
+import { popularityForCards } from "@/lib/card-popularity";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
+import { DEFAULT_CARD_SORT } from "@/lib/riftbound";
+import { loadCardPopularityIfAvailable } from "@/lib/cube-request";
 
 import CardGrid from "./card-grid";
 
@@ -26,10 +29,18 @@ export default async function CardsPage({
 }) {
   const filters = cardFiltersFromParams(await searchParams);
 
-  const [options, result] = await Promise.all([
+  const [options, result, snapshot] = await Promise.all([
     getFilterOptions(),
-    searchCards(filters),
+    // Most played unless the URL chose another order; this page only.
+    searchCards({ ...filters, sort: filters.sort ?? DEFAULT_CARD_SORT }),
+    loadCardPopularityIfAvailable(),
   ]);
+
+  // Built for the sixty cards on *this* page, never for the whole pool: the
+  // snapshot holds per-cube card lists for cubes their owners marked private,
+  // and `CardPopularityView` (a label and a link) is the only shape that is
+  // allowed across to the browser.
+  const popularity = snapshot ? popularityForCards(snapshot, result.cards) : {};
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
@@ -48,6 +59,7 @@ export default async function CardsPage({
           active={filters}
           total={result.total}
           basePath="/cards"
+          defaultSort={DEFAULT_CARD_SORT}
         />
       </div>
 
@@ -57,7 +69,7 @@ export default async function CardsPage({
         </p>
       ) : (
         <div className="space-y-6">
-          <CardGrid cards={result.cards} />
+          <CardGrid cards={result.cards} popularity={popularity} />
           <CardPagination
             filters={filters}
             page={result.page}

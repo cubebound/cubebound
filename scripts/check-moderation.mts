@@ -16,6 +16,8 @@
  *  - moderated content disappears from every listing, including the owner's own
  *    `/cubes`, which is the one that would otherwise still advertise it, and
  *    the sitemap, which has its own query and so is the one that drifted
+ *  - and out of the card statistics, which are computed over private cubes and
+ *    so are the one surface where a miss would be invisible to everyone
  *  - a non-admin calling the actions changes nothing
  *  - deleting an account takes its cubes, and leaves a log entry that survives
  *
@@ -30,9 +32,11 @@ import postgres from "postgres";
 import { fromEnvFile } from "./lib/env";
 import { createTestAccount, deleteTestAccounts } from "./lib/test-account";
 
-import { addCubeCard, createCube, getCubeById } from "../src/db/queries/cubes";
+import { addCubeCard, addCubeCards, createCube, getCubeById } from "../src/db/queries/cubes";
 import {
+  getCardPopularity,
   listPublicCubesForSitemap,
+  resetCardPopularityMemo,
   searchCubes,
   SITEMAP_MIN_CARDS,
 } from "../src/db/queries/discovery";
@@ -43,6 +47,8 @@ import {
   setUserSuspended,
   summarizeUser,
 } from "../src/db/queries/moderation";
+import { STATS_MIN_CARDS } from "../src/lib/card-popularity";
+import { collapseIdentityKey } from "../src/lib/card-ids";
 import { canUseCube, canViewCube, suspensionError } from "../src/lib/cube-access";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false, max: 3 });
@@ -209,6 +215,105 @@ try {
     "suspensionError must let an ordinary profile through",
   );
 
+  // ---- moderation reaches the published statistics too -----------------
+  // The card percentages are computed over cubes their owners marked private,
+  // so they are the one surface where a moderation miss is invisible: nobody
+  // reading "In 34% of cubes" can see which cubes those were. A hidden cube
+  // that still moves a published number is moderation that did not take.
+  const statsOwner = await createTestAccount(sql, { prefix: "modstat", signIn: false });
+  created.push(statsOwner.id);
+
+  // Plain units: definitely not tokens and definitely not basic runes, both of
+  // which the reader drops, so the probe card cannot be excluded for a reason
+  // this section is not testing.
+  const plainUnits = await sql<{ id: string; name: string; type: string }[]>`
+    select id, name, type from cards
+    where base_id = id and type = 'Unit' and supertype is null
+    order by id limit ${STATS_MIN_CARDS + 1}`;
+
+  if (plainUnits.length < STATS_MIN_CARDS + 1) {
+    failures.push(
+      `only ${plainUnits.length} plain units in the pool, and the statistics ` +
+        `floor needs ${STATS_MIN_CARDS + 1} — sync the cards before running this`,
+    );
+  } else {
+    const probeKey = collapseIdentityKey(plainUnits[0]);
+
+    // Reset every time: an hour of memo would otherwise answer all of these
+    // with the snapshot taken before the cube existed.
+    const cubesHolding = async () => {
+      resetCardPopularityMemo();
+      return (await getCardPopularity()).byKey.get(probeKey)?.cubes ?? 0;
+    };
+
+    // Against a baseline rather than an absolute: the dev database has seeded
+    // cubes, and the probe card may well already be in some of them.
+    const baseline = await cubesHolding();
+
+    const statsCube = await createCube({
+      ownerId: statsOwner.id,
+      name: `Statistics Target ${Date.now()}`,
+      description: "private, and counted anyway",
+      visibility: "private",
+    });
+    await addCubeCards(
+      statsCube.id,
+      plainUnits
+        .slice(0, STATS_MIN_CARDS)
+        .map((card) => ({ cardId: card.id, section: "main" as const, quantity: 1 })),
+    );
+
+    expect(
+      (await cubesHolding()) === baseline + 1,
+      "a private cube at the floor must count toward the statistics — private " +
+        "cubes are most of the pool, and leaving them out would describe only " +
+        "the people who publish",
+    );
+
+    await setCubeHidden(statsCube.id, true, "check: hidden from statistics");
+    expect(
+      (await cubesHolding()) === baseline,
+      "a hidden cube must stop counting toward every published percentage",
+    );
+    await setCubeHidden(statsCube.id, false, null);
+    expect((await cubesHolding()) === baseline + 1, "unhiding must restore it to the statistics");
+
+    await setUserSuspended(statsOwner.id, true);
+    expect(
+      (await cubesHolding()) === baseline,
+      "a suspended owner's cube must stop counting toward the statistics",
+    );
+    await setUserSuspended(statsOwner.id, false);
+    expect((await cubesHolding()) === baseline + 1, "unsuspending must restore it");
+
+    // One card short of the floor. The probe card stays in the cube, so what
+    // drops is the whole cube, not that card.
+    await sql`
+      delete from cube_cards
+      where cube_id = ${statsCube.id}::uuid
+        and card_id = ${plainUnits[STATS_MIN_CARDS - 1].id}`;
+    expect(
+      (await cubesHolding()) === baseline,
+      `a cube at ${STATS_MIN_CARDS - 1} cards is under the floor and must not count`,
+    );
+
+    // ...and a maybeboard does not make up the difference. It is a shortlist of
+    // cards someone is *considering*, so it neither carries a cube over the
+    // floor nor puts its own cards into the numbers.
+    await addCubeCards(
+      statsCube.id,
+      [plainUnits[STATS_MIN_CARDS - 1], plainUnits[STATS_MIN_CARDS]].map((card) => ({
+        cardId: card.id,
+        section: "maybeboard" as const,
+        quantity: 1,
+      })),
+    );
+    expect(
+      (await cubesHolding()) === baseline,
+      "maybeboard cards must not carry a cube over the statistics floor",
+    );
+  }
+
   // ---- deleting an account takes its cubes -----------------------------
   const doomed = await createTestAccount(sql, { prefix: "moddel", signIn: false });
   const doomedCube = await createCube({
@@ -265,7 +370,8 @@ try {
 
   console.log(
     `moderation: hide, suspend and delete all took effect, in Explore, the ` +
-      `owner's own list and the sitemap; the log survived a cascading account delete`,
+      `owner's own list, the sitemap and the card statistics; the log survived a ` +
+      `cascading account delete`,
   );
 } catch (error) {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);

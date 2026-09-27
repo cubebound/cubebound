@@ -9,7 +9,7 @@ Audited before the first wide share. What was checked, and what it turned up.
   see [cube-access.md](cube-access.md) for why it exists rather than SELECT policies.
 - **No secret has ever been committed.** `.env*` is gitignored bar the example,
   and a scan of full history turns up only placeholders.
-- **Every mutation is gated.** All 27 server actions in the four files
+- **Every mutation is gated.** All 30 server actions in the four files
   `check:cube-ownership` reads call one of `requireOwnedCube` /
   `requireDraftableCube` / `requireOwnDraft` / `requireFollowableCube` /
   `requireAdmin` / `requireCreator` / `getCurrentUser`, and the check fails the build if a new one

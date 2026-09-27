@@ -16,6 +16,7 @@ import {
   ENERGY_BUCKETS,
   ENERGY_BUCKET_LABELS,
 } from "@/lib/riftbound";
+import { btn } from "@/lib/ui";
 
 interface Props {
   options: FilterOptions;
@@ -27,6 +28,9 @@ interface Props {
   extraParams?: Record<string, string>;
   /** Wording for the result count, e.g. "cards" or "matches". */
   unit?: string;
+  /** The order this page shows when the URL names none, so the dropdown
+   *  shows what the results are actually in. See `DEFAULT_CARD_SORT`. */
+  defaultSort?: CardSort;
 }
 
 const controlClass =
@@ -169,10 +173,20 @@ export default function CardFilterBar({
   basePath,
   extraParams = {},
   unit = "cards",
+  defaultSort = "set",
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [q, setQ] = useState(active.q ?? "");
+  /**
+   * Whether the filter controls are showing on a phone. Below `sm` the eleven
+   * controls took three rows and most of the first screen, above any card, so
+   * they fold behind one button that opens and closes them all together. At
+   * `sm` and up they always show and this is ignored. Client state, not the
+   * URL: it is how you are looking at the page, not what you are looking for,
+   * and it survives filtering because the bar stays mounted.
+   */
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Keep the box in step with back/forward navigation, adjusting during render
   // rather than in an effect so typing never loses focus to a remount.
@@ -229,6 +243,19 @@ export default function CardFilterBar({
   const rarities = active.rarities ?? [];
   const energy = active.energy ?? [];
 
+  // Groups narrowing or reordering the results, for the phone's Filters button:
+  // the search text is not one, because the box that holds it stays visible.
+  const activeGroups = [
+    sets.length,
+    domains.length,
+    rarities.length,
+    energy.length,
+    active.type,
+    active.trait,
+    active.sort && active.sort !== defaultSort,
+    active.allPrintings,
+  ].filter(Boolean).length;
+
   const hasFilters = Boolean(
     active.q ||
       sets.length ||
@@ -237,7 +264,7 @@ export default function CardFilterBar({
       energy.length ||
       active.type ||
       active.trait ||
-      active.sort ||
+      (active.sort && active.sort !== defaultSort) ||
       active.allPrintings,
   );
 
@@ -295,13 +322,40 @@ export default function CardFilterBar({
             keystroke is what makes a bar feel unsteady. */}
         <span
           aria-live="polite"
-          className={`w-24 shrink-0 text-right text-sm tabular-nums ${isPending ? "text-subtle" : "text-muted"}`}
+          className={`hidden w-24 shrink-0 text-right text-sm tabular-nums sm:inline ${isPending ? "text-subtle" : "text-muted"}`}
         >
           {isPending ? "Searching…" : `${total.toLocaleString()} ${unit}`}
         </span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Phones only: one control for every filter, and the count beside it. */}
+      <div className="flex items-center gap-2 sm:hidden">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((open) => !open)}
+          aria-expanded={filtersOpen}
+          aria-controls="card-filters"
+          className={`${btn.secondarySm} gap-2`}
+        >
+          {filtersOpen ? "Hide filters" : "Filters"}
+          {activeGroups > 0 && (
+            <span className="rounded-full bg-ink px-1.5 text-xs font-semibold tabular-nums text-surface">
+              {activeGroups}
+            </span>
+          )}
+        </button>
+        <span
+          aria-live="polite"
+          className={`ml-auto text-sm tabular-nums ${isPending ? "text-subtle" : "text-muted"}`}
+        >
+          {isPending ? "Searching…" : `${total.toLocaleString()} ${unit}`}
+        </span>
+      </div>
+
+      <div
+        id="card-filters"
+        className={`${filtersOpen ? "flex" : "hidden"} flex-wrap items-center gap-2 sm:flex`}
+      >
         {/* Sets carry their printed name as well as the code: "SFD" means nothing
             until you know it is Spiritforged, and the code alone was the filter
             people asked about most. */}
@@ -473,7 +527,7 @@ export default function CardFilterBar({
         <select
           name="sort"
           aria-label="Sort by"
-          value={active.sort ?? "set"}
+          value={active.sort ?? defaultSort}
           onChange={(event) => navigate({ sort: event.target.value as CardSort })}
           className={controlClass}
         >

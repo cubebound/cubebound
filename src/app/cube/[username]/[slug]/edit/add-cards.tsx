@@ -6,6 +6,7 @@ import { addCardAction, listPrintingsAction } from "@/app/cube/actions";
 import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
 import type { BrowseCard } from "@/db/queries/cards";
 import type { CubeHolding } from "@/db/queries/cubes";
+import type { CardPopularityView } from "@/lib/card-popularity";
 import { CUBE_SECTION_LABELS, defaultSectionForType } from "@/lib/riftbound";
 
 interface Props {
@@ -23,6 +24,13 @@ interface Props {
    * and hid the base printing entirely.
    */
   showingEveryPrinting: boolean;
+  /**
+   * How often each card on this page is cubed site-wide, keyed by printing id.
+   *
+   * This tab is where it earns its keep: "in 34% of cubes" is exactly the
+   * question someone has while deciding whether to add a card.
+   */
+  popularity?: Record<string, CardPopularityView>;
 }
 
 /** Local view of a card's holding, updated optimistically as you add. */
@@ -36,7 +44,13 @@ const addClass =
   "h-8 rounded-md bg-ink text-xs font-medium text-surface transition hover:bg-ink-hover " +
   "disabled:opacity-60";
 
-export default function AddCards({ cubeId, cards, holdings, showingEveryPrinting }: Props) {
+export default function AddCards({
+  cubeId,
+  cards,
+  holdings,
+  showingEveryPrinting,
+  popularity = {},
+}: Props) {
   const [held, setHeld] = useState<Record<string, Held>>(() => toHeld(holdings));
   const [selected, setSelected] = useState<BrowseCard | null>(null);
   const [picker, setPicker] = useState<{ card: BrowseCard; printings: BrowseCard[] } | null>(null);
@@ -164,6 +178,7 @@ export default function AddCards({ cubeId, cards, holdings, showingEveryPrinting
         <CardDetail
           card={selected}
           onClose={() => setSelected(null)}
+          popularity={popularity[selected.id]}
           footer={
             <button
               type="button"

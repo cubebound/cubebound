@@ -77,8 +77,11 @@ export function cardFilterParams(
 
   if (filters.type) params.set("type", String(filters.type).trim());
   if (filters.trait) params.set("trait", String(filters.trait).trim());
-  // Omitted when it's the default, so the common URL stays clean.
-  if (filters.sort && filters.sort !== "set") params.set("sort", filters.sort);
+  // Written whenever it was chosen, and omitted only when it wasn't. Pages
+  // have different defaults (/cards opens on most played, the editor on set
+  // order), so dropping a sort that matches "the" default would lose it on the
+  // page where it isn't one; this also keeps it across pagination.
+  if (filters.sort) params.set("sort", filters.sort);
   if (filters.allPrintings) params.set("printings", "all");
 
   for (const [key, value] of Object.entries(extraParams)) {

@@ -31,7 +31,42 @@ export type RulesSymbol =
 export type RulesNode =
   | { type: "text"; value: string }
   | { type: "keyword"; value: string } // a [Bracketed] keyword or reminder marker
+  | { type: "arrow"; value: string } // [>] or [>>], the arrow joining a condition to its effect
   | { type: "symbol"; symbol: RulesSymbol };
+
+const ENTITIES: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+/**
+ * Turns HTML character references back into characters.
+ *
+ * The source HTML-escapes its rules text (`[Empowered][&gt;]`, `&quot;When I
+ * attack…&quot;`), and 105 cards were shown to readers with the codes printed.
+ * The sync decodes on the way in (see `richToRulesText` in the Riftcodex
+ * adapter); this is also run at render so a database synced before that fix
+ * still reads correctly. Decoding twice is harmless: the decoded text holds no
+ * references left to decode, unless a card's text genuinely spells one out,
+ * which none does.
+ */
+export function decodeEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (whole, ref: string) => {
+    if (ref[0] === "#") {
+      const code = ref[1] === "x" || ref[1] === "X" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
+      // Out-of-range references are left as written: `fromCodePoint` throws
+      // above 0x10FFFF, and this runs on every render of every card's text.
+      return Number.isInteger(code) && code >= 0 && code <= 0x10ffff
+        ? String.fromCodePoint(code)
+        : whole;
+    }
+    return ENTITIES[ref.toLowerCase()] ?? whole;
+  });
+}
 
 const RUNE_DOMAINS = new Set(["fury", "calm", "mind", "body", "chaos", "order"]);
 
@@ -70,7 +105,8 @@ export function resolveToken(token: string): RulesSymbol {
 const SEGMENT = /(:[a-z0-9_]+:)|(\[[^\]]+\])/gi;
 
 /** Splits rules text into plain text, [keyword] markers and symbol tokens. */
-export function parseRulesText(text: string): RulesNode[] {
+export function parseRulesText(raw: string): RulesNode[] {
+  const text = decodeEntities(raw);
   const nodes: RulesNode[] = [];
   let cursor = 0;
 
@@ -82,7 +118,11 @@ export function parseRulesText(text: string): RulesNode[] {
     if (match[1]) {
       nodes.push({ type: "symbol", symbol: resolveToken(match[1]) });
     } else {
-      nodes.push({ type: "keyword", value: match[2].slice(1, -1) });
+      const inner = match[2].slice(1, -1);
+      // `[>]` is not a keyword: it is the pointed tail of the badge before it,
+      // which on the printed card joins a condition (`[Empowered]`,
+      // `[Level 3]`, `[Reaction]`) to what it grants.
+      nodes.push(/^>+$/.test(inner) ? { type: "arrow", value: inner } : { type: "keyword", value: inner });
     }
     cursor = index + match[0].length;
   }
@@ -105,6 +145,7 @@ export function rulesTextToPlain(text: string): string {
     .map((node) => {
       if (node.type === "text") return node.value;
       if (node.type === "keyword") return node.value;
+      if (node.type === "arrow") return ":";
       return ` ${node.symbol.label} `;
     })
     .join("")

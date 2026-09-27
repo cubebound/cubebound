@@ -26,6 +26,7 @@ import {
   provisionalBaseId,
   TOKEN_ID_PATTERN,
 } from "../src/lib/card-ids";
+import { cardPagePath } from "../src/lib/card-popularity";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 const failures: string[] = [];
@@ -51,9 +52,10 @@ try {
       collector_no: string;
       rarity: string;
       supertype: string | null;
+      champion: string | null;
       rules_text: string | null;
     }[]
-  >`select id, base_id, name, type, set_code, collector_no, rarity, supertype, rules_text from cards`;
+  >`select id, base_id, name, type, set_code, collector_no, rarity, supertype, champion, rules_text from cards`;
 
   expect(rows.length > 0, "no cards in the database");
 
@@ -275,6 +277,81 @@ try {
     new Set(midName.map((r) => collapseIdentityKey(r))).size === midName.length,
     `mid-name parenthetical cards collapsed together: ` +
       midName.map((r) => `${r.id} "${r.name}"`).join("; "),
+  );
+
+  // ---- one card page per card, and one card per card page -----------------
+  // `cardPagePath` slugifies, which is lossy: apostrophes and accents fold
+  // away, and a legend's title is prefixed with its champion. Two cards landing
+  // on the same URL would mean one of them is unreachable, and the layout
+  // resolves a request by comparing paths, so the *other* one is whichever the
+  // pool happens to list first. Asserted over the pool rather than reasoned
+  // about, because it is a property of the card names a sync brings in.
+  const pagePaths = new Map<string, string[]>();
+  for (const row of rows) {
+    if (isTokenCard(row)) continue; // never gets a page
+    const key = collapseIdentityKey(row);
+    const path = cardPagePath(row);
+    const seen = pagePaths.get(path);
+    if (seen) {
+      if (!seen.includes(key)) seen.push(key);
+    } else {
+      pagePaths.set(path, [key]);
+    }
+  }
+  const pageCollisions = [...pagePaths].filter(([, keys]) => keys.length > 1);
+  expect(
+    pageCollisions.length === 0,
+    `${pageCollisions.length} card page URL(s) are claimed by more than one card, so ` +
+      `one of each pair is unreachable: ` +
+      pageCollisions
+        .slice(0, 5)
+        .map(([path, keys]) => `${path} <- ${keys.join(" / ")}`)
+        .join("; "),
+  );
+  // And the reverse: every printing of one card must build the same URL, or
+  // which printing represents the group would silently decide the address.
+  const pathsPerCard = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (isTokenCard(row)) continue;
+    const key = collapseIdentityKey(row);
+    (pathsPerCard.get(key) ?? pathsPerCard.set(key, new Set()).get(key)!).add(cardPagePath(row));
+  }
+  const unstable = [...pathsPerCard].filter(([, paths]) => paths.size > 1);
+  expect(
+    unstable.length === 0,
+    `${unstable.length} card(s) build more than one page URL across their printings: ` +
+      unstable
+        .slice(0, 5)
+        .map(([key, paths]) => `${key} -> ${[...paths].join(" | ")}`)
+        .join("; "),
+  );
+
+  console.log(
+    `card pages: ${pagePaths.size} distinct URL(s) over ${pathsPerCard.size} card(s)`,
+  );
+
+  // ---- rules text arrives as text, not as the source's HTML ---------------
+  // The source's `plain` field was stored for a year: HTML codes shown to
+  // readers ("[Reaction][&gt;]", "&quot;") on 105 cards, and every line break
+  // deleted, running one ability into the next on 625. The sync now reduces
+  // `rich` instead (`richToRulesText`); this is what keeps it that way.
+  const escaped = rows.filter((r) => /&(#?[a-z0-9]+);/i.test(r.rules_text ?? ""));
+  expect(
+    escaped.length === 0,
+    `${escaped.length} card(s) store HTML character codes in their rules text, e.g. ` +
+      escaped.slice(0, 3).map((r) => r.id).join(", "),
+  );
+  const tagged = rows.filter((r) => /<\/?[a-z][^>]*>/i.test(r.rules_text ?? ""));
+  expect(
+    tagged.length === 0,
+    `${tagged.length} card(s) store HTML tags in their rules text, e.g. ` +
+      tagged.slice(0, 3).map((r) => r.id).join(", "),
+  );
+  const multiLine = rows.filter((r) => (r.rules_text ?? "").includes("\n")).length;
+  expect(
+    multiLine > rows.length / 4,
+    `only ${multiLine} card(s) keep a line break in their rules text; about half ` +
+      `of all cards have more than one ability, so the sync is flattening them again`,
   );
 
   console.log(

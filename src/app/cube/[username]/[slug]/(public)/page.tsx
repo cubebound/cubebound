@@ -12,11 +12,13 @@ import FollowButton from "@/components/follow-button";
 import Primer from "@/components/primer";
 import { getCubeCards, listCubeChanges } from "@/db/queries/cubes";
 import { getFollowState } from "@/db/queries/discovery";
-import { loadCube, loadViewer } from "@/lib/cube-request";
+import { popularityForCards } from "@/lib/card-popularity";
+import { loadCardPopularityIfAvailable, loadCube, loadViewer } from "@/lib/cube-request";
 import type { SearchParams } from "@/lib/card-search-params";
 import { CubeModerationPanel } from "@/components/moderation-panel";
 import { canViewCube } from "@/lib/cube-access";
 import { CUBE_VIEW_COOKIE, resolveCubeView } from "@/lib/cube-view";
+import { metaDescription } from "@/lib/meta";
 import { CARDS_PER_ROW_COOKIE, resolveCardsPerRow } from "@/lib/cards-per-row";
 import {
   CUBE_TAB_LABELS,
@@ -40,25 +42,6 @@ import ShareButton from "../share-button";
 interface RouteParams {
   username: string;
   slug: string;
-}
-
-/**
- * A cube's own description, fit for a `<meta>` tag.
- *
- * The column is free text a user wrote for the page, so it can be paragraphs
- * long and carry newlines. Search engines cut a description around 155
- * characters, and a snippet cut mid-word reads as broken — so collapse the
- * whitespace and clip at the last word that fits. Kept here rather than in
- * `src/lib/` because this is its only caller; move it if a second appears.
- */
-const META_DESCRIPTION_MAX = 155;
-
-function metaDescription(text: string): string {
-  const flat = text.replace(/\s+/g, " ").trim();
-  if (flat.length <= META_DESCRIPTION_MAX) return flat;
-  const cut = flat.slice(0, META_DESCRIPTION_MAX);
-  const lastSpace = cut.lastIndexOf(" ");
-  return `${(lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[,;:.\s]+$/, "")}…`;
 }
 
 export async function generateMetadata({
@@ -160,11 +143,15 @@ export default async function CubePage({
 
   // Second round: the cards and the follow state need the cube's id, but not
   // each other.
-  const [allCards, follows, changes] = await Promise.all([
+  const [allCards, follows, changes, snapshot] = await Promise.all([
     getCubeCards(cubeId),
     getFollowState(cubeId, viewerId),
     // Only the Change log tab reads this, so it is not paid for on the others.
     tab === "log" ? listCubeChanges(cubeId) : [],
+    // Likewise: only the tabs that can open a card modal have anywhere to put
+    // a popularity line. Within the request this is a `cache()` hit anyway if
+    // something above already asked.
+    tabShowsCards(tab) ? loadCardPopularityIfAvailable() : null,
   ]);
 
   // The maybeboard is a shortlist, not part of the cube: counting it would make
@@ -178,6 +165,13 @@ export default async function CubePage({
     bySection.set(card.section, (bySection.get(card.section) ?? 0) + card.quantity);
   }
   const sectionCounts = CUBE_LIST_SECTIONS.filter((section) => bySection.has(section));
+
+  // For the rows this tab will actually render, and nothing wider. The
+  // snapshot itself carries the card lists of private cubes and stays on the
+  // server; only the label and the link cross over.
+  const popularity = snapshot
+    ? popularityForCards(snapshot, tab === "maybeboard" ? maybeboard : cards)
+    : {};
 
   // Only a visitor reaches this page, so Follow is unconditional here; the
   // owner's own follower count is in the editor's byline instead.
@@ -333,12 +327,14 @@ export default async function CubePage({
           view={view}
           sections={["maybeboard"]}
           emptyMessage="Nothing on the maybeboard."
+          popularity={popularity}
         />
       ) : (
         <CubeSections
           cards={cards}
           view={view}
           emptyMessage="This cube doesn't have any cards yet."
+          popularity={popularity}
         />
       )}
       </div>

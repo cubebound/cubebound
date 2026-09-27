@@ -1,8 +1,17 @@
 import { and, desc, eq, exists, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 
+import * as Sentry from "@sentry/nextjs";
+
 import { db } from "..";
 import { cards, cubeCards, cubeFollows, cubes, users } from "../schema";
+import { collapseKeyOf, realCard } from "./cards";
 import { cubeCoverImageSql, type CubeVisibility } from "./cubes";
+import {
+  type CubeCardSet,
+  type PopularitySnapshot,
+  STATS_MIN_CARDS,
+  summarise,
+} from "@/lib/card-popularity";
 
 /**
  * Finding cubes, and following them.
@@ -277,6 +286,153 @@ export async function listPublicCubesForSitemap(
     .where(conditions({ minCards: SITEMAP_MIN_CARDS }))
     .orderBy(desc(cubes.updatedAt))
     .limit(limit);
+}
+
+/**
+ * A basic rune, which nobody chose to cube.
+ *
+ * Every rune deck is basics, so counting them would put six cards at the top of
+ * every pairing list on the site saying nothing. Kept local rather than beside
+ * `realCard`: this is the popularity reader's idea of "a card someone picked",
+ * not the site's idea of what a card is, and the browser is right to show them.
+ *
+ * `is distinct from`, not `<>`, for the same reason `tokenCard` needs it — an
+ * ordinary card's supertype is null, and `null <> 'Basic'` is null, which would
+ * drop the entire pool. Outer column qualified by hand, so `cards` must be in
+ * scope unaliased.
+ */
+const notBasicRune = sql`("cards"."supertype" is distinct from 'Basic')`;
+
+/**
+ * Every cube in the statistics denominator, reduced to the set of cards it
+ * holds — one row per cube, one statement.
+ *
+ * **Through `conditions()`, deliberately, and never through `searchCubes`.**
+ * The percentages are computed over cubes their owners marked private, so the
+ * one thing that must not slip is the moderation exclusion: a hidden cube or a
+ * suspended owner's cube counting toward a published number would be
+ * moderation that did not take. `conditions()` is where that rule lives for
+ * every listing on the site, and reusing it means the popularity numbers cannot
+ * drift from it. `searchCubes` would also drag the cover-image subquery in per
+ * row, which is most of what that query costs and all of it wasted here.
+ *
+ * What the joins decide, each one a rule from the brief:
+ *  - `includeNonPublic` puts private and unlisted cubes in. They are the bulk
+ *    of the pool, and leaving them out would make the numbers describe the
+ *    handful of people who publish rather than the format.
+ *  - `minCards` is the `STATS_MIN_CARDS` floor, over the same quantity-aware,
+ *    maybeboard-excluding count every cube list on the site shows.
+ *  - the maybeboard is out again at the join, because it is a shortlist of
+ *    cards someone is *considering*; `array_agg(distinct …)` then collapses
+ *    quantity and printings, so a cube running three foil copies counts once.
+ *  - tokens and basic runes are nobody's pick.
+ *
+ * The correlated `cardCount` inside `conditions()` stays correct even though
+ * the outer query now joins `cube_cards` itself: the subquery's own `from
+ * cube_cards` shadows the outer range variable, while `cubes` still correlates
+ * outward. Worth knowing before adding a second join here.
+ */
+export async function readCubeCardSets(): Promise<CubeCardSet[]> {
+  return db
+    .select({
+      cubeId: cubes.id,
+      ownerId: cubes.ownerId,
+      keys: sql<string[]>`array_agg(distinct ${collapseKeyOf(cards.name, cards.type)})`,
+    })
+    .from(cubes)
+    .innerJoin(users, eq(users.id, cubes.ownerId))
+    .innerJoin(cubeCards, eq(cubeCards.cubeId, cubes.id))
+    .innerJoin(cards, eq(cards.id, cubeCards.cardId))
+    .where(
+      and(
+        conditions({ includeNonPublic: true, minCards: STATS_MIN_CARDS }),
+        ne(cubeCards.section, "maybeboard"),
+        realCard,
+        notBasicRune,
+      ),
+    )
+    .groupBy(cubes.id, cubes.ownerId);
+}
+
+/**
+ * An hour, against five minutes for the card pool.
+ *
+ * This describes what people have *built*, which moves as they edit, so it
+ * cannot be pinned to the sync the way the filter options are. But it is a
+ * whole-table read, and nothing on screen is wrong for being an hour behind:
+ * a percentage over hundreds of cubes does not visibly move when one card is
+ * added. A new card's first appearance shows up within the hour.
+ */
+const POPULARITY_TTL_MS = 60 * 60_000;
+
+let popularityMemo: { at: number; value: PopularitySnapshot } | null = null;
+let popularityInFlight: Promise<PopularitySnapshot> | null = null;
+
+/**
+ * How often every card is cubed, memoised, with concurrent callers sharing one
+ * read.
+ *
+ * **The in-flight promise is not an optimisation, it is the whole point.** A
+ * TTL alone only deduplicates calls that arrive after the first has *finished*.
+ * The path that matters is the editor's browse tab, where a reader adds cards
+ * one after another and each render asks again — the same burst of concurrent
+ * reads against a pool of six that took the site down in August, and this one
+ * scans every cube in the database rather than a page of sixty. Without the
+ * coalescing, a cold instance under that burst fires the whole-table read once
+ * per request in flight.
+ *
+ * It **throws** only when there is no earlier snapshot to fall back on; a failed
+ * refresh keeps serving the last good one. It never returns an empty snapshot,
+ * matching
+ * `getFilterOptions`: a silent zero here would render "In 0% of cubes" under
+ * every card, which is a wrong statement rather than a missing one. Callers
+ * that would rather degrade than fail — `sitemap.ts` — catch it themselves.
+ *
+ * The snapshot is shared between requests, so **nothing may mutate it**.
+ */
+export async function getCardPopularity(): Promise<PopularitySnapshot> {
+  if (popularityMemo && Date.now() - popularityMemo.at < POPULARITY_TTL_MS) {
+    return popularityMemo.value;
+  }
+  if (popularityInFlight) return popularityInFlight;
+
+  popularityInFlight = (async () => {
+    try {
+      const value = summarise(await readCubeCardSets());
+      popularityMemo = { at: Date.now(), value };
+      return value;
+    } catch (error) {
+      // A failed *refresh* keeps serving the last good snapshot: numbers an
+      // hour or two old are still true statements, whereas throwing would take
+      // every card page to an error and the popularity line off every other
+      // page. It is reported, and the memo keeps its old time so the next
+      // request tries again. Only a read with nothing to fall back on throws.
+      if (popularityMemo) {
+        Sentry.captureException(error);
+        console.error("card popularity refresh failed; serving the previous snapshot", error);
+        return popularityMemo.value;
+      }
+      throw error;
+    } finally {
+      // Cleared on failure too, so one bad read does not wedge every later
+      // caller onto a rejected promise for the rest of the instance's life.
+      popularityInFlight = null;
+    }
+  })();
+  return popularityInFlight;
+}
+
+/**
+ * Forget the snapshot. **For checks only.**
+ *
+ * `check:moderation` hides a cube and asserts it stops counting, which an hour
+ * of memo would otherwise hide for the whole run. Nothing in `src/` calls this:
+ * the app has no event that should invalidate a statistic early, and giving it
+ * one would mean deciding what does.
+ */
+export function resetCardPopularityMemo(): void {
+  popularityMemo = null;
+  popularityInFlight = null;
 }
 
 export async function countCubes(options: CubeSearchOptions = {}): Promise<number> {

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 /** The date the wording below last changed. Update it when the policy does. */
-const LAST_UPDATED = "20 September 2026";
+const LAST_UPDATED = "26 September 2026";
 
 /** Where privacy requests go. Defined once — it appears four times below, and
  *  a policy that lists an address nobody reads is worse than no policy. */
@@ -88,6 +88,14 @@ export default function PrivacyPolicy() {
             listed anywhere but can be opened by anyone who has the link, so
             treat that link as the only thing keeping them private.{" "}
             <em>Private</em> cubes are visible only to you.
+          </p>
+          <p>
+            Cards from every cube, private ones included, are counted into
+            site-wide statistics: how often each card is cubed, and which cards
+            tend to be cubed together. Those figures are published as
+            percentages only, and no cube or owner is ever named. A card&rsquo;s
+            pairings appear only once it is in cubes belonging to at least five
+            different people.
           </p>
           <p>
             We do not ask for your real name, address, phone number or payment

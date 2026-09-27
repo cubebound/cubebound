@@ -17,7 +17,9 @@ import {
 } from "@/db/queries/cubes";
 import { btn, panelEmpty, tab as tabStyle } from "@/lib/ui";
 import { getPrintingsForBases } from "@/db/queries/cards";
-import { loadCube, loadViewer } from "@/lib/cube-request";
+import { RememberCube } from "@/components/add-to-cube";
+import { popularityForCards } from "@/lib/card-popularity";
+import { loadCardPopularityIfAvailable, loadCube, loadViewer } from "@/lib/cube-request";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
 import { canEditCube } from "@/lib/cube-access";
 import { CubeModerationPanel } from "@/components/moderation-panel";
@@ -111,7 +113,7 @@ export default async function EditCubePage({
   // Mode-specific data joins this round rather than waiting for the cube's
   // cards, which it does not depend on — the browse grid and the change log
   // were each costing their own extra trip on top of everything above.
-  const [allContents, browse, changes, follows] = await Promise.all([
+  const [allContents, browse, changes, follows, snapshot] = await Promise.all([
     getCubeCards(cube.id),
     // Only rendered in browse mode, so don't pay for it in the default view.
     browsing ? Promise.all([getFilterOptions(), searchCards(filters)]) : null,
@@ -120,6 +122,8 @@ export default async function EditCubePage({
     // page redirects them here. `null` because following your own cube is not a
     // thing — only the count is wanted.
     getFollowState(cube.id, null),
+    // Only the three modes with a card modal to put a line in.
+    browsing || editing || onMaybeboard ? loadCardPopularityIfAvailable() : null,
   ]);
   // The maybeboard is a shortlist, not part of the cube, so it neither shows
   // in the cube list nor counts toward the size.
@@ -151,6 +155,13 @@ export default async function EditCubePage({
     ...new Set(rendered.filter((card) => card.printingCount > 1).map((card) => card.baseId)),
   ];
 
+  // Same rule as `rendered`: only the cards this mode puts on screen. Browse
+  // mode shows search results rather than the cube, and the two are never on
+  // screen together.
+  const popularity = snapshot
+    ? popularityForCards(snapshot, browsing && browse ? browse[1].cards : rendered)
+    : {};
+
   const [printingRows, holdings] = await Promise.all([
     getPrintingsForBases(switchableBases),
     // Which of the results the cube already holds, and in which printing.
@@ -177,6 +188,8 @@ export default async function EditCubePage({
 
   return (
     <CardsPerRowProvider initial={perRow}>
+      {/* The cube you last opened is the one the card browser offers to add to. */}
+      <RememberCube cubeId={cube.id} />
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
       {/* Above the header rather than beside the owner's own buttons: acting
           on a cube by mistake is the failure to design against. */}
@@ -319,6 +332,7 @@ export default async function EditCubePage({
             view={view}
             emptyMessage="Nothing here yet. Move a card to the Maybeboard from any section to shortlist it."
             sections={["maybeboard"]}
+            popularity={popularity}
           />
         </section>
       ) : importing ? (
@@ -378,6 +392,7 @@ export default async function EditCubePage({
                 cards={browse![1].cards}
                 holdings={holdings}
                 showingEveryPrinting={Boolean(filters.allPrintings)}
+                popularity={popularity}
               />
               <CardPagination
                 filters={filters}
@@ -415,6 +430,7 @@ export default async function EditCubePage({
                 cards={contents}
                 view={view}
                 printingsByBase={printingsByBase}
+                popularity={popularity}
               />
             )}
           </section>

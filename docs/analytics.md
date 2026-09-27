@@ -37,8 +37,8 @@ synchronous, no extra queries — and renders through hand-drawn SVG in
   brackets — `[Deflect]`, `[Shield 2]`, `[Accelerate]` — and `parseRulesText`
   already extracts them. Normalisation folds a trailing value (`[Shield 2]` and
   `[Shield 3]` are one keyword), folds case (the source has both `[ADD]` and
-  `[Add]`), and drops the markers that are not keywords: `&gt;` / `&gt;&gt;`,
-  which separate cost from effect, and the `NO TEXT` placeholder. Done at render
+  `[Add]`), and drops the `NO TEXT` placeholder, which is not a keyword (the
+  `[>]` arrows never reach it; `parseRulesText` gives them their own node). Done at render
   time, so it works on rows already stored and needs no re-sync.
   `cards.keywords` is consequently **not selected by `browseColumns`** — it was
   fetched on every card query and read by nothing. The column and the sync's

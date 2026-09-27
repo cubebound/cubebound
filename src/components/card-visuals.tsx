@@ -5,12 +5,13 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import type { BrowseCard } from "@/db/queries/cards";
 import CardArt from "@/components/card-art";
+import { cardPageName, type CardPopularityView } from "@/lib/card-popularity";
 import { cardFull, cardThumb } from "@/lib/card-images";
 import { printingTreatment } from "@/lib/card-ids";
 import { domainDot } from "@/lib/domain-columns";
-import { aspectRatio, DOMAIN_COLORS, titleCase, totalPips } from "@/lib/riftbound";
+import { aspectRatio, DOMAIN_COLORS, isLandscape, titleCase, totalPips } from "@/lib/riftbound";
 import { parseRulesText, type RulesSymbol } from "@/lib/rules-text";
-import { cardGrid } from "@/lib/ui";
+import { cardGrid, link } from "@/lib/ui";
 
 /* Shared between the card browser and the cube editor.
    Card images come straight from the source CDN — we deliberately do not proxy
@@ -177,10 +178,20 @@ function SymbolBadge({ symbol }: { symbol: RulesSymbol }) {
 }
 
 export function RulesText({ text }: { text: string }) {
+  // `pre-line`: the stored text keeps the card's line breaks between abilities
+  // and before each "Choose one" option, and collapsing them ran every ability
+  // into the next ("resolve.)Give a unit…").
   return (
-    <p className="text-sm leading-relaxed text-ink">
+    <p className="whitespace-pre-line text-sm leading-relaxed text-ink">
       {parseRulesText(text).map((node, i) => {
         if (node.type === "text") return <span key={i}>{node.value}</span>;
+        if (node.type === "arrow") {
+          return (
+            <span key={i} aria-hidden className="mx-0.5 text-subtle">
+              {"→".repeat(node.value.length)}
+            </span>
+          );
+        }
         if (node.type === "keyword") {
           return (
             <span
@@ -214,11 +225,23 @@ export function CardDetail({
   card,
   onClose,
   footer,
+  popularity,
 }: {
   card: BrowseCard;
   onClose: () => void;
   /** Extra controls, e.g. the cube editor's add button. */
   footer?: ReactNode;
+  /**
+   * How often this card is cubed, already rendered as words upstream.
+   *
+   * Optional and absent by default: a card nobody has cubed says nothing
+   * rather than "In 0% of cubes", and a surface that has not built the map
+   * simply does not show the line. The label arrives formatted because the
+   * rounding rules (never a false 0%, never a false 100%) are decided once in
+   * `src/lib/card-popularity.ts`, and `href` is null below the owner floor —
+   * see docs/card-browser.md.
+   */
+  popularity?: CardPopularityView;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const treatment = printingTreatment(card);
@@ -232,17 +255,40 @@ export function CardDetail({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  /**
+   * The page behind the box does not scroll while it is open. A wheel or a
+   * swipe used to move the grid underneath (and the scrollbar with it), so
+   * closing the box found you somewhere else.
+   *
+   * **Nothing shifts, because of `scrollbar-gutter: stable` on `html`** in
+   * globals.css (see docs/card-browser.md). `overflow: hidden` alone would drop
+   * the scrollbar and widen the page by its width, sliding everything
+   * right-aligned or centred sideways; the gutter keeps that space reserved
+   * while scrolling is off. Measured by element position, not `clientWidth`,
+   * which reads as if the gutter were gone under `hidden` and suggested a
+   * padding fix that then shifted the page the other way. Do not add one.
+   * Restored exactly as it was on close.
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = previous;
+    };
+  }, []);
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={card.name}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain bg-black/70 p-4 backdrop-blur-sm"
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        className="flex max-h-full w-full max-w-3xl flex-col gap-6 overflow-y-auto rounded-xl bg-raised p-5 shadow-2xl md:flex-row"
+        className="flex max-h-full w-full max-w-3xl flex-col gap-6 overflow-y-auto overscroll-contain rounded-xl bg-raised p-5 shadow-2xl md:flex-row"
       >
         <div className="w-full shrink-0 md:w-80" style={{ aspectRatio: aspectRatio(card.type) }}>
           {card.imageFull ? (
@@ -344,7 +390,24 @@ export function CardDetail({
             </p>
           )}
 
+          {/* The caller's controls come first: in the editor they are the
+              reason the box is open, and the statistics are context. */}
           {footer && <div className="mt-5">{footer}</div>}
+
+          {popularity && (
+            <div className="mt-4 border-t border-line pt-4 text-sm">
+              <p className="text-muted">{popularity.label}</p>
+              {/* The link appears only once the card is in cubes from at least
+                  five different people. Below that a pairing list would be a
+                  description of one or two of them, which is the thing
+                  /privacy promises never to publish. */}
+              {popularity.href && (
+                <Link href={popularity.href} className={`${link} mt-1 inline-block`}>
+                  Cards commonly cubed with {cardPageName(card)}
+                </Link>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -403,7 +466,9 @@ export function CardTile({
       >
         <div
           className={`relative overflow-hidden rounded-lg bg-sunken ring-1 ring-black/5 transition group-hover:ring-2 group-hover:ring-accent-strong/60 group-focus-visible:ring-2 group-focus-visible:ring-accent-strong dark:ring-white/10 ${dimmed ? "opacity-45" : ""}`}
-          style={{ aspectRatio: aspectRatio(card.type) }}
+          // Every tile is upright, battlefields turned to fit: a grid of one
+          // shape reads as a grid, and a landscape tile left a gap in its row.
+          style={{ aspectRatio: aspectRatio("Unit") }}
         >
           {/* Retries a failed fetch before settling on the name: this grid
               shows sixty tiles at once, so a transient CDN blip used to leave
@@ -411,6 +476,7 @@ export function CardTile({
           <CardArt
             src={thumb}
             name={card.name}
+            turned={isLandscape(card.type)}
             className="object-cover transition group-hover:scale-[1.02]"
           />
           {/* Printing count is a bare number, not "×N" — that reads as a

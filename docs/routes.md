@@ -3,6 +3,8 @@
 ```
 /                                     landing
 /cards                                card browser (milestone 3)
+/cards/{type}/{slug}                  "Cards commonly cubed with {card}" — exists only
+                                      for a card over the distinct-owner floor
 /guides/riftbound-cube-drafting       the format explained — static, no data
 /guides/draftmancer                   export a cube and draft it with friends — static, no data
 /privacy                              privacy policy — static, must match the code
@@ -32,9 +34,23 @@
                                       ?tier=preview is the on-page size, ?dl=1 downloads;
                                       needs an account, unlike the export beside it
 /drafts                               every draft the signed-in user has sat in
-/robots.txt  /sitemap.xml             crawl rules; static pages + public cubes and profiles
+/robots.txt  /sitemap.xml             crawl rules; static pages + public cubes and
+                                      profiles + the card pages that exist
 /opengraph-image                      share previews — also under /cube/… and /u/…
 ```
+
+- **A card page decides whether it exists in `layout.tsx`**, above its
+  `loading.tsx`, for the same reason every owner-only cube route does
+  ([cube-access.md](cube-access.md)). Three different things 404 there and they
+  are indistinguishable from outside, deliberately: an unknown slug, a
+  non-canonical spelling of a real card, and a real card below the
+  distinct-owner floor ([card-browser.md](card-browser.md)). The third is why
+  they have to look alike — "this card exists but has no page" is itself a
+  statement about how few people run it, and on a site this size that is close
+  to a statement about which people. `generateMetadata` repeats the same test,
+  because metadata is generated before the layout's `notFound()` is reached.
+  `check:discovery` asserts the **status** rather than the body, since the
+  boundary makes a soft 404 the silent default.
 
 Server Actions live in `src/app/cube/actions.ts`, `src/app/auth/actions.ts`,
 `src/app/cube/[username]/[slug]/draft/actions.ts`, `src/app/explore/actions.ts`,

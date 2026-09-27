@@ -286,6 +286,7 @@ job.
 | Touching | Read |
 | --- | --- |
 | A card query, a filter, sorting, `/cards` | [docs/card-browser.md](docs/card-browser.md) |
+| A card's own page, `/cards/{type}/{slug}`, `cardPagePath`, a percentage on screen | [docs/card-browser.md](docs/card-browser.md) |
 | `base_id`, `collapseKey`, the printing picker, `card-ids.ts`, `0003` | [docs/printings.md](docs/printings.md) |
 | The sync, an adapter, `scripts/card-sources/` | [docs/card-data.md](docs/card-data.md) |
 | Card art, a thumbnail, an `<img>`, `card-art.tsx` | [docs/card-images.md](docs/card-images.md) |

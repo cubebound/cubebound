@@ -96,6 +96,29 @@ export async function countCubesForOwner(ownerId: string): Promise<number> {
 // "how many cards is that" cannot mean two different things. The listing this
 // file used to own counted the maybeboard, which the rest of the app does not.
 
+export interface CubeChoice {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+/**
+ * The owner's cubes as a picker needs them: name and address, most recently
+ * edited first, capped at `MAX_CUBES_PER_USER`.
+ *
+ * Deliberately not `searchCubes`, which the comment above sends every *listing*
+ * through: a picker shows no card count and no cover, and those are what that
+ * query costs. `limit: 1` is "the cube you are probably working on".
+ */
+export async function listCubeChoices(ownerId: string, limit = MAX_CUBES_PER_USER): Promise<CubeChoice[]> {
+  return db
+    .select({ id: cubes.id, name: cubes.name, slug: cubes.slug })
+    .from(cubes)
+    .where(eq(cubes.ownerId, ownerId))
+    .orderBy(sql`${cubes.updatedAt} desc nulls last`, asc(cubes.name))
+    .limit(limit);
+}
+
 /**
  * Creates a cube, optionally with its first cards.
  *

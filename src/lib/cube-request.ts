@@ -1,8 +1,12 @@
+import * as Sentry from "@sentry/nextjs";
 import { cache } from "react";
 
+import { getCardIdentities } from "@/db/queries/cards";
 import { getCubeByOwnerAndSlug, type CubeWithOwner } from "@/db/queries/cubes";
+import { getCardPopularity } from "@/db/queries/discovery";
 import { getUserByUsername } from "@/db/queries/users";
 import { getCurrentUser } from "@/lib/auth";
+import type { PopularitySnapshot } from "@/lib/card-popularity";
 
 /**
  * Request-scoped loaders, so a layout and its page can both ask without
@@ -30,3 +34,49 @@ export const loadViewer = cache(async () => getCurrentUser());
 export const loadUserByUsername = cache(async (username: string) =>
   getUserByUsername(username),
 );
+
+/**
+ * The popularity snapshot, once per request.
+ *
+ * Doubly memoised on purpose, and the two layers answer different questions.
+ * `getCardPopularity`'s own memo decides how *stale* the numbers may be, across
+ * requests and with an hour's TTL. This one decides how many times one render
+ * asks: a cube page's layout gates on it and its page then reads it again, and
+ * the card page does the same. Without `cache()` those are two awaits of a
+ * promise that may not have resolved into the memo yet.
+ */
+export const loadCardPopularity = cache(async () => getCardPopularity());
+
+/**
+ * The snapshot, or null when the read fails, for surfaces where the stat is an
+ * extra rather than the point.
+ *
+ * The card browser and both cube pages show a popularity line inside a modal;
+ * losing it must not take the page with it. Null renders no line at all, the
+ * same silence a card nobody has cubed gets, so a failure never reads as "0%".
+ * The card page's layout keeps the throwing loader: there the numbers *are* the
+ * page, and a caught failure would have to become either an empty page or a
+ * 404 that tells a crawler it is gone.
+ *
+ * Reported explicitly, because a caught error never reaches `onRequestError`
+ * and the line would otherwise vanish in production with nothing in Sentry.
+ */
+export async function loadCardPopularityIfAvailable(): Promise<PopularitySnapshot | null> {
+  try {
+    return await loadCardPopularity();
+  } catch (error) {
+    Sentry.captureException(error);
+    console.error("card popularity unavailable", error);
+    return null;
+  }
+}
+
+/**
+ * Every card's identity and page URL, once per request.
+ *
+ * A card page asks three times over: the layout resolves the slug and gates on
+ * it, `generateMetadata` needs the name for the title, and the page needs it
+ * again for the copy. All three are the same lookup, and only the layout's can
+ * 404.
+ */
+export const loadCardIdentities = cache(async () => getCardIdentities());
