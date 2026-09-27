@@ -107,9 +107,9 @@ export const CARD_TYPE_ORDER = [
 ] as const;
 
 /**
- * Orderings the card browser offers. `set` is the default and means the printed
- * order — set, then collector number — which is what a card list looks like
- * everywhere else in the game.
+ * Orderings the card browser offers, in the order its dropdown lists them.
+ * `set` is the printed order — set, then collector number — which is what a
+ * card list looks like everywhere else in the game.
  *
  * **This lives here rather than beside `searchCards` because the filter bar is
  * a client component.** Importing a *value* from `src/db/queries/cards.ts`
@@ -120,6 +120,18 @@ export const CARD_TYPE_ORDER = [
  */
 export const CARD_SORTS = ["set", "played", "name", "energy", "type", "rarity"] as const;
 export type CardSort = (typeof CARD_SORTS)[number];
+
+/**
+ * The order `/cards` opens in: most played first. Someone browsing cards is
+ * usually looking for what to put in a cube, and "what does everyone else run"
+ * is the most useful first screen for that; the printed order is one click
+ * away as "Set order".
+ *
+ * **`/cards` only.** `searchCards` itself still defaults to the printed order,
+ * so the editor's browse view, which sits beside a cube being built in order,
+ * is unchanged. A page opts in by passing this as its default.
+ */
+export const DEFAULT_CARD_SORT: CardSort = "played";
 
 export const CARD_SORT_LABELS: Record<CardSort, string> = {
   set: "Set order",

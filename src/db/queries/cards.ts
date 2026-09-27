@@ -23,6 +23,7 @@ import {
   CARD_TYPES,
   type CardSort,
   COLORLESS,
+  DEFAULT_CARD_SORT,
   DOMAINS,
   ENERGY_HIGH,
   ENERGY_MAX_BUCKET,
@@ -318,9 +319,16 @@ const canonicalFirst = [
  * `/cards` with nothing set is the same 60 rows for every visitor and is the
  * page people land on, so it was the most repeated query on the site — and it
  * counts across all 1,288 rows before returning any of them. The cache is
- * deliberately **only** the default view: two entries at most (grouped and all
- * printings), no key-building, no way for a crafted querystring to grow it.
- * Anything with a filter, a sort or a page number reads through as before.
+ * deliberately **only** the unfiltered first page, in the two orders a page
+ * can open in: printed order (the editor's browse view) and most played (what
+ * `/cards` opens on, see `DEFAULT_CARD_SORT`). Four entries at most, and no
+ * way for a crafted querystring to grow it. Anything with a filter, another
+ * sort or a page number reads through as before.
+ *
+ * The most-played entry follows the popularity snapshot at most five minutes
+ * late, which is well inside that snapshot's own hour. If its read failed, the
+ * entry holds the printed-order fallback for those five minutes, the same
+ * degradation any one request would have shown.
  *
  * Same TTL and same reasoning as the filter options: this describes the card
  * pool, which changes only when `sync-cards` runs.
@@ -330,7 +338,8 @@ const canonicalFirst = [
  */
 const defaultBrowseMemo = new Map<string, { at: number; value: CardSearchResult }>();
 
-/** True when the filters are the bare `/cards` view — no filter, sort or page. */
+/** True when the filters are a bare opening view: no filter or page, and either
+ *  no sort or the one `/cards` opens on. */
 function isDefaultBrowse(filters: CardFilters): boolean {
   return (
     !filters.q &&
@@ -340,14 +349,14 @@ function isDefaultBrowse(filters: CardFilters): boolean {
     !filters.energy?.length &&
     !filters.type &&
     !filters.trait &&
-    !filters.sort &&
+    (!filters.sort || filters.sort === "set" || filters.sort === DEFAULT_CARD_SORT) &&
     (filters.page ?? 1) === 1
   );
 }
 
 export async function searchCards(filters: CardFilters): Promise<CardSearchResult> {
   if (isDefaultBrowse(filters)) {
-    const key = filters.allPrintings ? "all" : "grouped";
+    const key = `${filters.sort ?? "set"}:${filters.allPrintings ? "all" : "grouped"}`;
     const hit = defaultBrowseMemo.get(key);
     if (hit && Date.now() - hit.at < CARD_POOL_TTL_MS) return hit.value;
     const value = await runSearchCards(filters);

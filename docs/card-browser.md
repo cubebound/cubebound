@@ -61,9 +61,9 @@
 - **The unfiltered first page of `/cards` is memoised the same way and for the
   same reason** — it is the identical 60 rows for every visitor, on the page
   people land on, and it counts across all 1,288 rows before returning any of
-  them. **Only the default view is cached**: no filter, sort or page number, so
-  at most two entries (grouped and all printings) and no way for a crafted
-  querystring to grow the map. Anything else reads through. The cached object is
+  them. **Only the opening views are cached**: no filter or page number, in
+  printed order or most played (the two orders a page opens in), so at most
+  four entries and no way for a crafted querystring to grow the map. Anything else reads through. The cached object is
   shared between requests, so nothing may mutate it — callers render it and
   nothing more; if that changes, copy on read.
 - **A set's printed name comes from the stored raw payload**
@@ -71,10 +71,17 @@
   names itself like every other filter value. Ordered
   by **name**, not code: the codes interleave promos through the real sets
   (JDG, OGN, OGS, OPP, PR…), which reads as no order at all.
-- **Sorting is `?sort=` over set (default), played ("Most played", see below),
-  name, energy, type and rarity.** `CARD_SORTS` order is the dropdown's order,
-  and "Most played" sits second because at the bottom of the list nobody found
-  it. Rarity
+- **Sorting is `?sort=` over set, played ("Most played", see below), name,
+  energy, type and rarity.** `CARD_SORTS` order is the dropdown's order, and
+  "Most played" sits second because at the bottom of the list nobody found it.
+  **`/cards` opens on most played** (`DEFAULT_CARD_SORT`): someone browsing
+  cards is usually choosing what to cube, and "what does everyone run" is the
+  most useful first screen. **The editor's browse view stays on set order**,
+  because `searchCards` itself still defaults to it and only `/cards` opts in,
+  passing the default to the filter bar so its dropdown shows the order the
+  results are in. A sort someone *chose* is always written to the URL, never
+  dropped as "the default", since the two pages disagree about which that is;
+  otherwise picking Set order on `/cards` would revert on page two. Rarity
   and type rank against the canonical lists rather than sorting alphabetically,
   and **`CARD_TYPE_ORDER` is not `CARD_TYPES`** — the latter is display
   vocabulary including "Champion Unit" and "Signature Spell", which are a `type`
@@ -221,6 +228,15 @@ only how those numbers reach a page.
   both halves of that lookup fail *quietly*: a key that never matches coalesces
   to zero for every row, which is a page in plain alphabetical order and reads as
   a choice rather than a fault.
+- **The page behind an open detail box does not scroll**, on any width: a
+  wheel or swipe used to move the grid underneath, so closing the box found you
+  somewhere else. `CardDetail` sets `overflow: hidden` on `html` while open and
+  restores it on close, and the box's own scroller is `overscroll-contain`.
+  Nothing shifts sideways because `html` keeps `scrollbar-gutter: stable` (the
+  rule above), which still reserves the scrollbar's width under `hidden`.
+  **Do not add padding to compensate**: `clientWidth` reads as though the
+  gutter vanished, but measured by element position the page does not move,
+  and padding shifted it the other way.
 
 ## Adding to a cube from the detail box
 

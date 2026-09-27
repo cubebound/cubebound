@@ -38,10 +38,11 @@ import {
 } from "../src/db/queries/cards";
 import { getCardPopularity } from "../src/db/queries/discovery";
 import { collapseIdentityKey, isTokenCard, TOKEN_ID_PATTERN } from "../src/lib/card-ids";
-import { cardFiltersFromParams } from "../src/lib/card-search-params";
+import { cardFilterParams, cardFiltersFromParams } from "../src/lib/card-search-params";
 import {
   CARD_SORT_LABELS,
   CARD_SORTS,
+  DEFAULT_CARD_SORT,
   CARD_TYPE_ORDER,
   ENERGY_BUCKETS,
   RARITIES,
@@ -310,6 +311,29 @@ try {
     cardFiltersFromParams({ sort: "played" }).sort === "played",
     "sort=played must survive URL parsing, or the control renders and does nothing",
   );
+
+  // /cards opens on most played, and the editor's browse view stays on set
+  // order, so the default belongs to the page and never to the URL builder: a
+  // sort someone chose is always written, or picking "Set order" on /cards
+  // would be dropped as "the default" and page two would revert.
+  expect(DEFAULT_CARD_SORT === "played", "/cards should open on most played");
+  for (const sort of ["set", "played"] as const) {
+    expect(
+      cardFilterParams({ sort }).get("sort") === sort,
+      `a chosen sort=${sort} must be kept in the URL, whichever page it is the default on`,
+    );
+  }
+  expect(!cardFilterParams({}).has("sort"), "an unchosen sort stays out of the URL");
+  const cardsPage = await fetch(`${process.env.APP_URL ?? "http://localhost:3000"}/cards`)
+    .then((r) => r.text())
+    .catch(() => null);
+  if (cardsPage !== null) {
+    const selected = cardsPage.match(/aria-label="Sort by"[^>]*>[^]*?<option[^>]*value="([^"]+)"[^>]*selected/);
+    expect(
+      selected?.[1] === DEFAULT_CARD_SORT,
+      `/cards should show "${CARD_SORT_LABELS[DEFAULT_CARD_SORT]}" selected, got ${selected?.[1] ?? "nothing"}`,
+    );
+  }
   // A sort with no label renders as blank in the filter bar's <select>.
   const unlabelled = CARD_SORTS.filter((sort) => !CARD_SORT_LABELS[sort]);
   expect(

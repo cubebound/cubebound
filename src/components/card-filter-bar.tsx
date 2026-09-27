@@ -27,6 +27,9 @@ interface Props {
   extraParams?: Record<string, string>;
   /** Wording for the result count, e.g. "cards" or "matches". */
   unit?: string;
+  /** The order this page shows when the URL names none, so the dropdown
+   *  shows what the results are actually in. See `DEFAULT_CARD_SORT`. */
+  defaultSort?: CardSort;
 }
 
 const controlClass =
@@ -169,6 +172,7 @@ export default function CardFilterBar({
   basePath,
   extraParams = {},
   unit = "cards",
+  defaultSort = "set",
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -522,7 +526,7 @@ export default function CardFilterBar({
         <select
           name="sort"
           aria-label="Sort by"
-          value={active.sort ?? "set"}
+          value={active.sort ?? defaultSort}
           onChange={(event) => navigate({ sort: event.target.value as CardSort })}
           className={controlClass}
         >

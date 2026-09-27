@@ -245,17 +245,40 @@ export function CardDetail({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  /**
+   * The page behind the box does not scroll while it is open. A wheel or a
+   * swipe used to move the grid underneath (and the scrollbar with it), so
+   * closing the box found you somewhere else.
+   *
+   * **Nothing shifts, because of `scrollbar-gutter: stable` on `html`** in
+   * globals.css (see docs/card-browser.md). `overflow: hidden` alone would drop
+   * the scrollbar and widen the page by its width, sliding everything
+   * right-aligned or centred sideways; the gutter keeps that space reserved
+   * while scrolling is off. Measured by element position, not `clientWidth`,
+   * which reads as if the gutter were gone under `hidden` and suggested a
+   * padding fix that then shifted the page the other way. Do not add one.
+   * Restored exactly as it was on close.
+   */
+  useEffect(() => {
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = previous;
+    };
+  }, []);
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={card.name}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain bg-black/70 p-4 backdrop-blur-sm"
     >
       <div
         onClick={(event) => event.stopPropagation()}
-        className="flex max-h-full w-full max-w-3xl flex-col gap-6 overflow-y-auto rounded-xl bg-raised p-5 shadow-2xl md:flex-row"
+        className="flex max-h-full w-full max-w-3xl flex-col gap-6 overflow-y-auto overscroll-contain rounded-xl bg-raised p-5 shadow-2xl md:flex-row"
       >
         <div className="w-full shrink-0 md:w-80" style={{ aspectRatio: aspectRatio(card.type) }}>
           {card.imageFull ? (

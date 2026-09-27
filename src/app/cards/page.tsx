@@ -5,6 +5,7 @@ import CardPagination from "@/components/card-pagination";
 import { PAGE_SIZE, searchCards, getFilterOptions } from "@/db/queries/cards";
 import { popularityForCards } from "@/lib/card-popularity";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
+import { DEFAULT_CARD_SORT } from "@/lib/riftbound";
 import { loadCardPopularityIfAvailable } from "@/lib/cube-request";
 
 import CardGrid from "./card-grid";
@@ -30,7 +31,8 @@ export default async function CardsPage({
 
   const [options, result, snapshot] = await Promise.all([
     getFilterOptions(),
-    searchCards(filters),
+    // Most played unless the URL chose another order; this page only.
+    searchCards({ ...filters, sort: filters.sort ?? DEFAULT_CARD_SORT }),
     loadCardPopularityIfAvailable(),
   ]);
 
@@ -57,6 +59,7 @@ export default async function CardsPage({
           active={filters}
           total={result.total}
           basePath="/cards"
+          defaultSort={DEFAULT_CARD_SORT}
         />
       </div>
 
