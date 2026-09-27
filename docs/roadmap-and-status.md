@@ -72,8 +72,8 @@ open it rather than trusting this.
 5b. ✅ Rename a cube while cloning it, so a clone is not stuck with `copy-of-`.
     Merged in the same `0a1e34c`.
 6. Popularity %, placed carefully.
-6b. Tokens are not cards: hide them from the browser and keep them out of cubes.
-    Built on `tokens-not-cards`, not yet merged; see the tokens bullet in
+6b. ✅ Tokens are not cards: hide them from the browser and keep them out of
+    cubes. Merged `351526a`; see the tokens bullet in
     [card-browser.md](card-browser.md).
 
 **Next**
