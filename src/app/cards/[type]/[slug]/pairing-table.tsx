@@ -10,7 +10,7 @@ import type { BrowseCard } from "@/db/queries/cards";
 import { cardThumb } from "@/lib/card-images";
 import { cardPageName, type CardPopularityView } from "@/lib/card-popularity";
 import { domainDot } from "@/lib/domain-columns";
-import { aspectRatio } from "@/lib/riftbound";
+import { aspectRatio, isLandscape } from "@/lib/riftbound";
 
 
 export interface PairingRow {
@@ -122,9 +122,14 @@ export default function PairingTable({
                   onClick={() => setSelected(row.card)}
                   aria-label={`Show ${name}`}
                   className="relative block w-full overflow-hidden rounded-md bg-sunken ring-1 ring-black/10 transition hover:ring-2 hover:ring-ink dark:ring-white/15"
-                  style={{ aspectRatio: aspectRatio(row.card.type) }}
+                  style={{ aspectRatio: aspectRatio("Unit") }}
                 >
-                  <CardArt src={thumb} name={name} className="object-cover" />
+                  <CardArt
+                    src={thumb}
+                    name={name}
+                    turned={isLandscape(row.card.type)}
+                    className="object-cover"
+                  />
                 </button>
                 <button
                   type="button"

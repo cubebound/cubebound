@@ -37,12 +37,24 @@ export default function CardArt({
   name,
   className = "",
   loading = "lazy",
+  turned = false,
 }: {
   /** Already sized by `cardThumb`/`cardFull`. Null renders the name alone. */
   src: string | null | undefined;
   name: string;
   className?: string;
   loading?: "lazy" | "eager";
+  /**
+   * Stand a landscape card (a battlefield) upright in a portrait frame.
+   *
+   * Grids and lists line every card up in the same upright shape; a
+   * battlefield in its printed landscape shape made a short, wide gap in the
+   * row. The image is sized to the frame's height by its width and turned a
+   * quarter, so it fills the frame exactly: a 5:7 frame is W wide and 1.4W
+   * tall, so the image is 140% of the width wide and 5/7 of the height tall
+   * before turning. The detail box shows battlefields landscape, as printed.
+   */
+  turned?: boolean;
 }) {
   const [attempt, setAttempt] = useState(0);
   const [ready, setReady] = useState(false);
@@ -90,7 +102,11 @@ export default function CardArt({
             // effect rather than render-time state the compiler objects to.
             setTimeout(() => setAttempt((n) => n + 1), RETRY_DELAY_MS);
           }}
-          className={`relative size-full ${className}`}
+          className={
+            turned
+              ? `absolute left-1/2 top-1/2 h-[71.4286%] w-[140%] max-w-none -translate-x-1/2 -translate-y-1/2 rotate-90 ${className}`
+              : `relative size-full ${className}`
+          }
         />
       )}
     </>

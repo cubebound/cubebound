@@ -9,7 +9,7 @@ import { cardPageName, type CardPopularityView } from "@/lib/card-popularity";
 import { cardFull, cardThumb } from "@/lib/card-images";
 import { printingTreatment } from "@/lib/card-ids";
 import { domainDot } from "@/lib/domain-columns";
-import { aspectRatio, DOMAIN_COLORS, titleCase, totalPips } from "@/lib/riftbound";
+import { aspectRatio, DOMAIN_COLORS, isLandscape, titleCase, totalPips } from "@/lib/riftbound";
 import { parseRulesText, type RulesSymbol } from "@/lib/rules-text";
 import { cardGrid, link } from "@/lib/ui";
 
@@ -466,7 +466,9 @@ export function CardTile({
       >
         <div
           className={`relative overflow-hidden rounded-lg bg-sunken ring-1 ring-black/5 transition group-hover:ring-2 group-hover:ring-accent-strong/60 group-focus-visible:ring-2 group-focus-visible:ring-accent-strong dark:ring-white/10 ${dimmed ? "opacity-45" : ""}`}
-          style={{ aspectRatio: aspectRatio(card.type) }}
+          // Every tile is upright, battlefields turned to fit: a grid of one
+          // shape reads as a grid, and a landscape tile left a gap in its row.
+          style={{ aspectRatio: aspectRatio("Unit") }}
         >
           {/* Retries a failed fetch before settling on the name: this grid
               shows sixty tiles at once, so a transient CDN blip used to leave
@@ -474,6 +476,7 @@ export function CardTile({
           <CardArt
             src={thumb}
             name={card.name}
+            turned={isLandscape(card.type)}
             className="object-cover transition group-hover:scale-[1.02]"
           />
           {/* Printing count is a bare number, not "×N" — that reads as a
