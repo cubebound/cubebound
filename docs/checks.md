@@ -23,6 +23,7 @@
 | `check:draftmancer` | the cube file Draftmancer reads: unique custom-card names, every sheet line resolving to an entry, no slot naming an unemitted sheet and no empty sheet across four configs, the either-slot weighted 50/50, `draftmancerSheetNeeded` matching every hand-run Draftmancer session, rarity in the accepted set with treatments resolved through `base_id` and a non-zero fallback, costless as `""`, and only the drafted sections | nothing | **CI** |
 | `check:pack-image` | the pack image's layout: the six worked shapes from the build spec, battlefields pairing into the majority's tile, an all-battlefield pack flipping to landscape, a short last row centred, every card placed exactly once inside the canvas, and the vendored wordmark font rasterising rather than silently falling back | nothing | **CI** |
 | `check:staged-edit` | the edit panel's batching: collapse yields one row per (card, section) so a save cannot violate `ON CONFLICT`, netting cancels a staged-then-unstaged pair while two *different* printings stay two changes, quantities clamp, and `sectionForBoard` files a Legend to `legends` | nothing | **CI** |
+| `check:popularity` | the arithmetic behind every percentage the site publishes about a card: one cube counts once however many copies or printings it holds, a present card never rounds to "0%" and a card missing from one cube never rounds up to "100%", the pairing list ranks by lift and drops anything at or below 1, and the page floor counts **distinct owners** rather than cubes, so one person's private clones cannot unlock a page. Also that a card's URL is stable and legible: apostrophes drop rather than split, and a legend carries its champion | nothing | **CI** |
 | `check:oauth` | the backup rule, `providersOf` order, the provider allowlist, and that both sign-in actions still validate their input and build `redirectTo` through `authCallbackUrl` | nothing | **CI** |
 | `check:docs` | the doc split holds: the root stays under its line ceiling, every `docs/*.md` is reachable from the routing table or a stub, every relative link resolves, no `@` import reinstates the startup cost, and a stub stays a pointer | nothing | **CI** |
 | `check:oauth-buttons` | `/login` offers both providers as form fields, links to no provider directly, and still carries the same-address warning | dev server | manual gate |
@@ -64,10 +65,10 @@ exemption.
 ### What CI runs
 
 `.github/workflows/ci.yml`, on every push and pull request: typecheck, lint,
-the nine pure checks — `check:primer-safety`, `check:draft`,
+the ten pure checks — `check:primer-safety`, `check:draft`,
 `check:analytics`, `check:markdown-edit`, `check:draftmancer`,
-`check:pack-image`, `check:staged-edit`, `check:oauth` and `check:docs` — and a
-production build. It uses **placeholder** Supabase
+`check:pack-image`, `check:staged-edit`, `check:popularity`, `check:oauth` and
+`check:docs` — and a production build. It uses **placeholder** Supabase
 values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**
@@ -104,10 +105,11 @@ CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
 
 ## What CI covers today
 
-- **CI covers typecheck, lint, build and the nine pure checks** on push and PR:
+- **CI covers typecheck, lint, build and the ten pure checks** on push and PR:
   `check:primer-safety`, `check:draft`, `check:analytics`, `check:markdown-edit`,
-  `check:draftmancer`, `check:pack-image`, `check:staged-edit`, `check:oauth` and
-  `check:docs`. The other seventeen need a live Supabase or the card pool and are a
-  documented pre-deploy manual gate — see [gate-runbook.md](gate-runbook.md). Run
-  that gate before deploying. (Twenty-six scripts in total; if that number moves,
-  this line and the count above it move with it.)
+  `check:draftmancer`, `check:pack-image`, `check:staged-edit`, `check:popularity`,
+  `check:oauth` and `check:docs`. The other seventeen need a live Supabase or the
+  card pool and are a documented pre-deploy manual gate — see
+  [gate-runbook.md](gate-runbook.md). Run that gate before deploying.
+  (Twenty-seven scripts in total; if that number moves, this line and the count
+  above it move with it.)
