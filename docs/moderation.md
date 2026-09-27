@@ -49,7 +49,12 @@ moderator role beyond it yet.
   than counting cubes for itself (see [discovery.md](discovery.md)), and
   `check:moderation` asserts it end to end: a private cube at the floor counts,
   hiding it or suspending its owner stops it counting, and un-doing either
-  restores it.
+  restores it. **In production that takes up to an hour, not an instant:** the
+  numbers come from a per-instance memo with an hour's TTL, and nothing a
+  moderator does clears it. The check resets the memo itself, so it proves the
+  exclusion but not the timing. Clearing it on a moderation action would mean
+  reaching every warm Vercel instance, which is a lot of machinery for a
+  percentage nobody can trace back to a cube.
 - **`moderation_log` is outside every cascade.** `actor_id` sets null and
   `target_id` is deliberately not a foreign key, because the record has to
   outlive both the moderator and the thing acted on; `snapshot` is the only

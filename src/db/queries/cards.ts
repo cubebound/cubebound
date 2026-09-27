@@ -409,14 +409,24 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
    * `cards → discovery → cubes → cards`, which ESM resolves by handing one of
    * them a half-initialised module and failing at some unrelated line. Awaited
    * here rather than inside `orderFor`, which has to stay synchronous.
+   *
+   * **A failed read falls back to the printed order** rather than failing the
+   * search: it is the same cards in a different order, and the browser and the
+   * editor's browse tab are too central to lose to a statistic. Reported
+   * explicitly, because a caught error never reaches `onRequestError`.
    */
   let playedCounts: SQL | null = null;
   if (sort === "played") {
-    const { getCardPopularity } = await import("./discovery");
-    const snapshot = await getCardPopularity();
-    const counts: Record<string, number> = {};
-    for (const [key, stats] of snapshot.byKey) counts[key] = stats.cubes;
-    playedCounts = sql`${JSON.stringify(counts)}::jsonb`;
+    try {
+      const { getCardPopularity } = await import("./discovery");
+      const snapshot = await getCardPopularity();
+      const counts: Record<string, number> = {};
+      for (const [key, stats] of snapshot.byKey) counts[key] = stats.cubes;
+      playedCounts = sql`${JSON.stringify(counts)}::jsonb`;
+    } catch (error) {
+      Sentry.captureException(error);
+      console.error("card popularity unavailable, sorting in printed order", error);
+    }
   }
 
   /**

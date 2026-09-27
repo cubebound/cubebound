@@ -13,7 +13,7 @@ import Primer from "@/components/primer";
 import { getCubeCards, listCubeChanges } from "@/db/queries/cubes";
 import { getFollowState } from "@/db/queries/discovery";
 import { popularityForCards } from "@/lib/card-popularity";
-import { loadCardPopularity, loadCube, loadViewer } from "@/lib/cube-request";
+import { loadCardPopularityIfAvailable, loadCube, loadViewer } from "@/lib/cube-request";
 import type { SearchParams } from "@/lib/card-search-params";
 import { CubeModerationPanel } from "@/components/moderation-panel";
 import { canViewCube } from "@/lib/cube-access";
@@ -151,7 +151,7 @@ export default async function CubePage({
     // Likewise: only the tabs that can open a card modal have anywhere to put
     // a popularity line. Within the request this is a `cache()` hit anyway if
     // something above already asked.
-    tabShowsCards(tab) ? loadCardPopularity() : null,
+    tabShowsCards(tab) ? loadCardPopularityIfAvailable() : null,
   ]);
 
   // The maybeboard is a shortlist, not part of the cube: counting it would make

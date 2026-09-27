@@ -297,6 +297,14 @@ const k = (name: string) => `${name}|Unit`;
   );
   expect(cardSlug("Kai’Sa") === "kaisa", "including a curly apostrophe");
   expect(
+    cardSlug("Kléd’s Bribe") === "kleds-bribe",
+    `an accent folds to its base letter: got ${cardSlug("Kléd’s Bribe")}`,
+  );
+  expect(
+    cardSlug("Kléd") === "kled",
+    "including one already decomposed into a combining mark",
+  );
+  expect(
     cardSlug("Recruit (271) // Buff") === "recruit-271-buff",
     `punctuation collapses to single separators, got ${cardSlug("Recruit (271) // Buff")}`,
   );

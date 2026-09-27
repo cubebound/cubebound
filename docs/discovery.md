@@ -108,7 +108,15 @@ of them is the pure module `src/lib/card-popularity.ts`, which
 - **It throws rather than returning an empty snapshot**, matching
   `getFilterOptions`: a silent zero would publish "0% of cubes" under a card
   people do cube, which is a wrong statement rather than a missing one, so a
-  caller that would rather degrade than fail catches it itself.
+  caller that would rather degrade than fail catches it itself. **Everywhere
+  the stat is an extra, a caller does:** the card browser and both cube pages
+  load it through `loadCardPopularityIfAvailable`, which reports to Sentry and
+  returns null so the modal shows no line, and the "Most played" sort falls back
+  to printed order. A caught error never reaches `onRequestError`, which is why
+  both report explicitly. Only the card page and the sitemap see the throw: the
+  card page's layout because there the numbers *are* the page, and a caught
+  failure could only become an empty page or a 404 telling a crawler it is
+  gone; the sitemap because it drops just its card entries.
   `resetCardPopularityMemo` is for checks only — nothing in `src/` calls it,
   because the app has no event that should invalidate a statistic early and
   giving it one would mean deciding what does.

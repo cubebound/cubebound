@@ -18,7 +18,7 @@ import {
 import { btn, panelEmpty, tab as tabStyle } from "@/lib/ui";
 import { getPrintingsForBases } from "@/db/queries/cards";
 import { popularityForCards } from "@/lib/card-popularity";
-import { loadCardPopularity, loadCube, loadViewer } from "@/lib/cube-request";
+import { loadCardPopularityIfAvailable, loadCube, loadViewer } from "@/lib/cube-request";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
 import { canEditCube } from "@/lib/cube-access";
 import { CubeModerationPanel } from "@/components/moderation-panel";
@@ -122,7 +122,7 @@ export default async function EditCubePage({
     // thing — only the count is wanted.
     getFollowState(cube.id, null),
     // Only the three modes with a card modal to put a line in.
-    browsing || editing || onMaybeboard ? loadCardPopularity() : null,
+    browsing || editing || onMaybeboard ? loadCardPopularityIfAvailable() : null,
   ]);
   // The maybeboard is a shortlist, not part of the cube, so it neither shows
   // in the cube list nor counts toward the size.

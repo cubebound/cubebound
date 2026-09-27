@@ -5,7 +5,7 @@ import CardPagination from "@/components/card-pagination";
 import { PAGE_SIZE, searchCards, getFilterOptions } from "@/db/queries/cards";
 import { popularityForCards } from "@/lib/card-popularity";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
-import { loadCardPopularity } from "@/lib/cube-request";
+import { loadCardPopularityIfAvailable } from "@/lib/cube-request";
 
 import CardGrid from "./card-grid";
 
@@ -31,14 +31,14 @@ export default async function CardsPage({
   const [options, result, snapshot] = await Promise.all([
     getFilterOptions(),
     searchCards(filters),
-    loadCardPopularity(),
+    loadCardPopularityIfAvailable(),
   ]);
 
   // Built for the sixty cards on *this* page, never for the whole pool: the
   // snapshot holds per-cube card lists for cubes their owners marked private,
   // and `CardPopularityView` (a label and a link) is the only shape that is
   // allowed across to the browser.
-  const popularity = popularityForCards(snapshot, result.cards);
+  const popularity = snapshot ? popularityForCards(snapshot, result.cards) : {};
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
