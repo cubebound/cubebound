@@ -185,6 +185,26 @@ export interface CommonlyCubed {
   overallPct: string;
   /** Whether this card clears the owner floor and can be linked. */
   hasPage: boolean;
+  /** "3.1×": how many times as often it turns up with the subject as overall.
+   *  The number the list is sorted by. */
+  strength: string;
+}
+
+/**
+ * Pairing strength as shown: the with-share over the overall share, both
+ * **as rounded for display**, to one decimal.
+ *
+ * Derived from the printed percentages rather than the raw counts for two
+ * reasons. The page must sort by the number it shows, or "3.1×" sits under
+ * "2.8×" and the order looks broken; and an exact ratio of small counts would
+ * disclose them, which the percentages exist to prevent. "under 1%" reads as 1,
+ * which understates a strength rather than inventing one.
+ */
+export function pairingStrength(withPct: string, overallPct: string): number {
+  const read = (label: string) => (label.startsWith("under") ? 1 : Number.parseInt(label, 10));
+  const over = read(overallPct);
+  if (!Number.isFinite(over) || over <= 0) return 0;
+  return Math.round((read(withPct) / over) * 10) / 10;
 }
 
 /**
@@ -201,8 +221,10 @@ export interface CommonlyCubed {
  * pairing: lift is a ratio, so two cubes agreeing is arithmetically identical
  * to two hundred agreeing.
  *
- * Ties break on shared cubes and then on the key, so the order is total and the
- * page is stable between requests rather than reshuffling on a memo refresh.
+ * **Sorted by the strength as displayed** (see `pairingStrength`), then by
+ * exact lift, shared cubes and key, so the order is total, matches the column a
+ * reader sees, and is stable between requests rather than reshuffling on a memo
+ * refresh.
  */
 export function commonlyCubedWith(
   snapshot: PopularitySnapshot,
@@ -224,27 +246,33 @@ export function commonlyCubedWith(
     }
   }
 
-  const ranked: { entry: CommonlyCubed; lift: number; together: number }[] = [];
+  const ranked: { entry: CommonlyCubed; shown: number; lift: number; together: number }[] = [];
   for (const [other, together] of shared) {
     if (together < support) continue;
     const overall = snapshot.byKey.get(other);
     if (!overall || overall.cubes <= 0) continue;
     const lift = (together / subject.cubes) / (overall.cubes / snapshot.total);
     if (lift <= 1) continue;
+    const withPct = sharePercent(together, subject.cubes);
+    const overallPct = sharePercent(overall.cubes, snapshot.total);
+    const shown = pairingStrength(withPct, overallPct);
     ranked.push({
+      shown,
       lift,
       together,
       entry: {
         key: other,
-        withPct: sharePercent(together, subject.cubes),
-        overallPct: sharePercent(overall.cubes, snapshot.total),
+        withPct,
+        overallPct,
         hasPage: hasCardPage(snapshot, other),
+        strength: `${shown.toFixed(1)}×`,
       },
     });
   }
 
   ranked.sort(
     (a, b) =>
+      b.shown - a.shown ||
       b.lift - a.lift ||
       b.together - a.together ||
       (a.entry.key < b.entry.key ? -1 : a.entry.key > b.entry.key ? 1 : 0),

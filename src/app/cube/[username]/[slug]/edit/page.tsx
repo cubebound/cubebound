@@ -17,6 +17,7 @@ import {
 } from "@/db/queries/cubes";
 import { btn, panelEmpty, tab as tabStyle } from "@/lib/ui";
 import { getPrintingsForBases } from "@/db/queries/cards";
+import { RememberCube } from "@/components/add-to-cube";
 import { popularityForCards } from "@/lib/card-popularity";
 import { loadCardPopularityIfAvailable, loadCube, loadViewer } from "@/lib/cube-request";
 import { cardFiltersFromParams, type SearchParams } from "@/lib/card-search-params";
@@ -187,6 +188,8 @@ export default async function EditCubePage({
 
   return (
     <CardsPerRowProvider initial={perRow}>
+      {/* The cube you last opened is the one the card browser offers to add to. */}
+      <RememberCube cubeId={cube.id} />
       <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6">
       {/* Above the header rather than beside the owner's own buttons: acting
           on a cube by mistake is the failure to design against. */}

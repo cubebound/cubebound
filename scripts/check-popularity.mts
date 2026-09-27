@@ -28,6 +28,7 @@ import {
   commonlyCubedWith,
   findCardByPath,
   hasCardPage,
+  pairingStrength,
   popularityForCards,
   popularityLabel,
   sharePercent,
@@ -195,6 +196,19 @@ const k = (name: string) => `${name}|Unit`;
     `the leading row is 4 of a's 5 cubes and 4 of 10 overall, got ` +
       `${rows[0].withPct} / ${rows[0].overallPct}`,
   );
+
+  // The strength column is what the list is sorted by, so the order a reader
+  // sees must never go up. Built from the printed percentages, so it cannot
+  // disagree with them either.
+  expect(rows[0].strength === "2.0×", `80% over 40% is 2.0×, got ${rows[0].strength}`);
+  const shown = rows.map((row) => pairingStrength(row.withPct, row.overallPct));
+  expect(
+    shown.every((value, i) => i === 0 || value <= shown[i - 1]),
+    `rows must be sorted by the strength they display: ${shown.join(", ")}`,
+  );
+  expect(pairingStrength("46%", "15%") === 3.1, "46% over 15% shows as 3.1");
+  expect(pairingStrength("69%", "24%") === 2.9, "69% over 24% shows as 2.9");
+  expect(pairingStrength("5%", "under 1%") === 5, "an overall of under 1% reads as 1");
 
   // Support is the guard against one quirky cube minting a 100% pairing: lift
   // cannot tell two cubes agreeing from two hundred agreeing.

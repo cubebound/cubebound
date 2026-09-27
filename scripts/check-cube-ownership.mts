@@ -86,6 +86,14 @@ try {
       gate: "requireCreator",
       why: "creates a cube from nothing, with its cards; there is no existing cube to own",
     },
+    addTargetAction: {
+      gate: "canEditCube",
+      why: "reads which of the caller's cubes to offer; a preferred id from the browser counts only if canEditCube passes, and it writes nothing",
+    },
+    listCubeChoicesAction: {
+      gate: "getCurrentUser",
+      why: "lists the caller's own cubes by their own id; there is no cube id to check and it writes nothing",
+    },
   };
 
   // Whether a body *calls* a gate, with comments stripped first. A plain

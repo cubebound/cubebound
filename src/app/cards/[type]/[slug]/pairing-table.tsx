@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 
+import AddToCube from "@/components/add-to-cube";
 import CardArt from "@/components/card-art";
 import { CardDetail } from "@/components/card-visuals";
 import type { BrowseCard } from "@/db/queries/cards";
@@ -18,6 +19,8 @@ export interface PairingRow {
   withPct: string;
   /** "15%": of every cube, how many run this. */
   overallPct: string;
+  /** "3.1×": the two above divided, and what the rows are sorted by. */
+  strength: string;
   /** This card's own page, or null below the owner floor. */
   pageHref: string | null;
 }
@@ -84,7 +87,7 @@ export default function PairingTable({
   const close = useCallback(() => setSelected(null), []);
 
   const columns =
-    "grid grid-cols-[2.5rem_minmax(0,1fr)_3rem_3rem_1.5rem] items-center gap-3 sm:grid-cols-[3.5rem_minmax(0,1fr)_6rem_6rem_2rem] sm:gap-4";
+    "grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem_3rem_3rem_1.25rem] items-center gap-2 sm:grid-cols-[3.5rem_minmax(0,1fr)_5rem_6rem_6rem_2rem] sm:gap-4";
 
   return (
     <>
@@ -93,6 +96,12 @@ export default function PairingTable({
           className={`${columns} border-b border-line bg-sunken px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-subtle sm:px-4`}
         >
           <span className="col-span-2">Card</span>
+          <span
+            className="text-center leading-tight"
+            title={`How many times as often a card turns up in cubes with ${subjectName} as in cubes overall. The list is sorted by this.`}
+          >
+            Pairing
+          </span>
           <span className="text-center leading-tight">With {subjectName}</span>
           <span className="text-center leading-tight">Overall</span>
           <span className="sr-only">Card page</span>
@@ -122,8 +131,14 @@ export default function PairingTable({
                     className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
                     style={{ background: domainDot(row.card.domains) }}
                   />
-                  <span className="truncate">{name}</span>
+                  <span className="line-clamp-2 leading-snug [overflow-wrap:anywhere] sm:line-clamp-1">{name}</span>
                 </button>
+                <span
+                  className="text-center text-sm font-semibold tabular-nums text-ink sm:text-base"
+                  title={`Turns up ${row.strength} as often with ${subjectName} as overall`}
+                >
+                  {row.strength}
+                </span>
                 <span
                   className="flex justify-center"
                   title={`In ${row.withPct} of cubes with ${subjectName}`}
@@ -152,7 +167,12 @@ export default function PairingTable({
       </div>
 
       {selected && (
-        <CardDetail card={selected} onClose={close} popularity={popularity[selected.id]} />
+        <CardDetail
+          card={selected}
+          onClose={close}
+          popularity={popularity[selected.id]}
+          footer={<AddToCube key={selected.id} cardId={selected.id} />}
+        />
       )}
     </>
   );

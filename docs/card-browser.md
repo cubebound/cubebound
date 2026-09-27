@@ -128,7 +128,8 @@ only how those numbers reach a page.
   optional `CardPopularityView` — one formatted string ("In 34% of cubes") and a
   href — and renders it as a bordered block at the very bottom, **below** the
   caller's `footer`: in the editor the Section picker and the remove buttons are
-  why the box was opened, and the statistics are context. Nothing on
+  why the box was opened, and outside it the Add control below is, and the
+  statistics are context. Nothing on
   the browser side divides, rounds or decides a threshold, so the
   never-a-false-0% and never-a-false-100% rules cannot be reimplemented
   differently on each surface that shows the modal. A card nobody has
@@ -140,8 +141,8 @@ only how those numbers reach a page.
   how the distinct-owner floor reaches the UI: below it `popularityForCards`
   hands over a label and no link, so a pairing list that would really be a
   description of one or two people's cubes has no link to reach it. The
-  destination is `cardPagePath`, and that page exists: a table, ranked by lift,
-  of the cards showing up alongside this one more often than they do in cubes
+  destination is `cardPagePath`, and that page exists: a table, ranked by
+  pairing strength, of the cards showing up alongside this one more often than they do in cubes
   overall, under a line saying how often the card itself is cubed and above a
   footnote saying private cubes were counted and that no cube or owner is ever
   named. The floor is the same one the link checks, applied again in the route;
@@ -159,6 +160,15 @@ only how those numbers reach a page.
   another name, and the browser must receive nothing more precise than what is
   printed. "under 1%" draws as a sliver and prints "<1%", making the same
   promise the label does: present means not zero.
+- **The Pairing column ("3.1×") is what the table is sorted by, and it is the
+  two printed percentages divided, not the exact lift.** `pairingStrength`
+  divides the *rounded* labels to one decimal, reading "under 1%" as 1, and
+  `commonlyCubedWith` sorts on that first, then exact lift, shared cubes and
+  key. Two reasons. Sorting by exact lift while showing a rounded ratio put
+  "3.1×" under "2.8×", which reads as a broken order; and an exact ratio of
+  small counts would disclose them, which is what the percentages exist to
+  prevent. Which cards make the list is unchanged: lift above 1, with
+  `MIN_SHARED_CUBES` support.
 - **That page's URL is resolved forwards, never parsed.** Slugifying is lossy —
   Kai'Sa becomes `kaisa`, and a legend's slug carries the champion its `name`
   column does not — so `findCardByPath` builds the path for every card and
@@ -202,3 +212,36 @@ only how those numbers reach a page.
   both halves of that lookup fail *quietly*: a key that never matches coalesces
   to zero for every row, which is a page in plain alphabetical order and reads as
   a choice rather than a fault.
+
+## Adding to a cube from the detail box
+
+Outside the editor, the detail box on `/cards` and on a card page carries
+`AddToCube` (`src/components/add-to-cube.tsx`) as its `footer`: "Add to {cube}
+· Change" and an Add button, for a signed-in owner. Signed out, it renders
+nothing.
+
+- **The target is resolved when the box opens, in one request, not when the
+  page renders.** `addTargetAction` answers `signedOut`, or the target cube and
+  how many copies of the card it holds, counted across printings by `base_id`.
+  The root layout already verifies the viewer for the nav, so deciding at render
+  time would be a second auth call on every `/cards` load for a control most
+  visitors never touch. With no session cookie the signed-out answer costs no
+  network call.
+- **The default is the cube the reader last had open, and the server decides
+  whether that still counts.** The editor page renders `RememberCube`, which
+  writes the cube id to `localStorage` (`cubebound:last-cube`); choosing or
+  adding writes it too. That value is a per-device convenience and nothing
+  more: `addTargetAction` re-checks it with `canEditCube` like any id from a
+  client, and falls back to the owner's most recently edited cube,
+  `listCubeChoices(ownerId, 1)`. Storage access is wrapped in `try`, because it
+  throws in some private windows.
+- **The full list loads only when the reader presses Change.** Most people are
+  adding to one cube, and it is already on screen, so `listCubeChoicesAction`
+  waits to be asked; `cubeCopiesAction` re-reads the count after a switch.
+  `listCubeChoices` is deliberately not `searchCubes`: a picker shows no card
+  count and no cover, and those are what that query costs.
+- **The add itself is the editor's `addCardAction`**, so this is one more add
+  path under the guards [cube-editor.md](cube-editor.md) describes rather than a
+  new one: ownership, suspension, the token refusal, the default section and the
+  change log all apply unchanged. Every call in the component catches a rejected
+  promise, per the root rule.

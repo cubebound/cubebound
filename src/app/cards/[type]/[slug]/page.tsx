@@ -87,6 +87,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[type]/[slu
         card: other,
         withPct: row.withPct,
         overallPct: row.overallPct,
+        strength: row.strength,
         pageHref: row.hasPage ? cardPagePath(other) : null,
       },
     ];
@@ -102,7 +103,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[type]/[slu
         </h1>
         <p className="mt-3 text-sm text-muted">
           {name} is in {share} of cubes. These cards show up alongside it more
-          often than they do in cubes overall.
+          often than they do in cubes overall, strongest pairing first.
         </p>
       </header>
 

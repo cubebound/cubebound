@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 
+import AddToCube from "@/components/add-to-cube";
 import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
 import type { BrowseCard } from "@/db/queries/cards";
 import type { CardPopularityView } from "@/lib/card-popularity";
@@ -29,7 +30,12 @@ export default function CardGrid({
         ))}
       </ul>
       {selected && (
-        <CardDetail card={selected} onClose={close} popularity={popularity[selected.id]} />
+        <CardDetail
+          card={selected}
+          onClose={close}
+          popularity={popularity[selected.id]}
+          footer={<AddToCube key={selected.id} cardId={selected.id} />}
+        />
       )}
     </>
   );

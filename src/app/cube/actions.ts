@@ -21,6 +21,8 @@ import {
   deleteCube,
   getCubeById,
   getCubeByOwnerAndSlug,
+  getCubeHoldingsForBases,
+  listCubeChoices,
   getPrintings,
   MAX_CARD_QUANTITY,
   moveCopyToSection,
@@ -35,6 +37,7 @@ import {
   switchCopyPrinting,
   updateCube,
   updateCubePrimer,
+  type CubeChoice,
   type CubeVisibility,
 } from "@/db/queries/cubes";
 import type { Cube, NewCubeChange, User } from "@/db/schema";
@@ -384,6 +387,93 @@ export async function addCardAction(
   });
   revalidateCube(owned.profile.username, owned.cube.slug);
   return {};
+}
+
+/** Where the card detail box's Add button would put a card, and what is there. */
+export type AddTargetState =
+  | { signedOut: true }
+  | { error: string }
+  | {
+      /** Null when the account has no cubes yet. */
+      cube: (CubeChoice & { editPath: string }) | null;
+      /** Copies of this card, any printing, already in that cube. */
+      copies: number;
+    };
+
+/**
+ * The cube the detail box offers to add a card to, resolved when the box
+ * opens rather than when the page renders.
+ *
+ * Asking on open is what keeps the browser's pages free of it: the root layout
+ * already verified the viewer for the nav, and looking them up again on every
+ * `/cards` render to decide whether to show a button would be a second auth
+ * call per page. A signed-out caller gets `signedOut` and the box shows
+ * nothing; with no session cookie that answer costs no network call.
+ *
+ * `preferredCubeId` is the cube the browser last had open (remembered on the
+ * device, see `add-to-cube.tsx`). It is re-checked for ownership like any other
+ * id from a client; one that no longer qualifies falls back to the owner's most
+ * recently edited cube rather than failing. Only that one cube is read here.
+ * The full list waits for `listCubeChoicesAction`, called when the reader
+ * actually asks to change cubes.
+ */
+export async function addTargetAction(
+  cardId: string,
+  preferredCubeId: string | null,
+): Promise<AddTargetState> {
+  const current = await getCurrentUser();
+  if (!current?.profile) return { signedOut: true };
+  const username = current.profile.username;
+
+  const card = await getCardById(cardId);
+  if (!card) return { error: "Card not found." };
+
+  let choice: CubeChoice | null = null;
+  if (preferredCubeId) {
+    const cube = await getCubeById(preferredCubeId);
+    if (cube && canEditCube(cube, current.profile.id)) {
+      choice = { id: cube.id, name: cube.name, slug: cube.slug };
+    }
+  }
+  choice ??= (await listCubeChoices(current.profile.id, 1))[0] ?? null;
+  if (!choice) return { cube: null, copies: 0 };
+
+  const holdings = await getCubeHoldingsForBases(choice.id, [card.baseId]);
+  return {
+    cube: { ...choice, editPath: `/cube/${username}/${choice.slug}/edit` },
+    copies: holdings[card.baseId]?.total ?? 0,
+  };
+}
+
+/**
+ * Every cube the viewer owns, for the detail box's cube picker. Called only
+ * when the reader presses Change: most people are adding to one cube, and it
+ * is already on screen.
+ */
+export async function listCubeChoicesAction(): Promise<
+  { cubes: (CubeChoice & { editPath: string })[] } | { error: string }
+> {
+  const current = await getCurrentUser();
+  if (!current?.profile) return { error: "You need to be signed in." };
+  const username = current.profile.username;
+  const choices = await listCubeChoices(current.profile.id);
+  return { cubes: choices.map((c) => ({ ...c, editPath: `/cube/${username}/${c.slug}/edit` })) };
+}
+
+/**
+ * How many copies of a card a cube holds, for the detail box after the reader
+ * switches cubes. Owner-only, like every other read of a cube's edit state.
+ */
+export async function cubeCopiesAction(
+  cubeId: string,
+  cardId: string,
+): Promise<{ copies: number } | { error: string }> {
+  const owned = await requireOwnedCube(cubeId);
+  if ("error" in owned) return { error: owned.error };
+  const card = await getCardById(cardId);
+  if (!card) return { error: "Card not found." };
+  const holdings = await getCubeHoldingsForBases(owned.cube.id, [card.baseId]);
+  return { copies: holdings[card.baseId]?.total ?? 0 };
 }
 
 export async function removeCardAction(
