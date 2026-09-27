@@ -3,6 +3,26 @@
 ## Filters, sorting and caching
 
 - Filter dropdowns are built from the **distinct values actually in the DB**, then sorted by the canonical lists in `src/lib/riftbound.ts` with unrecognized values kept at the end (`sortByCanonical`). A new set's new rarity therefore appears without a code change — `Promo` already does, and is not in `RARITIES`. That is also why sorting asserts on a **rank**, not a value: "sort by rarity ends at Showcase" is wrong, because `Promo` sorts after it.
+- **Tokens are not cards, so no view of the pool shows one.** Recruit, Sprite,
+  Gold and the rest are rows in `cards` because the source serves them, but
+  nobody builds a cube out of them. `searchCards` (through `buildWhere`),
+  `quickSearchCards`, every branch of `readFilterOptions` and
+  `getImportCatalog` leave them out, so no filter offers a value only a token
+  carries; a new filter branch needs the same `where`. The predicate is
+  `isTokenCard` in `src/lib/card-ids.ts`, mirrored in SQL by
+  `tokenCard`/`realCard` in `src/db/queries/cards.ts`, which binds the same
+  `TOKEN_ID_PATTERN` so there is one source for both. **A token is supertype
+  `Token` *or* a `SET-Tnn` id, and both halves are needed**: production holds
+  retired-riftscribe token rows (`UNL-T0n`, see [card-data.md](card-data.md))
+  with a null supertype that dev does not, so a supertype-only rule passes
+  every check on dev and still leaks tokens in production. **The SQL compares
+  with `is not distinct from`, never `=`**: an ordinary card's supertype is
+  null, so `=` turns the whole negation null and every ordinary card silently
+  drops out of the browser. A card merely *named* after a token ("Recruit the
+  Vanguard") is a card and stays. **The by-id reads are deliberately
+  unfiltered** (`getCardById`, `getCardsByIds`, `getPrintings*`), so a token
+  already sitting in a cube can still be shown, removed and logged. What the
+  add paths do about tokens is in [cube-editor.md](cube-editor.md).
 - **Set, domain, rarity and energy are multi-select; they OR within a filter and
   AND across filters.** Ticking Fury and Calm means either — an AND would return
   only dual-domain cards, a much rarer question. The URL keys stay **singular and
@@ -48,8 +68,7 @@
   nothing more; if that changes, copy on read.
 - **A set's printed name comes from the stored raw payload**
   (`data->'card'->'set'->>'label'`), not a lookup table, so a newly synced set
-  names itself like every other filter value. The six retired-source token rows
-  have a different payload shape and yield null, so the code stands in. Ordered
+  names itself like every other filter value. Ordered
   by **name**, not code: the codes interleave promos through the real sets
   (JDG, OGN, OGS, OPP, PR…), which reads as no order at all.
 - **Sorting is `?sort=` over set (default), name, energy, type, rarity.** Rarity

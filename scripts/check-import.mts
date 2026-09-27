@@ -48,7 +48,7 @@ import {
   resolveLine,
   type CatalogCard,
 } from "../src/lib/import-list";
-import { collapseIdentityKey } from "../src/lib/card-ids";
+import { collapseIdentityKey, isTokenCard, TOKEN_ID_PATTERN } from "../src/lib/card-ids";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 
@@ -257,6 +257,41 @@ try {
     `champion should be one name, got ${commaChampions.slice(0, 3).map((c) => `${c.id}=${c.champion}`).join(", ")}`,
   );
 
+  // --- 2c. Tokens are not cards ---------------------------------------------
+  // The catalog leaves them out, so a pasted token name comes back unmatched
+  // rather than adding one, while a real card named after a token still
+  // matches. The token list comes from independent SQL, not from the catalog.
+  const tokens = await sql<{ id: string; name: string }[]>`
+    select id, name from cards
+     where supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN}`;
+  expect(tokens.length > 0, "no token rows in this database: the exclusion below proves nothing");
+  const tokenIds = new Set(tokens.map((t) => t.id));
+  const inCatalog = catalog.filter((c) => tokenIds.has(c.id));
+  expect(
+    inCatalog.length === 0,
+    `the import catalog holds ${inCatalog.length} token(s): ${inCatalog.slice(0, 5).map((c) => c.id).join(", ")}`,
+  );
+  for (const token of tokens) {
+    const row = previewImport(token.name, catalog).rows[0];
+    expect(
+      row?.resolution.status !== "matched" || !tokenIds.has(row.resolution.card.id),
+      `pasting "${token.name}" resolved to the token ${token.id}`,
+    );
+  }
+  const tokenWords = new Set(
+    tokens.flatMap((t) => t.name.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 3)),
+  );
+  const namesakes = catalog.filter((c) =>
+    c.name.toLowerCase().split(/[^a-z]+/).some((w) => tokenWords.has(w)),
+  );
+  for (const card of namesakes) {
+    const p = previewImport(card.name, catalog);
+    expect(
+      p.rows[0]?.resolution.status === "matched" && p.rows[0].resolution.card.id === card.id,
+      `"${card.name}" is a card named after a token and should still match`,
+    );
+  }
+
   // --- 3. Ambiguity, on a synthetic catalog ---------------------------------
   const twins: CatalogCard[] = [
     { id: "AAA-001", name: "Twinned Name", type: "Unit" },
@@ -437,7 +472,7 @@ try {
     const bad = detail.filter(
       (c) =>
         c.set_code !== set.code ||
-        c.supertype === "Token" ||
+        isTokenCard(c) ||
         c.supertype === "Basic" ||
         !/^[A-Z]+-[0-9]+[a-z]?(-[a-z]+)?$/.test(c.id) ||
         (c.rarity === "Showcase" && c.base_set !== c.set_code),
@@ -455,6 +490,9 @@ try {
     `starting points: ${sets.map((s) => `${s.code} ${s.cards}`).join(", ")} (${starterCards} cards checked)`,
   );
 
+  console.log(
+    `tokens: ${tokens.length} kept out of the catalog, ${namesakes.length} card(s) named after one still match`,
+  );
   console.log(
     `import: ${preview.matchedCount} matched, ${preview.unmatchedCount} unmatched, ` +
       `${preview.ambiguousCount} ambiguous, ${copies} copies committed across ${merge.rows.length} rows`,

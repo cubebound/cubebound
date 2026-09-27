@@ -2,7 +2,7 @@
  * Card id composition and the base-printing rule.
  *
  * Ids are Riot-style: `OGN-001` base, `OGN-100a` alt art, `OGN-301-star`
- * signature, `UNL-T03` token.
+ * signature, `UNL-T03` token. Tokens are not cards; see `isTokenCard`.
  *
  * `cards.base_id` is the id of the CANONICAL printing of a card — the row the
  * browser shows when printings are collapsed.
@@ -82,6 +82,36 @@ export function nameWithoutTreatment(name: string): string {
 /** How the card browser groups printings: the stripped name plus the type. */
 export function collapseIdentityKey(card: Pick<PrintingLike, "name" | "type">): string {
   return `${nameWithoutTreatment(card.name).toLowerCase()}|${card.type}`;
+}
+
+/**
+ * A token's id: `UNL-T01`, `SFD-T03`. An ordinary id is `SET-NNN`, and `T` is
+ * not a digit, so no real card can match. The suffix grammar is the ordinary
+ * one (`a`, `-star`), so a future alt-art token is caught too.
+ *
+ * A string rather than a `RegExp` because the SQL half binds it as a parameter
+ * (`tokenCard` in src/db/queries/cards.ts): one source for both definitions.
+ */
+export const TOKEN_ID_PATTERN = "^[A-Z]+-T[0-9]+([a-z]|-[a-z]+)?$";
+const TOKEN_ID = new RegExp(TOKEN_ID_PATTERN);
+
+/**
+ * Whether a row is a token (Recruit, Sprite, Gold…) rather than a card.
+ *
+ * **Both halves are needed, and only production shows why.** The riftcodex
+ * tokens carry `supertype = 'Token'`, but six more (`UNL-T01` to `UNL-T07`)
+ * came from the retired riftscribe source, which wrote a null supertype. Dev
+ * does not hold those six, so a supertype-only rule passes every check there
+ * and still lets tokens through in production. A card merely *named* after a
+ * token ("Recruit the Vanguard") is neither, and stays.
+ *
+ * Mirrors `tokenCard` in src/db/queries/cards.ts. `check:printings` asserts
+ * this agrees with the same expression in SQL on every row, and
+ * `check:card-filters` and `check:import` that what the queries return leaves
+ * out exactly the rows this names.
+ */
+export function isTokenCard(card: { id: string; supertype: string | null }): boolean {
+  return card.supertype === "Token" || TOKEN_ID.test(card.id);
 }
 
 /**

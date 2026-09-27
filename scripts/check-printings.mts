@@ -21,8 +21,10 @@ import {
   cardIdentityKey,
   collapseIdentityKey,
   composeCardId,
+  isTokenCard,
   nameWithoutTreatment,
   provisionalBaseId,
+  TOKEN_ID_PATTERN,
 } from "../src/lib/card-ids";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
@@ -48,9 +50,10 @@ try {
       set_code: string;
       collector_no: string;
       rarity: string;
+      supertype: string | null;
       rules_text: string | null;
     }[]
-  >`select id, base_id, name, type, set_code, collector_no, rarity, rules_text from cards`;
+  >`select id, base_id, name, type, set_code, collector_no, rarity, supertype, rules_text from cards`;
 
   expect(rows.length > 0, "no cards in the database");
 
@@ -60,6 +63,29 @@ try {
   expect(provisionalBaseId("UNL-T01") === "UNL-T01", "token ids have no suffix to strip");
   expect(composeCardId("ogn", 1, "") === "OGN-001", "compose should pad the collector number");
   expect(composeCardId("UNL", 3, "t03") === "UNL-T03", "compose should format tokens");
+
+  // --- tokens are not cards --------------------------------------------------
+  // Synthetic, because the half that matters most is not in dev at all: the
+  // retired riftscribe tokens (`UNL-T01`…) have a null supertype and exist only
+  // in production. A supertype-only rule would pass every live row below.
+  const tokenCases: [string, string | null, string, boolean][] = [
+    ["UNL-T01", null, "riftscribe token, null supertype, caught by id", true],
+    ["SFD-T03", "Token", "riftcodex token by id and supertype", true],
+    ["OGN-271", "Token", "token with an ordinary id, caught by supertype", true],
+    ["UNL-T01a", null, "an alt-art token id", true],
+    ["OGN-042", null, "an ordinary card", false],
+    ["OGN-100a", null, "an alt art", false],
+    ["OGN-301-star", null, "a signature", false],
+    ["VEN-R01", "Basic", "a basic rune", false],
+    ["VEN-SP3", null, "a special-slot reprint", false],
+    ["OGN-150", "Champion", "a champion", false],
+  ];
+  for (const [id, supertype, label, token] of tokenCases) {
+    expect(
+      isTokenCard({ id, supertype }) === token,
+      `isTokenCard(${id}, ${supertype}): ${label} should ${token ? "" : "not "}be a token`,
+    );
+  }
 
   // --- SQL and TypeScript must agree on every row ----------------------------
   const expected = assignBaseIds(
@@ -132,6 +158,57 @@ try {
     );
   }
 
+  // --- tokens: SQL and TypeScript agree, and never share a group with a card --
+  // `tokenCard` in src/db/queries/cards.ts is the SQL half; it binds the same
+  // pattern, and must use `is not distinct from` because ordinary supertypes
+  // are null. This script cannot import it (importing the query layer needs
+  // DATABASE_URL at load), so the query below restates it: this proves the
+  // pattern means the same in Postgres and JS. That the export itself leaves
+  // tokens out is `check:card-filters` and `check:import`, through its results.
+  const tokensInSql = new Set(
+    (
+      await sql<{ id: string }[]>`
+        select id from cards
+         where supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN}`
+    ).map((r) => r.id),
+  );
+  const tokensInTs = new Set(rows.filter(isTokenCard).map((r) => r.id));
+  const tokenDisagree = [
+    ...[...tokensInSql].filter((id) => !tokensInTs.has(id)),
+    ...[...tokensInTs].filter((id) => !tokensInSql.has(id)),
+  ];
+  expect(tokensInTs.size > 0, "no token rows found: has the source stopped serving them?");
+  expect(
+    tokenDisagree.length === 0,
+    `SQL and isTokenCard disagree on ${tokenDisagree.length} row(s): ${tokenDisagree.slice(0, 5).join(", ")}`,
+  );
+  // The import catalog keeps only base printings that are not tokens, which is
+  // safe only if no print group mixes the two.
+  const mixedGroups = [...new Set(rows.map((r) => r.base_id))].filter((base) => {
+    const group = rows.filter((r) => r.base_id === base);
+    return group.some(isTokenCard) && !group.every(isTokenCard);
+  });
+  expect(
+    mixedGroups.length === 0,
+    `${mixedGroups.length} print group(s) mix tokens and cards: ${mixedGroups.slice(0, 5).join(", ")}`,
+  );
+  // And the rule is not a name match: a real card carrying a token's word
+  // ("Recruit the Vanguard", "Sprite Queen") stays a card.
+  const tokenWords = new Set(
+    rows.filter(isTokenCard).flatMap((r) => nameWithoutTreatment(r.name).toLowerCase().split(/\W+/)),
+  );
+  const namesakes = rows.filter(
+    (r) =>
+      r.supertype !== "Token" &&
+      !/-T\d/.test(r.id) &&
+      r.name.toLowerCase().split(/\W+/).some((word) => word.length > 3 && tokenWords.has(word)),
+  );
+  expect(
+    namesakes.every((r) => !isTokenCard(r)),
+    `a card named after a token was classed as one: ` +
+      namesakes.filter(isTokenCard).map((r) => `${r.id} "${r.name}"`).join("; "),
+  );
+
   // Every base_id must point at a row that exists, and canonical rows point at
   // themselves.
   const ids = new Set(rows.map((r) => r.id));
@@ -203,7 +280,8 @@ try {
   console.log(
     `printings: ${rows.length} rows -> ${canonicals.size} base_id group(s), ` +
       `${collapsed.size} entries as the browser collapses them ` +
-      `(${treated.length} treatment printing(s) folded in)`,
+      `(${treated.length} treatment printing(s) folded in), ${tokensInTs.size} token row(s), ` +
+      `${namesakes.length} card(s) named after a token kept`,
   );
 } catch (error) {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);

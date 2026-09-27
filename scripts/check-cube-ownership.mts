@@ -22,6 +22,7 @@ import { fromEnvFile } from "./lib/env";
 import { createTestAccount } from "./lib/test-account";
 
 import { addCubeCard, createCube, getCubeCards } from "../src/db/queries/cubes";
+import { TOKEN_ID_PATTERN } from "../src/lib/card-ids";
 import { canEditCube } from "../src/lib/cube-access";
 import { defaultSectionForType, isCubeSection } from "../src/lib/riftbound";
 import { slugify, uniqueSlug } from "../src/lib/slug";
@@ -390,6 +391,49 @@ try {
       afterOwner === baseline + 1,
       `replay is not exercising the action: the owner's own replay changed nothing (${baseline} -> ${afterOwner})`,
     );
+
+    // Tokens are not cards: the owner's own request, with the card swapped for
+    // a token, must be refused. The searches never offer one, so this is the
+    // forged request the server-side refusal exists for.
+    const [token] = await sql<{ id: string }[]>`
+      select id from cards
+       where supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN}
+       order by id limit 1`;
+    const addedId = added?.id ?? "";
+    if (!token) {
+      failures.push("no token row in this database; the token replay was skipped");
+    } else if (!addedId || !request.postData.includes(JSON.stringify(addedId))) {
+      failures.push(`the captured Add does not carry ${addedId}; the token replay was skipped`);
+    } else {
+      const forged = {
+        ...request,
+        postData: request.postData.replaceAll(JSON.stringify(addedId), JSON.stringify(token.id)),
+      };
+      const before = await getCubeCards(cube.id);
+      const headers: Record<string, string> = {};
+      for (const [key, value] of Object.entries(forged.headers)) {
+        // `content-length` too, unlike `replayAs` above: swapping the id can
+        // change the body's length, and a stale one would truncate it. The
+        // action would then fail for the wrong reason and this check would
+        // pass without ever reaching the refusal. Every id is seven characters
+        // today, so it has not bitten — undici sets the real length itself.
+        const name = key.toLowerCase();
+        if (name !== "cookie" && name !== "content-length") headers[key] = value;
+      }
+      headers.cookie = owner.cookie;
+      const res = await fetch(forged.url, {
+        method: "POST",
+        headers,
+        body: forged.postData,
+        redirect: "manual",
+      });
+      await res.text();
+      const after = await getCubeCards(cube.id);
+      expect(
+        !after.some((c) => c.id === token.id) && after.length === before.length,
+        `the owner's Add with ${token.id} swapped in put a token in the cube`,
+      );
+    }
   }
 
   // ---- deleting the owner cascades to their cubes ---------------------------

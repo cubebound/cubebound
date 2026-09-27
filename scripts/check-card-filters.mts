@@ -16,6 +16,10 @@
  *  - sorting actually orders, including the canonical orders for rarity and
  *    type, which are not alphabetical.
  *  - the pre-multi-select URLs (`?domain=Fury`) still mean what they did.
+ *  - tokens are not cards: no search, type-ahead or filter list reaches one,
+ *    and a real card named after a token is still found. Every independent
+ *    count below leaves tokens out the same way, or it would fail on correct
+ *    code, since OGN and SFD hold token rows.
  *
  * Reads only. Creates nothing, deletes nothing.
  *
@@ -25,7 +29,13 @@ import postgres from "postgres";
 
 import { fromEnvFile } from "./lib/env";
 
-import { searchCards, type CardFilters } from "../src/db/queries/cards";
+import {
+  getFilterOptions,
+  quickSearchCards,
+  searchCards,
+  type CardFilters,
+} from "../src/db/queries/cards";
+import { isTokenCard, TOKEN_ID_PATTERN } from "../src/lib/card-ids";
 import { cardFiltersFromParams } from "../src/lib/card-search-params";
 import { CARD_TYPE_ORDER, ENERGY_BUCKETS, RARITIES } from "../src/lib/riftbound";
 
@@ -34,6 +44,12 @@ const failures: string[] = [];
 const expect = (ok: boolean, message: string) => {
   if (!ok) failures.push(message);
 };
+
+/**
+ * Rows that are cards, written out independently of `realCard` in the query
+ * layer. `is not distinct from` because an ordinary supertype is null.
+ */
+const real = sql`(not (supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN}))`;
 
 /** Every printing, since the filters run before any grouping. */
 const countRows = async (where: postgres.PendingQuery<postgres.Row[]>) => {
@@ -48,14 +64,14 @@ const found = async (filters: CardFilters) =>
 try {
   // ---- within a filter, values OR --------------------------------------
   const fury = await countRows(
-    sql`select count(*)::int as n from cards where domains @> array['Fury']`,
+    sql`select count(*)::int as n from cards where ${real} and domains @> array['Fury']`,
   );
   const calm = await countRows(
-    sql`select count(*)::int as n from cards where domains @> array['Calm']`,
+    sql`select count(*)::int as n from cards where ${real} and domains @> array['Calm']`,
   );
   const both = await countRows(
     sql`select count(*)::int as n from cards
-        where domains @> array['Fury'] and domains @> array['Calm']`,
+        where ${real} and domains @> array['Fury'] and domains @> array['Calm']`,
   );
   const either = await found({ domains: ["Fury", "Calm"] });
 
@@ -72,15 +88,15 @@ try {
   expect(either > fury && either > calm, `Fury OR Calm (${either}) must exceed either alone`);
 
   const sets = await found({ sets: ["OGN", "VEN"] });
-  const ogn = await countRows(sql`select count(*)::int as n from cards where set_code = 'OGN'`);
-  const ven = await countRows(sql`select count(*)::int as n from cards where set_code = 'VEN'`);
+  const ogn = await countRows(sql`select count(*)::int as n from cards where ${real} and set_code = 'OGN'`);
+  const ven = await countRows(sql`select count(*)::int as n from cards where ${real} and set_code = 'VEN'`);
   expect(sets === ogn + ven, `two sets must OR: expected ${ogn + ven}, got ${sets}`);
 
   // ---- across filters, they AND ----------------------------------------
   const furyCommon = await found({ domains: ["Fury"], rarities: ["Common"] });
   const expectedFuryCommon = await countRows(
     sql`select count(*)::int as n from cards
-        where domains @> array['Fury'] and rarity = 'Common'`,
+        where ${real} and domains @> array['Fury'] and rarity = 'Common'`,
   );
   expect(
     furyCommon === expectedFuryCommon,
@@ -92,7 +108,7 @@ try {
   );
 
   // ---- the energy buckets partition the pool ---------------------------
-  const total = await countRows(sql`select count(*)::int as n from cards`);
+  const total = await countRows(sql`select count(*)::int as n from cards where ${real}`);
   let bucketSum = 0;
   for (const bucket of ENERGY_BUCKETS) {
     bucketSum += await found({ energy: [bucket] });
@@ -105,14 +121,14 @@ try {
 
   const high = await found({ energy: ["9+"] });
   const expectedHigh = await countRows(
-    sql`select count(*)::int as n from cards where energy_cost >= 9`,
+    sql`select count(*)::int as n from cards where ${real} and energy_cost >= 9`,
   );
   expect(high === expectedHigh, `"9+" must be >= 9: expected ${expectedHigh}, got ${high}`);
   expect(high > 0, `"9+" matched nothing — the bucket is unreachable`);
 
   const none = await found({ energy: ["none"] });
   const expectedNone = await countRows(
-    sql`select count(*)::int as n from cards where energy_cost is null`,
+    sql`select count(*)::int as n from cards where ${real} and energy_cost is null`,
   );
   expect(none === expectedNone, `"none" must be NULL: expected ${expectedNone}, got ${none}`);
 
@@ -122,14 +138,14 @@ try {
     "cost 0 must not include costless cards",
   );
   const expectedZero = await countRows(
-    sql`select count(*)::int as n from cards where energy_cost = 0`,
+    sql`select count(*)::int as n from cards where ${real} and energy_cost = 0`,
   );
   expect(zero === expectedZero, `cost 0: expected ${expectedZero}, got ${zero}`);
 
   // Several buckets OR, like every other filter.
   const cheap = await found({ energy: ["1", "2"] });
   const expectedCheap = await countRows(
-    sql`select count(*)::int as n from cards where energy_cost in (1, 2)`,
+    sql`select count(*)::int as n from cards where ${real} and energy_cost in (1, 2)`,
   );
   expect(cheap === expectedCheap, `two costs must OR: expected ${expectedCheap}, got ${cheap}`);
 
@@ -189,7 +205,7 @@ try {
    * "ends at the highest rank present" is right.
    */
   const maxRank = async (column: string, order: readonly string[]) => {
-    const rows = await sql`select distinct ${sql(column)} as value from cards`;
+    const rows = await sql`select distinct ${sql(column)} as value from cards where ${real}`;
     return Math.max(...rows.map((r) => rankIn(order, String(r.value))));
   };
 
@@ -233,7 +249,7 @@ try {
   // A type in the data that CARD_TYPE_ORDER doesn't list would sort into the
   // fallback bucket and read as a bug in the ordering rather than a new set.
   const unranked = await sql`
-    select distinct type from cards where type <> all(${sql.array([...CARD_TYPE_ORDER])})`;
+    select distinct type from cards where ${real} and type <> all(${sql.array([...CARD_TYPE_ORDER])})`;
   expect(
     unranked.length === 0,
     `CARD_TYPE_ORDER is out of step with cards.type: ${unranked.map((r) => r.type).join(", ")}`,
@@ -272,6 +288,96 @@ try {
   expect(
     cardFiltersFromParams({ sort: "'; drop table cards --" }).sort === undefined,
     "an unrecognized sort must be dropped, not passed through",
+  );
+
+  // ---- tokens are not cards ---------------------------------------------
+  const tokenRows = await sql<{ id: string; name: string }[]>`
+    select id, name from cards where not ${real}`;
+  expect(tokenRows.length > 0, "no token rows in this database: the exclusion below proves nothing");
+  const everything = await countRows(sql`select count(*)::int as n from cards`);
+  expect(
+    everything - total === tokenRows.length,
+    `the pool should be ${tokenRows.length} token(s) larger than what the browser counts ` +
+      `(${everything} rows, ${total} cards)`,
+  );
+
+  /** Every row a search returns, across all its pages. */
+  const allPagesOf = async (filters: CardFilters) => {
+    const first = await searchCards({ ...filters, allPrintings: true });
+    const rows = [...first.cards];
+    for (let page = 2; page <= first.pageCount; page += 1) {
+      rows.push(...(await searchCards({ ...filters, allPrintings: true, page })).cards);
+    }
+    return rows;
+  };
+
+  // Each word a token is named by, and each word searched two ways. A real card
+  // whose name carries the word ("Recruit the Vanguard") must still come back.
+  const tokenWords = [
+    ...new Set(
+      tokenRows.flatMap((t) =>
+        t.name
+          .split(/[^A-Za-z]+/)
+          .filter((word) => word.length > 3),
+      ),
+    ),
+  ];
+  let namesakes = 0;
+  for (const word of tokenWords) {
+    const expectedIds = (
+      await sql<{ id: string }[]>`
+        select id from cards where ${real} and name ilike ${`%${word}%`}`
+    ).map((r) => r.id);
+    namesakes += expectedIds.length;
+
+    const browsed = await allPagesOf({ q: word });
+    const typed = await quickSearchCards(word, { allPrintings: true, limit: 1000 });
+    for (const [label, rows] of [
+      ["searchCards", browsed],
+      ["quickSearchCards", typed],
+    ] as const) {
+      const leaked = rows.filter(isTokenCard);
+      expect(
+        leaked.length === 0,
+        `${label}("${word}") returned token(s): ${leaked.map((c) => c.id).join(", ")}`,
+      );
+      const ids = new Set(rows.map((c) => c.id));
+      const lost = expectedIds.filter((id) => !ids.has(id));
+      expect(
+        lost.length === 0,
+        `${label}("${word}") lost real card(s) named after a token: ${lost.slice(0, 5).join(", ")}`,
+      );
+    }
+  }
+
+  // No filter offers a value only a token carries.
+  const options = await getFilterOptions();
+  const offered: [string, string, string[]][] = [
+    ["set", "set_code = any", options.sets.map((o) => o.code)],
+    ["type", "type = any", options.types],
+    ["rarity", "rarity = any", options.rarities],
+    ["domain", "domains &&", options.domains],
+    [
+      "trait",
+      "tags &&",
+      [...options.traits.regions, ...options.traits.traits, ...options.traits.champions],
+    ],
+  ];
+  for (const [label, test, values] of offered) {
+    for (const value of values) {
+      const [hit] = await sql.unsafe(
+        `select exists (select 1 from cards where
+           not (supertype is not distinct from 'Token' or id ~ $1)
+           and ${test} ($2)) as ok`,
+        [TOKEN_ID_PATTERN, [value]],
+      );
+      expect(Boolean(hit?.ok), `the ${label} filter offers "${value}", which only tokens carry`);
+    }
+  }
+
+  console.log(
+    `tokens: ${tokenRows.length} row(s) kept out; ${tokenWords.length} token word(s) searched, ` +
+      `${namesakes} real card(s) named after one still found`,
   );
 
   console.log(
