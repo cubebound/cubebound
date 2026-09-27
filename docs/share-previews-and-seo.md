@@ -28,8 +28,13 @@
   indexed as a dozen copies of the login page. Individual cubes are not listed
   there: unlisted ones carry their own `noindex` from `generateMetadata`, which
   is where a per-cube decision belongs. `sitemap.ts` lists public cubes and
-  their owners via `searchCubes`, so the public-only rule is the same single one
-  Explore uses, and it degrades to the static pages rather than 500ing.
+  their owners via `listPublicCubesForSitemap`, and degrades to the static pages
+  rather than 500ing. That query keeps its own narrow select but filters through
+  the shared `conditions()`, so what the sitemap advertises is decided by the
+  same rule every other listing uses, moderation included (see
+  [moderation.md](moderation.md)), rather than by a second copy of it. The owner
+  entries are derived from those same cube rows, so a cube that drops out takes
+  its owner's profile with it.
 - **Every indexable route declares a canonical, and it is always the bare
   path.** Each one has query-string variants serving the same content — `?view=`
   and `?tab=` on a cube, the whole filter surface on `/cards`, `?q=`/`?sort=`/

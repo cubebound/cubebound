@@ -40,7 +40,12 @@ moderator role beyond it yet.
   `includeNonPublic` branch**, so it applies to *every* listing — Explore, a
   profile, the followed tab, the sitemap, and the owner's own `/cubes`. That
   last one is the point: the owner's list is where a hidden cube would
-  otherwise still be advertised.
+  otherwise still be advertised. **A listing calls `conditions()` rather than
+  writing its own `where`**, however narrow its select: the sitemap's query
+  restated `visibility = 'public'` and the card floor, which looked complete and
+  silently dropped the moderation pair, so a hidden cube and a suspended owner's
+  cube stayed in `/sitemap.xml` — the worst place to leak one, because a crawler
+  fetches, indexes and caches it long after the row changed.
 - **`moderation_log` is outside every cascade.** `actor_id` sets null and
   `target_id` is deliberately not a foreign key, because the record has to
   outlive both the moderator and the thing acted on; `snapshot` is the only
