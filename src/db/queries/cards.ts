@@ -947,36 +947,22 @@ export async function getCardIdentities(): Promise<CardIdentity[]> {
 }
 
 /**
- * The representative printing of each of the given cards, for a pairing list.
+ * The representative printing of each of the given cards, as full browse cards.
  *
- * Seven columns rather than `browseColumns`' eighteen: the list renders a
- * thumbnail, a domain dot, a name and an energy chip, and pulling rules text,
- * tags, power costs and the full-size art for twenty-five rows is the cost this
- * page has no reason to pay. A query rather than a second pass over
- * `getCardIdentities`, whose five columns cannot draw a card.
+ * Full rather than narrow because a card page's rows open the card's detail
+ * box, which shows rules text, full art and every stat; a second request on
+ * click would put a spinner in the one place the reader is already waiting.
+ * At most twenty-five rows, so the width is affordable. A query rather than a
+ * second pass over `getCardIdentities`, whose five columns cannot draw a card.
+ * `printingCount` is computed before the collapse, as the browser does.
  */
-export interface PairedCard {
-  id: string;
-  name: string;
-  type: string;
-  champion: string | null;
-  domains: string[];
-  energyCost: number | null;
-  imageThumb: string | null;
-}
-
-export async function getRepresentativeCardsByKeys(keys: string[]): Promise<PairedCard[]> {
+export async function getRepresentativeCardsByKeys(keys: string[]): Promise<BrowseCard[]> {
   if (keys.length === 0) return [];
+  const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
+    "printing_count",
+  );
   return db
-    .selectDistinctOn([collapseKey], {
-      id: cards.id,
-      name: cards.name,
-      type: cards.type,
-      champion: cards.champion,
-      domains: cards.domains,
-      energyCost: cards.energyCost,
-      imageThumb: cards.imageThumb,
-    })
+    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
     .from(cards)
     .where(and(inArray(collapseKey, keys), realCard))
     .orderBy(collapseKey, ...canonicalFirst);

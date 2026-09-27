@@ -71,8 +71,10 @@
   names itself like every other filter value. Ordered
   by **name**, not code: the codes interleave promos through the real sets
   (JDG, OGN, OGS, OPP, PR…), which reads as no order at all.
-- **Sorting is `?sort=` over set (default), name, energy, type, rarity and
-  played ("Most played", see below).** Rarity
+- **Sorting is `?sort=` over set (default), played ("Most played", see below),
+  name, energy, type and rarity.** `CARD_SORTS` order is the dropdown's order,
+  and "Most played" sits second because at the bottom of the list nobody found
+  it. Rarity
   and type rank against the canonical lists rather than sorting alphabetically,
   and **`CARD_TYPE_ORDER` is not `CARD_TYPES`** — the latter is display
   vocabulary including "Champion Unit" and "Signature Spell", which are a `type`
@@ -124,23 +126,39 @@ only how those numbers reach a page.
 
 - **A client component receives a label, never a number.** `CardDetail` takes an
   optional `CardPopularityView` — one formatted string ("In 34% of cubes") and a
-  href — and renders it as a bordered block under the printing count. Nothing on
+  href — and renders it as a bordered block at the very bottom, **below** the
+  caller's `footer`: in the editor the Section picker and the remove buttons are
+  why the box was opened, and the statistics are context. Nothing on
   the browser side divides, rounds or decides a threshold, so the
   never-a-false-0% and never-a-false-100% rules cannot be reimplemented
-  differently on each of the four surfaces that show the modal. A card nobody has
+  differently on each surface that shows the modal. A card nobody has
   cubed is **absent from the map** rather than present at 0%, so the block does
   not render at all and the prop stays optional: a surface that has not built a
   map is unchanged.
-- **"Cards commonly cubed with" is gated on the href being non-null**, which is
+- **"Cards commonly cubed with {card}" is a plain text link, gated on the href
+  being non-null**, which is
   how the distinct-owner floor reaches the UI: below it `popularityForCards`
   hands over a label and no link, so a pairing list that would really be a
-  description of one or two people's cubes has no button to reach it. The
-  destination is `cardPagePath`, and that page exists: it lists the cards
-  showing up alongside this one more often than they do in cubes overall, each
-  with both percentages, under a line saying how often the card itself is cubed
-  and above a footnote saying private cubes were counted and that no cube or
-  owner is ever named. The floor is the same one the button checks, applied
-  again in the route; what 404s there and why is [routes.md](routes.md)'s.
+  description of one or two people's cubes has no link to reach it. The
+  destination is `cardPagePath`, and that page exists: a table, ranked by lift,
+  of the cards showing up alongside this one more often than they do in cubes
+  overall, under a line saying how often the card itself is cubed and above a
+  footnote saying private cubes were counted and that no cube or owner is ever
+  named. The floor is the same one the link checks, applied again in the route;
+  what 404s there and why is [routes.md](routes.md)'s.
+- **Each row of that table opens the same detail box the browser does.** The
+  image and the name both open `CardDetail`, with its own popularity line, so a
+  reader can judge a card without leaving the page; the arrow in the last column
+  goes to that card's own page and is drawn only when it clears the owner floor.
+  That is why `getRepresentativeCardsByKeys` returns full `BrowseCard`s rather
+  than a narrow row: the box shows rules text and full art, and fetching them on
+  click would put a spinner where the reader is already waiting.
+- **The "With {card}" and "Overall" dials are filled from the rounded label,
+  never from a ratio.** `pairing-table.tsx` parses the fill back out of "46%",
+  because an exact share of a small denominator (6/13) is a cube count by
+  another name, and the browser must receive nothing more precise than what is
+  printed. "under 1%" draws as a sliver and prints "<1%", making the same
+  promise the label does: present means not zero.
 - **That page's URL is resolved forwards, never parsed.** Slugifying is lossy —
   Kai'Sa becomes `kaisa`, and a legend's slug carries the champion its `name`
   column does not — so `findCardByPath` builds the path for every card and
@@ -160,7 +178,7 @@ only how those numbers reach a page.
   maybeboard rows or the cube rows depending on the tab, and only when the tab
   shows cards at all; the editor builds it over the browse results in browse mode
   and over `rendered` otherwise, and only in the three modes with a modal to put
-  a line in. Two reasons it is not built wider: at most sixty cards are on screen
+  a line in; a card page builds it over its pairing rows. Two reasons it is not built wider: at most sixty cards are on screen
   against a snapshot covering every qualifying cube, and — the part that is not
   an optimisation — **`PopularitySnapshot` must never cross to the browser**,
   because it carries per-cube card lists for cubes their owners marked private.

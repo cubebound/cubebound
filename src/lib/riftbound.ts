@@ -118,7 +118,7 @@ export const CARD_TYPE_ORDER = [
  * than anything that names the real cause. Types are erased and so are safe to
  * import from there; constants are not.
  */
-export const CARD_SORTS = ["set", "name", "energy", "type", "rarity", "played"] as const;
+export const CARD_SORTS = ["set", "played", "name", "energy", "type", "rarity"] as const;
 export type CardSort = (typeof CARD_SORTS)[number];
 
 export const CARD_SORT_LABELS: Record<CardSort, string> = {

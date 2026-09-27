@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getRepresentativeCardsByKeys } from "@/db/queries/cards";
-import { cardThumb } from "@/lib/card-images";
 import { collapseIdentityKey } from "@/lib/card-ids";
 import {
   cardPageName,
@@ -11,14 +10,15 @@ import {
   commonlyCubedWith,
   findCardByPath,
   hasCardPage,
+  popularityForCards,
   sharePercent,
   STATS_MIN_CARDS,
 } from "@/lib/card-popularity";
 import { loadCardIdentities, loadCardPopularity } from "@/lib/cube-request";
-import { domainDot } from "@/lib/domain-columns";
 import { metaDescription } from "@/lib/meta";
-import { aspectRatio } from "@/lib/riftbound";
 import { link as linkClass, panelEmpty } from "@/lib/ui";
+
+import PairingTable, { type PairingRow } from "./pairing-table";
 
 export async function generateMetadata({
   params,
@@ -72,12 +72,30 @@ export default async function CardPage({ params }: PageProps<"/cards/[type]/[slu
   const share = sharePercent(snapshot.byKey.get(key)?.cubes ?? 0, snapshot.total);
   const rows = commonlyCubedWith(snapshot, key);
 
-  // One narrow query for the twenty-five rows actually rendered.
+  // The twenty-five rows actually rendered, as full cards: each opens the
+  // detail box, which needs everything the browser's does.
   const paired = await getRepresentativeCardsByKeys(rows.map((row) => row.key));
   const byKey = new Map(paired.map((entry) => [collapseIdentityKey(entry), entry]));
+  // A key with no printing behind it would mean the snapshot and the card pool
+  // disagree, which `check:printings` exists to prevent. Dropping the row is
+  // still better than rendering a blank one.
+  const table: PairingRow[] = rows.flatMap((row) => {
+    const other = byKey.get(row.key);
+    if (!other) return [];
+    return [
+      {
+        card: other,
+        withPct: row.withPct,
+        overallPct: row.overallPct,
+        pageHref: row.hasPage ? cardPagePath(other) : null,
+      },
+    ];
+  });
+  // Only the label and the link cross to the browser, as on every surface.
+  const popularity = popularityForCards(snapshot, paired);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
+    <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6">
       <header>
         <h1 className="text-2xl font-semibold text-ink">
           Cards commonly cubed with {name}
@@ -88,70 +106,12 @@ export default async function CardPage({ params }: PageProps<"/cards/[type]/[slu
         </p>
       </header>
 
-      {rows.length === 0 ? (
+      {table.length === 0 ? (
         <p className={`mt-8 ${panelEmpty}`}>
           Nothing shows up alongside {name} often enough to list yet.
         </p>
       ) : (
-        <ul className="mt-8 divide-y divide-line rounded-lg border border-line">
-          {rows.map((row) => {
-            const other = byKey.get(row.key);
-            // A key with no printing behind it would mean the snapshot and the
-            // card pool disagree, which `check:printings` exists to prevent.
-            // Skipping is still better than rendering a blank row.
-            if (!other) return null;
-            const otherName = cardPageName(other);
-            const thumb = cardThumb(other.imageThumb);
-            return (
-              <li key={row.key} className="flex items-center gap-3 px-4 py-3">
-                <span
-                  className="w-9 shrink-0 overflow-hidden rounded-md bg-sunken"
-                  style={{ aspectRatio: aspectRatio(other.type) }}
-                >
-                  {thumb && (
-                    // Straight from the source CDN, like every other card
-                    // image on the site. See docs/card-images.md.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={thumb} alt="" className="size-full object-cover" />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5 text-sm font-medium text-ink">
-                    {/* Drawn inline rather than through `DomainDots` and
-                        `EnergyChip`: those live in a `"use client"` module, and
-                        importing one would ship the whole detail modal to a
-                        page that has no interactivity at all. */}
-                    <span
-                      aria-label={other.domains.join(", ")}
-                      className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
-                      style={{ background: domainDot(other.domains) }}
-                    />
-                    <span className="truncate">
-                      {row.hasPage ? (
-                        <Link href={cardPagePath(other)} className={linkClass}>
-                          {otherName}
-                        </Link>
-                      ) : (
-                        otherName
-                      )}
-                    </span>
-                    {other.energyCost !== null && (
-                      <span
-                        aria-label={`Energy ${other.energyCost}`}
-                        className="ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-sunken text-[11px] font-semibold tabular-nums text-muted"
-                      >
-                        {other.energyCost}
-                      </span>
-                    )}
-                  </span>
-                  <span className="mt-0.5 block text-xs text-subtle">
-                    In {row.withPct} of cubes with {name}, {row.overallPct} overall
-                  </span>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+        <PairingTable rows={table} subjectName={name} popularity={popularity} />
       )}
 
       <p className="mt-6 text-xs text-subtle">

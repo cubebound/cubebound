@@ -5,13 +5,13 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import type { BrowseCard } from "@/db/queries/cards";
 import CardArt from "@/components/card-art";
-import type { CardPopularityView } from "@/lib/card-popularity";
+import { cardPageName, type CardPopularityView } from "@/lib/card-popularity";
 import { cardFull, cardThumb } from "@/lib/card-images";
 import { printingTreatment } from "@/lib/card-ids";
 import { domainDot } from "@/lib/domain-columns";
 import { aspectRatio, DOMAIN_COLORS, titleCase, totalPips } from "@/lib/riftbound";
 import { parseRulesText, type RulesSymbol } from "@/lib/rules-text";
-import { btn, cardGrid } from "@/lib/ui";
+import { cardGrid, link } from "@/lib/ui";
 
 /* Shared between the card browser and the cube editor.
    Card images come straight from the source CDN — we deliberately do not proxy
@@ -357,22 +357,24 @@ export function CardDetail({
             </p>
           )}
 
+          {/* The caller's controls come first: in the editor they are the
+              reason the box is open, and the statistics are context. */}
+          {footer && <div className="mt-5">{footer}</div>}
+
           {popularity && (
-            <div className="mt-4 border-t border-line pt-4">
-              <p className="text-sm text-muted">{popularity.label}</p>
-              {/* The button appears only once the card is in cubes from at
-                  least five different people. Below that a pairing list would
-                  be a description of one or two of them, which is the thing
+            <div className="mt-4 border-t border-line pt-4 text-sm">
+              <p className="text-muted">{popularity.label}</p>
+              {/* The link appears only once the card is in cubes from at least
+                  five different people. Below that a pairing list would be a
+                  description of one or two of them, which is the thing
                   /privacy promises never to publish. */}
               {popularity.href && (
-                <Link href={popularity.href} className={`${btn.secondarySm} mt-3`}>
-                  Cards commonly cubed with
+                <Link href={popularity.href} className={`${link} mt-1 inline-block`}>
+                  Cards commonly cubed with {cardPageName(card)}
                 </Link>
               )}
             </div>
           )}
-
-          {footer && <div className="mt-5">{footer}</div>}
         </div>
       </div>
     </div>
