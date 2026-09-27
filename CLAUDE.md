@@ -146,8 +146,10 @@ broken until production is migrated. Any report on work that includes a
 migration must say so explicitly — the deploy will look successful and the
 feature will fail at request time.
 
-Commit per logical piece of work with a descriptive message. **Do not merge to
-`master`, and do not suggest merging** — the owner decides when work goes live.
+Commit per logical piece of work with a descriptive message. **Merge to `master`
+only when the owner explicitly asks, and never suggest it unprompted** — the owner
+decides when work goes live. Asked, merge each branch `--no-ff`, add a separate
+"Mark item N merged" roadmap commit, push, then delete the merged branch.
 
 ### Secrets, auth and RLS
 
