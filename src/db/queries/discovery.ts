@@ -242,8 +242,14 @@ export async function searchCubesPage(
  *
  * Deliberately not `searchCubes`: that selects a cover image and a follower
  * count as correlated subqueries per row, which is right for a page of twenty
- * and wasteful for two thousand. A crawler needs a URL and a date. Public only,
- * by the same `visibility` rule as everything else here.
+ * and wasteful for two thousand. A crawler needs a URL and a date.
+ *
+ * It does share `conditions()`, though, so public-only and the moderation
+ * exclusion are the one rule every other listing uses rather than a
+ * restatement that can drift. It restated them once, and the two that went
+ * missing were the moderation pair: a hidden cube and a suspended owner's
+ * public cube both stayed in the sitemap, which is the single worst place for
+ * a leak — it is submitted, indexed and cached long after the row changed.
  */
 /**
  * Cubes worth crawling: public, and holding at least `SITEMAP_MIN_CARDS`.
@@ -268,12 +274,7 @@ export async function listPublicCubesForSitemap(
     })
     .from(cubes)
     .innerJoin(users, eq(users.id, cubes.ownerId))
-    .where(
-      and(
-        eq(cubes.visibility, "public"),
-        sql`${cardCount} >= ${SITEMAP_MIN_CARDS}`,
-      ),
-    )
+    .where(conditions({ minCards: SITEMAP_MIN_CARDS }))
     .orderBy(desc(cubes.updatedAt))
     .limit(limit);
 }
