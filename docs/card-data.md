@@ -26,7 +26,12 @@ row came from. Select with `CARD_SOURCE` env (default `riftcodex`).
   `champion` the traits. So the champion is the **last** segment before the
   separator, and when there is no separator it is the leading comma segment
   only if the card's own `tags` confirm it (which leaves ordinary titles like
-  `Heisho, Shell of the World` alone).
+  `Heisho, Shell of the World` alone). A third quirk: some alt-art legends
+  arrive as the bare title (`VEN-194`, `Defender of Tomorrow`, where its base
+  is `Jayce - Defender of Tomorrow`). A legend with no separator and exactly
+  one tag takes that tag as its champion; with several it stays null. Without
+  this, the printings of one legend spell its card page differently, which
+  `check:printings` fails on.
 - **riftscribe (retired but selectable)** — RiftScribe open API
   (`https://riftscribe.gg`). Dropped as the default because its `faction` is a
   single string, so every multi-domain card lost a domain: all legends came

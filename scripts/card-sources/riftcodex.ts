@@ -128,6 +128,14 @@ export function splitCardName(
       const candidate = base.slice(0, comma).trim();
       if (isTag(candidate)) return { name: base, champion: candidate };
     }
+    // Some alt-art legends arrive as the bare title ("Defender of Tomorrow" for
+    // VEN-194, whose base VEN-149 is "Jayce - Defender of Tomorrow"). Every
+    // legend has a champion, and a single tag can only be that champion. With
+    // several tags there is no telling which one it is, so it stays unknown
+    // rather than guessed.
+    if (type === "Legend" && tags.length === 1) {
+      return { name: base, champion: String(tags[0]) };
+    }
     return { name: base, champion: null };
   }
 
