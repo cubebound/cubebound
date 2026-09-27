@@ -94,6 +94,14 @@
   the dropdown filter uses exact array containment so "Zaun" can't also match a
   future "Zaunite". `keywords` is empty on every row and is not searched.
 
+- **Below `sm` the filters fold behind one button.** The eleven controls took
+  three rows on a phone, so the first screen was filters with no cards on it.
+  Now the search box stays, and a single "Filters" button opens and closes every
+  dropdown together, showing a count of the active groups so a closed panel
+  never hides that results are narrowed; the result count moves beside it. It
+  is client state rather than a URL parameter (how you are looking, not what
+  you are looking for), and it stays open across filtering because the bar
+  stays mounted. From `sm` up nothing changes, and the rule below still holds.
 - **The filter bar's controls are fixed-width, and the page always reserves a
   scrollbar.** Both exist because adjusting a filter made the whole page
   twitch, and the causes were three separate things — measured, not guessed:
