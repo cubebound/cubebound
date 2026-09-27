@@ -80,7 +80,11 @@
   and implying every trace is gone are all the same fault.
   **Any change to how deletion behaves moves that section and the "Your data"
   paragraph on `/settings` in the same commit**; what actually survives is
-  [moderation.md](moderation.md)'s to describe.
+  [moderation.md](moderation.md)'s to describe. **The same holds for anything
+  the site computes across other people's cubes**: "What we store" states that
+  private cubes are counted into site-wide statistics and what is published from
+  them, so a change to what that reads or discloses moves the paragraph and
+  `LAST_UPDATED` with it — the read is [discovery.md](discovery.md)'s.
 - **A cube's cover art is a card in that cube** (`cubes.cover_card_id`), picked
   on the settings page. Restricted to cards the cube holds, because a cover is
   meant to say what the cube *is* rather than be an arbitrary image slot.

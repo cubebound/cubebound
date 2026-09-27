@@ -14,7 +14,8 @@
  *    to the total with no card counted twice and none left unreachable. That
  *    is what catches "9+" written as `> 9`, and costless cards falling into 0.
  *  - sorting actually orders, including the canonical orders for rarity and
- *    type, which are not alphabetical.
+ *    type, which are not alphabetical, and "Most played", whose key is not on
+ *    the card at all.
  *  - the pre-multi-select URLs (`?domain=Fury`) still mean what they did.
  *  - tokens are not cards: no search, type-ahead or filter list reaches one,
  *    and a real card named after a token is still found. Every independent
@@ -35,9 +36,16 @@ import {
   searchCards,
   type CardFilters,
 } from "../src/db/queries/cards";
-import { isTokenCard, TOKEN_ID_PATTERN } from "../src/lib/card-ids";
+import { getCardPopularity } from "../src/db/queries/discovery";
+import { collapseIdentityKey, isTokenCard, TOKEN_ID_PATTERN } from "../src/lib/card-ids";
 import { cardFiltersFromParams } from "../src/lib/card-search-params";
-import { CARD_TYPE_ORDER, ENERGY_BUCKETS, RARITIES } from "../src/lib/riftbound";
+import {
+  CARD_SORT_LABELS,
+  CARD_SORTS,
+  CARD_TYPE_ORDER,
+  ENERGY_BUCKETS,
+  RARITIES,
+} from "../src/lib/riftbound";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 const failures: string[] = [];
@@ -262,6 +270,53 @@ try {
     "the default sort should be the printed order",
   );
 
+  // ---- "Most played" orders by something that is not on the card --------
+  // Every other sort reads a column, so getting it wrong changes the order
+  // visibly. This one ships a memoised snapshot as a bound jsonb parameter and
+  // looks each row up by its collapsed identity, and both halves fail quietly:
+  // a key that never matches coalesces to zero for every card, which is a page
+  // in plain alphabetical order and looks like an ordering choice rather than a
+  // broken one. So it is asserted against the snapshot itself.
+  const snapshot = await getCardPopularity();
+  const byPlayed = await searchCards({ sort: "played", allPrintings: true });
+  expect(
+    byPlayed.total === byDefault.total,
+    `sort=played returned ${byPlayed.total} cards against the default sort's ` +
+      `${byDefault.total} — a sort must order the pool, never filter it`,
+  );
+
+  const playedCounts = byPlayed.cards.map(
+    (card) => snapshot.byKey.get(collapseIdentityKey(card))?.cubes ?? 0,
+  );
+  expect(
+    playedCounts.every((n, i) => i === 0 || playedCounts[i - 1] >= n),
+    `sort=played is not descending by cubes: ${playedCounts.slice(0, 12).join(", ")}`,
+  );
+  // Ties are most of the pool once past the staples, so their order is what a
+  // reader actually sees. Alphabetical beats whatever the plan returns, and an
+  // unstable one reshuffles the page on every memo refresh.
+  const tieBreak = byPlayed.cards.every(
+    (card, i) =>
+      i === 0 ||
+      playedCounts[i - 1] !== playedCounts[i] ||
+      byPlayed.cards[i - 1].name <= card.name,
+  );
+  expect(tieBreak, "sort=played must break ties on name, or the page is not stable");
+
+  // Only meaningful once the dev database has cubes in it; with an empty pool
+  // every count is zero and the assertions above hold vacuously, so say which.
+  const cubedOnPage = playedCounts.filter((n) => n > 0).length;
+  expect(
+    cardFiltersFromParams({ sort: "played" }).sort === "played",
+    "sort=played must survive URL parsing, or the control renders and does nothing",
+  );
+  // A sort with no label renders as blank in the filter bar's <select>.
+  const unlabelled = CARD_SORTS.filter((sort) => !CARD_SORT_LABELS[sort]);
+  expect(
+    unlabelled.length === 0,
+    `every sort needs a label in CARD_SORT_LABELS, missing: ${unlabelled.join(", ")}`,
+  );
+
   // ---- the URLs the filters are actually reached by ---------------------
   // Repeated params are how a plain HTML form submits a checkbox group, so the
   // no-JS path and the router must parse to the same thing.
@@ -383,6 +438,13 @@ try {
   console.log(
     `card filters: ${total} printings — Fury ${fury}, Calm ${calm}, both ${both}, ` +
       `either ${either}; energy buckets sum ${bucketSum}`,
+  );
+
+  console.log(
+    `most played: ${snapshot.total} cube(s) counted, ${snapshot.byKey.size} card(s) ` +
+      `cubed at least once, ${cubedOnPage} of the first ${byPlayed.cards.length} rows ` +
+      `in a cube` +
+      (snapshot.total === 0 ? " (empty pool: the ordering assertions are vacuous)" : ""),
   );
 } catch (error) {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);

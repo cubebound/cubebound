@@ -71,7 +71,8 @@
   names itself like every other filter value. Ordered
   by **name**, not code: the codes interleave promos through the real sets
   (JDG, OGN, OGS, OPP, PR…), which reads as no order at all.
-- **Sorting is `?sort=` over set (default), name, energy, type, rarity.** Rarity
+- **Sorting is `?sort=` over set (default), name, energy, type, rarity and
+  played ("Most played", see below).** Rarity
   and type rank against the canonical lists rather than sorting alphabetically,
   and **`CARD_TYPE_ORDER` is not `CARD_TYPES`** — the latter is display
   vocabulary including "Champion Unit" and "Signature Spell", which are a `type`
@@ -113,3 +114,57 @@
   viewports no longer depend on the filters either, which is the property that
   matters: a filter change must never change the layout.
 - Filter navigation must not throw away the reader's scroll position. `scroll: false` alone is not enough — the router still pulls the viewport to the top of the refreshed segment — so `CardFilterBar` captures `window.scrollY` before navigating and reapplies it when the transition settles.
+
+## How often a card is cubed, on screen
+
+The snapshot and its arithmetic belong elsewhere: the read is
+[discovery.md](discovery.md)'s, and the rounding and floor rules are
+`src/lib/card-popularity.ts`'s, asserted by `check:popularity`. What follows is
+only how those numbers reach a page.
+
+- **A client component receives a label, never a number.** `CardDetail` takes an
+  optional `CardPopularityView` — one formatted string ("In 34% of cubes") and a
+  href — and renders it as a bordered block under the printing count. Nothing on
+  the browser side divides, rounds or decides a threshold, so the
+  never-a-false-0% and never-a-false-100% rules cannot be reimplemented
+  differently on each of the four surfaces that show the modal. A card nobody has
+  cubed is **absent from the map** rather than present at 0%, so the block does
+  not render at all and the prop stays optional: a surface that has not built a
+  map is unchanged.
+- **"Cards commonly cubed with" is gated on the href being non-null**, which is
+  how the distinct-owner floor reaches the UI: below it `popularityForCards`
+  hands over a label and no link, so a pairing list that would really be a
+  description of one or two people's cubes has no button to reach it. The
+  destination is `cardPagePath`; the page itself is the remaining step of
+  roadmap item 6a-1 and is not built yet.
+- **The map is built for the cards a page actually renders, and never for the
+  pool.** Keyed by printing id, because the modal opens a *printing* while
+  popularity is a property of the card. `/cards` folds it into the existing
+  `Promise.all` over the page's results; the cube page builds it over the
+  maybeboard rows or the cube rows depending on the tab, and only when the tab
+  shows cards at all; the editor builds it over the browse results in browse mode
+  and over `rendered` otherwise, and only in the three modes with a modal to put
+  a line in. Two reasons it is not built wider: at most sixty cards are on screen
+  against a snapshot covering every qualifying cube, and — the part that is not
+  an optimisation — **`PopularitySnapshot` must never cross to the browser**,
+  because it carries per-cube card lists for cubes their owners marked private.
+  `popularityForCards` is the reduction that makes the value safe to serialise,
+  so a new surface calls it rather than passing the snapshot down.
+- **`sort=played` ships the counts as one bound `jsonb` parameter.** It is the
+  only ordering whose key is not a column: `orderFor` reads
+  `$1::jsonb ->> collapseKeyOf(name, type)`, coalesced to 0 for everything the
+  snapshot does not mention. One parameter whatever the pool size, and — the part
+  that matters — the values stay **bound**. The obvious alternative, a
+  `CASE WHEN name = '…'` ladder built by concatenation, would put names that come
+  from a synced source straight into SQL text. Ties break on **name** and then the
+  printed order, because past the staples most of the pool shares a count and
+  alphabetical beats whatever the plan happens to return.
+- **The snapshot is imported lazily, inside `runSearchCards`.** A static
+  `import` of `queries/discovery.ts` here closes the cycle
+  `cards → discovery → cubes → cards`, which ESM resolves by handing one module a
+  half-initialised import and failing at some unrelated line. It is awaited in
+  `runSearchCards` rather than in `orderFor`, which has to stay synchronous.
+- `check:card-filters` asserts the ordering against the snapshot itself, because
+  both halves of that lookup fail *quietly*: a key that never matches coalesces
+  to zero for every row, which is a page in plain alphabetical order and reads as
+  a choice rather than a fault.

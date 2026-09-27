@@ -11,6 +11,7 @@ import {
 import CubeSections from "@/components/cube-sections";
 import type { CardPrinting } from "@/db/queries/cards";
 import type { CubeCardRow } from "@/db/queries/cubes";
+import type { CardPopularityView } from "@/lib/card-popularity";
 import type { CubeView } from "@/lib/cube-view";
 import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
 
@@ -27,6 +28,7 @@ export default function CubeContents({
   printingsByBase,
   sections,
   emptyMessage,
+  popularity,
 }: {
   cubeId: string;
   cards: CubeCardRow[];
@@ -39,6 +41,8 @@ export default function CubeContents({
   /** Two columns per printing, not a whole card row — the dropdown renders the
    *  id and marks the base one. See `CardPrinting`. */
   printingsByBase: Record<string, CardPrinting[]>;
+  /** Passed straight through to the detail modal; built on the server. */
+  popularity?: Record<string, CardPopularityView>;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -139,6 +143,7 @@ export default function CubeContents({
         cards={cards}
         view={view}
         {...(sections ? { sections } : {})}
+        {...(popularity ? { popularity } : {})}
         emptyMessage={emptyMessage ?? "No cards yet. Press Edit to start adding cards."}
         detailFooter={(card, retarget) => (
           <div className="space-y-3">

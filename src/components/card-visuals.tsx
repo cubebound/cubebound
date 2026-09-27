@@ -5,12 +5,13 @@ import { useEffect, useRef, type ReactNode } from "react";
 
 import type { BrowseCard } from "@/db/queries/cards";
 import CardArt from "@/components/card-art";
+import type { CardPopularityView } from "@/lib/card-popularity";
 import { cardFull, cardThumb } from "@/lib/card-images";
 import { printingTreatment } from "@/lib/card-ids";
 import { domainDot } from "@/lib/domain-columns";
 import { aspectRatio, DOMAIN_COLORS, titleCase, totalPips } from "@/lib/riftbound";
 import { parseRulesText, type RulesSymbol } from "@/lib/rules-text";
-import { cardGrid } from "@/lib/ui";
+import { btn, cardGrid } from "@/lib/ui";
 
 /* Shared between the card browser and the cube editor.
    Card images come straight from the source CDN — we deliberately do not proxy
@@ -214,11 +215,23 @@ export function CardDetail({
   card,
   onClose,
   footer,
+  popularity,
 }: {
   card: BrowseCard;
   onClose: () => void;
   /** Extra controls, e.g. the cube editor's add button. */
   footer?: ReactNode;
+  /**
+   * How often this card is cubed, already rendered as words upstream.
+   *
+   * Optional and absent by default: a card nobody has cubed says nothing
+   * rather than "In 0% of cubes", and a surface that has not built the map
+   * simply does not show the line. The label arrives formatted because the
+   * rounding rules (never a false 0%, never a false 100%) are decided once in
+   * `src/lib/card-popularity.ts`, and `href` is null below the owner floor —
+   * see docs/card-browser.md.
+   */
+  popularity?: CardPopularityView;
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const treatment = printingTreatment(card);
@@ -342,6 +355,21 @@ export function CardDetail({
             <p className="mt-4 text-xs text-subtle">
               {card.printingCount} printings of this card.
             </p>
+          )}
+
+          {popularity && (
+            <div className="mt-4 border-t border-line pt-4">
+              <p className="text-sm text-muted">{popularity.label}</p>
+              {/* The button appears only once the card is in cubes from at
+                  least five different people. Below that a pairing list would
+                  be a description of one or two of them, which is the thing
+                  /privacy promises never to publish. */}
+              {popularity.href && (
+                <Link href={popularity.href} className={`${btn.secondarySm} mt-3`}>
+                  Cards commonly cubed with
+                </Link>
+              )}
+            </div>
           )}
 
           {footer && <div className="mt-5">{footer}</div>}

@@ -12,7 +12,8 @@ import FollowButton from "@/components/follow-button";
 import Primer from "@/components/primer";
 import { getCubeCards, listCubeChanges } from "@/db/queries/cubes";
 import { getFollowState } from "@/db/queries/discovery";
-import { loadCube, loadViewer } from "@/lib/cube-request";
+import { popularityForCards } from "@/lib/card-popularity";
+import { loadCardPopularity, loadCube, loadViewer } from "@/lib/cube-request";
 import type { SearchParams } from "@/lib/card-search-params";
 import { CubeModerationPanel } from "@/components/moderation-panel";
 import { canViewCube } from "@/lib/cube-access";
@@ -160,11 +161,15 @@ export default async function CubePage({
 
   // Second round: the cards and the follow state need the cube's id, but not
   // each other.
-  const [allCards, follows, changes] = await Promise.all([
+  const [allCards, follows, changes, snapshot] = await Promise.all([
     getCubeCards(cubeId),
     getFollowState(cubeId, viewerId),
     // Only the Change log tab reads this, so it is not paid for on the others.
     tab === "log" ? listCubeChanges(cubeId) : [],
+    // Likewise: only the tabs that can open a card modal have anywhere to put
+    // a popularity line. Within the request this is a `cache()` hit anyway if
+    // something above already asked.
+    tabShowsCards(tab) ? loadCardPopularity() : null,
   ]);
 
   // The maybeboard is a shortlist, not part of the cube: counting it would make
@@ -178,6 +183,13 @@ export default async function CubePage({
     bySection.set(card.section, (bySection.get(card.section) ?? 0) + card.quantity);
   }
   const sectionCounts = CUBE_LIST_SECTIONS.filter((section) => bySection.has(section));
+
+  // For the rows this tab will actually render, and nothing wider. The
+  // snapshot itself carries the card lists of private cubes and stays on the
+  // server; only the label and the link cross over.
+  const popularity = snapshot
+    ? popularityForCards(snapshot, tab === "maybeboard" ? maybeboard : cards)
+    : {};
 
   // Only a visitor reaches this page, so Follow is unconditional here; the
   // owner's own follower count is in the editor's byline instead.
@@ -333,12 +345,14 @@ export default async function CubePage({
           view={view}
           sections={["maybeboard"]}
           emptyMessage="Nothing on the maybeboard."
+          popularity={popularity}
         />
       ) : (
         <CubeSections
           cards={cards}
           view={view}
           emptyMessage="This cube doesn't have any cards yet."
+          popularity={popularity}
         />
       )}
       </div>

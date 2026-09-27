@@ -393,6 +393,33 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
   const sort = filters.sort ?? "set";
 
   /**
+   * How many cubes run each card, as **one bound jsonb parameter**.
+   *
+   * Sorting by a number that lives outside the database is the awkward part of
+   * this sort: the counts come from a memo, not from a column. Shipping them as
+   * a single `$1::jsonb` and looking each row up with `->>` keeps it to one
+   * parameter whatever the pool size, and — the part that matters — keeps the
+   * values *bound*. Building a `CASE WHEN name = '…'` ladder by interpolation
+   * would put card names, which come from a synced source, straight into SQL
+   * text. Only cubed cards are in the map, so it is a few hundred keys rather
+   * than the whole pool, and everything else coalesces to zero.
+   *
+   * **Imported lazily**, because `discovery.ts` imports this module and
+   * `cubes.ts` imports it too: a static import here would close the loop
+   * `cards → discovery → cubes → cards`, which ESM resolves by handing one of
+   * them a half-initialised module and failing at some unrelated line. Awaited
+   * here rather than inside `orderFor`, which has to stay synchronous.
+   */
+  let playedCounts: SQL | null = null;
+  if (sort === "played") {
+    const { getCardPopularity } = await import("./discovery");
+    const snapshot = await getCardPopularity();
+    const counts: Record<string, number> = {};
+    for (const [key, stats] of snapshot.byKey) counts[key] = stats.cubes;
+    playedCounts = sql`${JSON.stringify(counts)}::jsonb`;
+  }
+
+  /**
    * The ORDER BY for a sort, over either `cards` or the grouped subquery.
    *
    * Every ordering ends with the printed order as its tie-break, so equal
@@ -427,6 +454,20 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
         return [canonicalRank(col.type as SQLWrapper, CARD_TYPE_ORDER), ...printed];
       case "rarity":
         return [canonicalRank(col.rarity as SQLWrapper, RARITIES), ...printed];
+      // Ties are many and deliberate: below the first page or two most cards
+      // are in the same handful of cubes, so `name` keeps them alphabetical
+      // rather than in whatever order the plan returns.
+      case "played":
+        return playedCounts
+          ? [
+              sql`coalesce((${playedCounts} ->> ${collapseKeyOf(
+                col.name as SQLWrapper,
+                col.type as SQLWrapper,
+              )})::int, 0) desc`,
+              col.name as never,
+              ...printed,
+            ]
+          : printed;
       default:
         return printed;
     }

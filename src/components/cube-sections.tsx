@@ -8,6 +8,7 @@ import { useCardsPerRow } from "@/components/cards-per-row";
 import { cardGrid } from "@/lib/ui";
 import CubeTable from "@/components/cube-table";
 import type { CubeCardRow } from "@/db/queries/cubes";
+import type { CardPopularityView } from "@/lib/card-popularity";
 import { countCopies, expandCopies } from "@/lib/cube-cards";
 import { compareForDisplay } from "@/lib/domain-columns";
 import type { CubeView } from "@/lib/cube-view";
@@ -34,10 +35,14 @@ export default function CubeSections({
   emptyMessage = "No cards yet.",
   detailFooter,
   sections = CUBE_LIST_SECTIONS,
+  popularity = {},
 }: {
   cards: CubeCardRow[];
   view: CubeView;
   emptyMessage?: string;
+  /** How often each card here is cubed site-wide, keyed by printing id and
+   *  built on the server. Absent for a card with nothing to say. */
+  popularity?: Record<string, CardPopularityView>;
   /**
    * `retarget` follows the open card after an edit made from inside the modal.
    * Needed because an edit can leave the original row standing: switching one
@@ -150,6 +155,7 @@ export default function CubeSections({
         <CardDetail
           card={selected}
           onClose={close}
+          popularity={popularity[selected.id]}
           footer={detailFooter?.(selected, (next) =>
             setSelectedKey(
               `${selected.baseId}|${next.id ?? selected.id}|${next.section ?? selected.section}`,
