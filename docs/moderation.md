@@ -41,6 +41,15 @@ moderator role beyond it yet.
   profile, the followed tab, the sitemap, and the owner's own `/cubes`. That
   last one is the point: the owner's list is where a hidden cube would
   otherwise still be advertised.
+- **It reaches the card statistics too, and that is the one place a miss would
+  be invisible.** The percentages are computed over cubes their owners marked
+  private, so nobody reading "in 34% of cubes" can see which cubes those were; a
+  hidden cube that still moves a published number is moderation that did not
+  take. It holds because the reader goes through the same `conditions()` rather
+  than counting cubes for itself (see [discovery.md](discovery.md)), and
+  `check:moderation` asserts it end to end: a private cube at the floor counts,
+  hiding it or suspending its owner stops it counting, and un-doing either
+  restores it.
 - **`moderation_log` is outside every cascade.** `actor_id` sets null and
   `target_id` is deliberately not a foreign key, because the record has to
   outlive both the moderator and the thing acted on; `snapshot` is the only

@@ -259,8 +259,17 @@ type CardSearchResult = {
  * Mirrors `collapseIdentityKey` in src/lib/card-ids.ts, which is what
  * `check:printings` compares this against on every row — the same
  * two-definitions-must-agree arrangement `assignBaseIds` has with `0003`.
+ *
+ * Takes its columns rather than closing over `cards`, because the popularity
+ * reader in discovery.ts needs the identical expression and a second copy of a
+ * rule this fiddly is a copy that will drift. `collapseKey` below is the only
+ * form this file uses.
  */
-const collapseKey = sql`(lower(regexp_replace(${cards.name}, '\\s*\\([^()]*\\)\\s*$', '')) || '|' || ${cards.type})`;
+export function collapseKeyOf(nameCol: SQLWrapper, typeCol: SQLWrapper): SQL {
+  return sql`(lower(regexp_replace(${nameCol}, '\\s*\\([^()]*\\)\\s*$', '')) || '|' || ${typeCol})`;
+}
+
+const collapseKey = collapseKeyOf(cards.name, cards.type);
 
 /**
  * A token (Recruit, Sprite, Gold…), which is not a card: the browser, both

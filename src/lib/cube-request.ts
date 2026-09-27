@@ -1,6 +1,7 @@
 import { cache } from "react";
 
 import { getCubeByOwnerAndSlug, type CubeWithOwner } from "@/db/queries/cubes";
+import { getCardPopularity } from "@/db/queries/discovery";
 import { getUserByUsername } from "@/db/queries/users";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -30,3 +31,15 @@ export const loadViewer = cache(async () => getCurrentUser());
 export const loadUserByUsername = cache(async (username: string) =>
   getUserByUsername(username),
 );
+
+/**
+ * The popularity snapshot, once per request.
+ *
+ * Doubly memoised on purpose, and the two layers answer different questions.
+ * `getCardPopularity`'s own memo decides how *stale* the numbers may be, across
+ * requests and with an hour's TTL. This one decides how many times one render
+ * asks: a cube page's layout gates on it and its page then reads it again, and
+ * the card page does the same. Without `cache()` those are two awaits of a
+ * promise that may not have resolved into the memo yet.
+ */
+export const loadCardPopularity = cache(async () => getCardPopularity());

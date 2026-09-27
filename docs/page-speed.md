@@ -48,7 +48,7 @@ Two things dominate, and neither is the amount of data.
     failed immediately afterwards. A gate step that breaks the next gate step is
     worse than none, and it was measuring the free tier's capacity as much as
     the code. What actually needs guarding is that nobody removes the pool
-    bounds or the memos, and both are checkable in three queries. **If you do
+    bounds or the memos, and both are checkable in six reads. **If you do
     want to load-test by hand, check `select 1` before believing a failure**:
     slow means the environment, fast means the code.
 

@@ -20,13 +20,14 @@
  * guarding: the regression to prevent is someone removing the pool bounds or
  * the memo, and both of those are checkable directly and deterministically.
  *
- * Needs a database for the memo assertion, but issues three queries, not 240.
+ * Needs a database for the memo assertions, but issues six reads, not 240.
  *
  *   npm run check:pool
  */
 import { readFileSync } from "node:fs";
 
 import { getFilterOptions, searchCards } from "../src/db/queries/cards";
+import { getCardPopularity, resetCardPopularityMemo } from "../src/db/queries/discovery";
 
 const failures: string[] = [];
 const expect = (ok: boolean, message: string) => {
@@ -116,6 +117,41 @@ try {
       `memo grows without bound on attacker-controlled keys`,
   );
 
+  // ---- the popularity snapshot is memoised, and shared while in flight --
+  // This one reads *every* qualifying cube and every card in it, so it is the
+  // most expensive read on the site and the one it would hurt most to repeat.
+  const firstPopularity = Date.now();
+  await getCardPopularity();
+  const popularityCold = Date.now() - firstPopularity;
+
+  const secondPopularity = Date.now();
+  await getCardPopularity();
+  const popularityWarm = Date.now() - secondPopularity;
+
+  expect(
+    popularityWarm < 5,
+    `getCardPopularity took ${popularityWarm}ms on a second call (first ` +
+      `${popularityCold}ms) — it must be memoised; it scans every cube on the site`,
+  );
+
+  // **Coalescing, which the TTL alone does not give.** A TTL only deduplicates
+  // calls arriving after the first has finished; concurrent ones each miss and
+  // each fire their own whole-table read. That burst — the editor's browse tab,
+  // one render per card added, against a pool of six — is what took the site
+  // down in August. Asserted by identity rather than by timing: six separate
+  // reads would build six distinct snapshots, one shared read returns one
+  // object six times, and nothing about that is flaky.
+  resetCardPopularityMemo();
+  const concurrent = await Promise.all(
+    Array.from({ length: 6 }, () => getCardPopularity()),
+  );
+  expect(
+    concurrent.every((snapshot) => snapshot === concurrent[0]),
+    "six concurrent getCardPopularity() calls from cold returned more than one " +
+      "snapshot object — the in-flight promise must be shared, or a cold instance " +
+      "fires the whole-table read once per request in flight",
+  );
+
   // ---- a bad read is never cached --------------------------------------
   // Production once served a rarity filter whose only option was "966" — the
   // card count, which the count query aliased `value`, exactly the shape the
@@ -147,7 +183,8 @@ try {
   console.log(
     `pool: max ${max}, idle and connect timeouts set; ` +
       `filter options ${optionsCold}ms then ${optionsWarm}ms, ` +
-      `default page ${pageCold}ms then ${pageWarm}ms`,
+      `default page ${pageCold}ms then ${pageWarm}ms, ` +
+      `popularity ${popularityCold}ms then ${popularityWarm}ms and shared in flight`,
   );
 } catch (error) {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);
