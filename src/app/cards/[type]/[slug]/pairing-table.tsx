@@ -116,7 +116,7 @@ export default function PairingTable({
                   type="button"
                   onClick={() => setSelected(row.card)}
                   aria-label={`Show ${name}`}
-                  className="block w-full overflow-hidden rounded-md bg-sunken ring-1 ring-black/10 transition hover:ring-2 hover:ring-ink dark:ring-white/15"
+                  className="relative block w-full overflow-hidden rounded-md bg-sunken ring-1 ring-black/10 transition hover:ring-2 hover:ring-ink dark:ring-white/15"
                   style={{ aspectRatio: aspectRatio(row.card.type) }}
                 >
                   <CardArt src={thumb} name={name} className="object-cover" />
