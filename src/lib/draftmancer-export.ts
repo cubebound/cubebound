@@ -215,11 +215,11 @@ function powerCostText(powerCost: Record<string, number> | null): string {
 }
 
 /**
- * The source stores the cost/effect separator HTML-escaped — `Action&gt; Exhaust`
- * — and nothing downstream of us un-escapes it. On our own pages that text goes
- * into JSX, where React would render the entity as written; here it lands in a
- * plain-text JSON field that Draftmancer shows verbatim, so it has to be real
- * characters. Only the five predefined XML entities, decoded `&amp;` last so a
+ * The source HTML-escapes its rules text (`[Reaction][&gt;]`, `&quot;`). The
+ * sync now decodes it (`richToRulesText`), so this is a guard for rows synced
+ * before that, which is production until its next forced sync. It matters here
+ * because the text lands in a plain-text JSON field that Draftmancer shows
+ * verbatim, so it has to be real characters. Only the five predefined XML entities, decoded `&amp;` last so a
  * literal `&amp;gt;` does not become `>`.
  */
 function decodeEntities(text: string): string {

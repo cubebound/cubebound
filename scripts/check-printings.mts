@@ -330,6 +330,30 @@ try {
     `card pages: ${pagePaths.size} distinct URL(s) over ${pathsPerCard.size} card(s)`,
   );
 
+  // ---- rules text arrives as text, not as the source's HTML ---------------
+  // The source's `plain` field was stored for a year: HTML codes shown to
+  // readers ("[Reaction][&gt;]", "&quot;") on 105 cards, and every line break
+  // deleted, running one ability into the next on 625. The sync now reduces
+  // `rich` instead (`richToRulesText`); this is what keeps it that way.
+  const escaped = rows.filter((r) => /&(#?[a-z0-9]+);/i.test(r.rules_text ?? ""));
+  expect(
+    escaped.length === 0,
+    `${escaped.length} card(s) store HTML character codes in their rules text, e.g. ` +
+      escaped.slice(0, 3).map((r) => r.id).join(", "),
+  );
+  const tagged = rows.filter((r) => /<\/?[a-z][^>]*>/i.test(r.rules_text ?? ""));
+  expect(
+    tagged.length === 0,
+    `${tagged.length} card(s) store HTML tags in their rules text, e.g. ` +
+      tagged.slice(0, 3).map((r) => r.id).join(", "),
+  );
+  const multiLine = rows.filter((r) => (r.rules_text ?? "").includes("\n")).length;
+  expect(
+    multiLine > rows.length / 4,
+    `only ${multiLine} card(s) keep a line break in their rules text; about half ` +
+      `of all cards have more than one ability, so the sync is flattening them again`,
+  );
+
   console.log(
     `printings: ${rows.length} rows -> ${canonicals.size} base_id group(s), ` +
       `${collapsed.size} entries as the browser collapses them ` +

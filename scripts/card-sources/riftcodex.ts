@@ -24,6 +24,7 @@
 
 import type { NewCard } from "../../src/db/schema";
 import { provisionalBaseId } from "../../src/lib/card-ids";
+import { decodeEntities } from "../../src/lib/rules-text";
 import { type CardSource, fetchWithRetry, titleCase } from "./types";
 
 const PAGE_SIZE = 100;
@@ -154,6 +155,43 @@ export function splitCardName(
   };
 }
 
+/**
+ * Rules text as we store it: the source's `rich` HTML reduced to plain text
+ * that keeps its line structure.
+ *
+ * `plain` was stored before, and it is not what it looks like: the source
+ * builds it by deleting the tags, so every `<br />` and paragraph break
+ * vanished with nothing in its place. Measured on 27 September 2026: 625 of
+ * 1,288 cards ran one ability into the next ("resolve.)Give a unit"), 30 lost
+ * the options of a "Choose one" list, and 105 still carried HTML codes
+ * (`[Empowered][&gt;]`, `&quot;`). The symbol tokens and `[bracket]` markers
+ * are in `rich` exactly as in `plain`, so the renderer needs nothing else.
+ *
+ * Breaks and paragraphs become newlines, a list item becomes a "• " line, any
+ * other tag is dropped, and character references are decoded. Falls back to
+ * `plain` (decoded) when a card has no `rich`.
+ */
+export function richToRulesText(
+  rich: string | null | undefined,
+  plain: string | null | undefined,
+): string | null {
+  const source = rich ?? plain;
+  if (!source) return null;
+  const text = decodeEntities(
+    source
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>\s*<p[^>]*>/gi, "\n")
+      .replace(/<li[^>]*>/gi, "\n• ")
+      .replace(/<[^>]+>/g, ""),
+  );
+  const cleaned = text
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter((line) => line.length > 0)
+    .join("\n");
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 function toRow(card: RiftcodexCard, syncedAt: Date): NewCard | null {
   const id = riftcodexCardId(card.riftbound_id);
   if (!id) return null;
@@ -178,9 +216,7 @@ function toRow(card: RiftcodexCard, syncedAt: Date): NewCard | null {
     energyCost: card.attributes?.energy ?? null,
     powerCost: buildPowerCost(card.attributes?.power, domains),
     might: card.attributes?.might ?? null,
-    // `plain` is the same rules text with the markup stripped; keep it, since
-    // the symbol tokens live in it and the renderer expects them.
-    rulesText: card.text?.plain ?? null,
+    rulesText: richToRulesText(card.text?.rich, card.text?.plain),
     keywords: [],
     tags: card.tags ?? [],
     champion,

@@ -178,10 +178,20 @@ function SymbolBadge({ symbol }: { symbol: RulesSymbol }) {
 }
 
 export function RulesText({ text }: { text: string }) {
+  // `pre-line`: the stored text keeps the card's line breaks between abilities
+  // and before each "Choose one" option, and collapsing them ran every ability
+  // into the next ("resolve.)Give a unit…").
   return (
-    <p className="text-sm leading-relaxed text-ink">
+    <p className="whitespace-pre-line text-sm leading-relaxed text-ink">
       {parseRulesText(text).map((node, i) => {
         if (node.type === "text") return <span key={i}>{node.value}</span>;
+        if (node.type === "arrow") {
+          return (
+            <span key={i} aria-hidden className="mx-0.5 text-subtle">
+              {"→".repeat(node.value.length)}
+            </span>
+          );
+        }
         if (node.type === "keyword") {
           return (
             <span

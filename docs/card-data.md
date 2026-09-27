@@ -32,6 +32,15 @@ row came from. Select with `CARD_SOURCE` env (default `riftcodex`).
   one tag takes that tag as its champion; with several it stays null. Without
   this, the printings of one legend spell its card page differently, which
   `check:printings` fails on.
+
+  **Rules text comes from `text.rich`, not `text.plain`.** `plain` is the
+  source deleting the tags with nothing in their place: measured 27 September
+  2026, 625 of 1,288 cards ran one ability into the next
+  (`resolve.)Give a unit`), 30 flattened a "Choose one" list, and 105 still
+  carried HTML codes (`&gt;`, `&quot;`). `richToRulesText` turns breaks and
+  paragraphs into `\n` and a `<li>` into a `• ` line, drops other tags and
+  decodes character references, falling back to decoded `plain` for the cards
+  with no `rich`. `check:printings` fails if stored text regresses.
 - **riftscribe (retired but selectable)** — RiftScribe open API
   (`https://riftscribe.gg`). Dropped as the default because its `faction` is a
   single string, so every multi-domain card lost a domain: all legends came

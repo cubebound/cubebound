@@ -8,6 +8,8 @@
 
 - Rules text contains symbol tokens (`:rb_energy_1:`, `:rb_rune_fury:`). Never render `rules_text` raw — go through `parseRulesText` in `src/lib/rules-text.ts`, which resolves the tokens to badges and degrades unknown ones to readable words. Note the source names domain symbols `rune_*` but they are **Power** costs; runes are the resource cards you exhaust or recycle to produce Energy and Power.
 
+- **`[>]` and `[>>]` are not keywords.** On the printed card they are the pointed tail of the badge before them, joining a condition (`[Empowered]`, `[Level 3]`, `[Reaction]`) to its effect, so `parseRulesText` gives them their own `arrow` node: drawn as "→", and ":" in `rulesTextToPlain`. It also decodes HTML character references, so a database synced before the sync decoded them (see [card-data.md](card-data.md)) still reads correctly. `RulesText` renders with `whitespace-pre-line` because stored text carries one line per ability.
+
 ### Format rules (for milestone C's deck builder)
 
 Not enforced anywhere yet — the draft produces a pool, and nothing validates a
