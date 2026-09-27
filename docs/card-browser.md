@@ -144,8 +144,9 @@ only how those numbers reach a page.
   destination is `cardPagePath`, and that page exists: a table, ranked by
   pairing strength, of the cards showing up alongside this one more often than they do in cubes
   overall, under a line saying how often the card itself is cubed and above a
-  footnote saying private cubes were counted and that no cube or owner is ever
-  named. The floor is the same one the link checks, applied again in the route;
+  one-line footnote giving the denominator: every cube with at least
+  `STATS_MIN_CARDS` cards. That private cubes are counted and nobody is named is
+  `/privacy`'s to say, not repeated on every card page. The floor is the same one the link checks, applied again in the route;
   what 404s there and why is [routes.md](routes.md)'s.
 - **Each row of that table opens the same detail box the browser does.** The
   image and the name both open `CardDetail`, with its own popularity line, so a

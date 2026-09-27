@@ -45,7 +45,7 @@ function Dial({ label, strong }: { label: string; strong?: boolean }) {
   const circumference = 2 * Math.PI * radius;
   const fill = fillOf(label);
   return (
-    <span className="relative inline-flex size-12 shrink-0 items-center justify-center sm:size-14">
+    <span className="relative inline-flex size-11 shrink-0 items-center justify-center md:size-14">
       <svg viewBox="0 0 40 40" className="absolute inset-0 size-full -rotate-90" aria-hidden>
         <circle cx="20" cy="20" r={radius} fill="none" strokeWidth="4" className="stroke-line" />
         <circle
@@ -59,7 +59,7 @@ function Dial({ label, strong }: { label: string; strong?: boolean }) {
           className={strong ? "stroke-accent-strong" : "stroke-subtle"}
         />
       </svg>
-      <span className="relative text-[11px] font-semibold tabular-nums text-ink sm:text-xs">
+      <span className="relative text-[11px] font-semibold tabular-nums text-ink md:text-xs">
         {label.startsWith("under") ? "<1%" : label}
       </span>
     </span>
@@ -87,13 +87,13 @@ export default function PairingTable({
   const close = useCallback(() => setSelected(null), []);
 
   const columns =
-    "grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem_3rem_3rem_1.25rem] items-center gap-2 sm:grid-cols-[3.5rem_minmax(0,1fr)_5rem_6rem_6rem_2rem] sm:gap-4";
+    "grid grid-cols-[2rem_minmax(0,1fr)_2.5rem_2.75rem_2.75rem_1rem] items-center gap-1.5 min-[400px]:gap-2 md:grid-cols-[3.5rem_minmax(0,1fr)_5rem_6rem_6rem_2rem] md:gap-4";
 
   return (
     <>
       <div className="mt-8 overflow-hidden rounded-lg border border-line">
         <div
-          className={`${columns} border-b border-line bg-sunken px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-subtle sm:px-4`}
+          className={`${columns} border-b border-line bg-sunken px-3 py-2 text-[10px] font-semibold uppercase text-subtle md:px-4 md:text-[11px] md:tracking-wide`}
         >
           <span className="col-span-2">Card</span>
           <span
@@ -102,7 +102,12 @@ export default function PairingTable({
           >
             Pairing
           </span>
-          <span className="text-center leading-tight">With {subjectName}</span>
+          {/* A card's name does not fit over a dial on a phone, so the short
+              label stands in there; the title still says it in full. */}
+          <span className="text-center leading-tight" title={`With ${subjectName}`}>
+            <span className="md:hidden">With</span>
+            <span className="hidden md:inline">With {subjectName}</span>
+          </span>
           <span className="text-center leading-tight">Overall</span>
           <span className="sr-only">Card page</span>
         </div>
@@ -111,7 +116,7 @@ export default function PairingTable({
             const name = cardPageName(row.card);
             const thumb = cardThumb(row.card.imageThumb);
             return (
-              <li key={row.card.id} className={`${columns} px-3 py-2 sm:px-4`}>
+              <li key={row.card.id} className={`${columns} px-3 py-2 md:px-4`}>
                 <button
                   type="button"
                   onClick={() => setSelected(row.card)}
@@ -124,17 +129,17 @@ export default function PairingTable({
                 <button
                   type="button"
                   onClick={() => setSelected(row.card)}
-                  className="flex min-w-0 items-center gap-2 text-left text-sm font-medium text-ink hover:text-accent"
+                  className="flex min-w-0 items-center gap-2 text-left text-[13px] font-medium text-ink hover:text-accent min-[400px]:text-sm"
                 >
                   <span
                     aria-hidden
                     className="size-2.5 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/15"
                     style={{ background: domainDot(row.card.domains) }}
                   />
-                  <span className="line-clamp-2 leading-snug [overflow-wrap:anywhere] sm:line-clamp-1">{name}</span>
+                  <span className="line-clamp-2 hyphens-auto leading-snug md:line-clamp-1">{name}</span>
                 </button>
                 <span
-                  className="text-center text-sm font-semibold tabular-nums text-ink sm:text-base"
+                  className="text-center text-sm font-semibold tabular-nums text-ink md:text-base"
                   title={`Turns up ${row.strength} as often with ${subjectName} as overall`}
                 >
                   {row.strength}

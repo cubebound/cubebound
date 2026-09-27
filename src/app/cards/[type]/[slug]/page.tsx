@@ -117,7 +117,7 @@ export default async function CardPage({ params }: PageProps<"/cards/[type]/[slu
 
       <p className="mt-6 text-xs text-subtle">
         Counted across every cube on cubebound.gg with at least {STATS_MIN_CARDS}{" "}
-        cards, private ones included. No cube or owner is ever named.
+        cards.
       </p>
 
       <p className="mt-6 text-sm">

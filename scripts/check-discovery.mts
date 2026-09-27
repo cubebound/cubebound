@@ -391,7 +391,7 @@ try {
       `${eligible} should state how often the card is cubed`,
     );
     expect(
-      html.includes("No cube or owner is ever named"),
+      html.includes("Counted across every cube on cubebound.gg"),
       `${eligible} should carry the footnote saying what was counted`,
     );
   }
