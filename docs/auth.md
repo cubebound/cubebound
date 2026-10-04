@@ -115,6 +115,20 @@ section of that page, and the rules governing it are
   alphanumeric at both ends, lower-cased, with a reserved list. They appear in
   `/cube/{username}/{slug}`, so they must be URL-safe without escaping.
   Uniqueness is enforced by the DB index, not a check-then-insert.
+- **Middleware refreshes a session only when the request carries one.**
+  `updateSession` in `src/lib/supabase/middleware.ts` returns straight away
+  unless `hasAuthCookie` finds an `sb-…-auth-token` cookie, so signed-out
+  visitors, crawlers and every `<Link>` prefetch they fire build no Supabase
+  client and make no `getUser()` round trip. That is most traffic, and without
+  the check it was the largest single cost against the Vercel quota (see
+  [monitoring.md](monitoring.md)).
+- **The predicate has to match every cookie name supabase-js writes**: the base
+  `sb-<ref>-auth-token`, its `.0`/`.1` chunks when the session is large, and
+  `…-auth-token-code-verifier` mid-PKCE. A miss fails silently and badly: the
+  token stops being refreshed and signed-in people are signed out mid-visit,
+  with no error anywhere. `check:oauth` asserts each form in CI. **Setting a
+  custom `storageKey` or `cookieOptions.name` on any Supabase client means
+  changing `hasAuthCookie` in the same commit.**
 
 - The nav renders the signed-in user from the **root layout**, and a Server
   Action that redirects does not re-render a layout the client Router Cache
