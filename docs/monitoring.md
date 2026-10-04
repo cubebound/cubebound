@@ -41,12 +41,27 @@
   end-to-end, because proving the server path means causing a real production
   error. `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` are still unset,
   so stack traces are minified — those three additionally get readable ones, and
-  **`SENTRY_AUTH_TOKEN` is a real secret**, unlike the DSN. See "Share previews,
-  crawling and monitoring".
+  **`SENTRY_AUTH_TOKEN` is a real secret**, unlike the DSN.
 - **The site runs on free tiers with no payment method on Vercel**, so there is
   no bill to cap and **"set a spend cap" is not the control** — an earlier
   version of these docs said it was, repeatedly, and it was wrong. Exceeding
   Hobby limits degrades or pauses the project rather than charging anything, so
   the goal is staying inside them: keep per-request query counts low (see [page-speed.md](page-speed.md)), keep card images on Riot's CDN, and check Vercel → Usage and
-  Supabase → Usage for actual headroom rather than guessing. Usage was
-  comfortably low as of 16 August 2026.
+  Supabase → Usage for actual headroom rather than guessing.
+- **Fluid Active CPU is the Vercel limit that binds**: 4 CPU-hours on Hobby,
+  over a **rolling 30-day window**, not a billing cycle. Going over pauses the
+  project, and it stays paused until enough old usage ages out of the window, so
+  there is no reset date to wait for. It came within 10% of that on 3 October
+  2026 with traffic flat day to day, which is why a slow climb here is a
+  warning and not noise.
+- **Look under Usage → Fluid Active CPU, and use its Type tab.** That splits
+  middleware from functions, which is the first question to answer: at that
+  alert, middleware was 49% of the total. Per-route CPU needs Observability
+  Plus, which is Pro-only, so on Hobby the Type and Runtime tabs are the
+  resolution there is.
+- **Middleware runs on every non-static request, prefetches included**, so a
+  cost added there is multiplied by all traffic, including crawlers and the
+  `<Link>` prefetches of visitors who never click. Keep it to cookie and URL
+  checks, and return before any network call on requests that cannot use the
+  result; the session-refresh skip in [auth.md](auth.md) is the case that
+  mattered.

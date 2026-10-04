@@ -23,6 +23,7 @@ import {
   OAUTH_PROVIDERS,
   providersOf,
 } from "../src/lib/auth-providers";
+import { hasAuthCookie } from "../src/lib/supabase/middleware";
 
 const failures: string[] = [];
 const expect = (ok: boolean, message: string) => {
@@ -84,6 +85,24 @@ try {
         `back to the dashboard Site URL and sign-in never completes`,
     );
   }
+
+  // ---- middleware skips session work only when there is no session ------
+  // A false negative here signs people out mid-visit: their token stops being
+  // refreshed. So every cookie form supabase-js writes must still count.
+  for (const name of [
+    "sb-abcdefghijklmnop-auth-token",
+    "sb-abcdefghijklmnop-auth-token.0",
+    "sb-abcdefghijklmnop-auth-token.1",
+    "sb-127-auth-token",
+    "sb-abcdefghijklmnop-auth-token-code-verifier",
+  ]) {
+    expect(hasAuthCookie(["_vercel_jwt", name]), `${name} must count as a session cookie`);
+  }
+  expect(!hasAuthCookie([]), "a cookieless request (crawler, first visit) has no session");
+  expect(
+    !hasAuthCookie(["backup-notice-dismissed", "theme", "sb-other"]),
+    "unrelated cookies must not trigger a Supabase round trip",
+  );
 
   console.log(
     `oauth: ${OAUTH_PROVIDERS.join(", ")} offered; backup rule and provider ` +
