@@ -50,6 +50,16 @@ That history is worth knowing because git does not record it: a migration file
 present in the repo says nothing about which project has run it. Confirm
 production's state before assuming a migration still needs applying there.
 
+### Keeping dev awake
+
+**`cubebound-dev` is a free Supabase project, and free projects pause after
+about seven days with no activity.** Dev goes that long whenever nobody is
+building, and once paused, local work cannot reach it until someone restores it
+from the Supabase dashboard. A scheduled workflow
+queries it every three days so that a missed or late run still lands inside the
+week; what it sends and which secrets it may hold are in
+[checks.md](checks.md#the-dev-keep-alive).
+
 ### Branching
 
 `master` is production: pushing to it deploys the live site. Feature work
