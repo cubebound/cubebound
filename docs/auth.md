@@ -119,9 +119,18 @@ section of that page, and the rules governing it are
   `updateSession` in `src/lib/supabase/middleware.ts` returns straight away
   unless `hasAuthCookie` finds an `sb-…-auth-token` cookie, so signed-out
   visitors, crawlers and every `<Link>` prefetch they fire build no Supabase
-  client and make no `getUser()` round trip. That is most traffic, and without
-  the check it was the largest single cost against the Vercel quota (see
-  [monitoring.md](monitoring.md)).
+  client and make no `getUser()` call. It was shipped as a CPU fix and measured
+  as not being one (see [monitoring.md](monitoring.md)); it stays because it
+  is correct and free.
+- **Middleware must keep running on prefetches for signed-in visitors.** A
+  prefetch renders the root layout, whose nav calls `getUser()`; with an
+  expired access token that refreshes the session, and a Server Component
+  cannot write the rotated cookies, so they are thrown away. The next request
+  then presents a refresh token Supabase has already rotated, which it can
+  treat as reuse and end the session. Middleware refreshing first is what
+  prevents that, so **a matcher that skips prefetches (`next-router-prefetch`,
+  `purpose: prefetch`) signs people out at random**, however much CPU it
+  saves.
 - **The predicate has to match every cookie name supabase-js writes**: the base
   `sb-<ref>-auth-token`, its `.0`/`.1` chunks when the session is large, and
   `…-auth-token-code-verifier` mid-PKCE. A miss fails silently and badly: the

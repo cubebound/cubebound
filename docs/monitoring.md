@@ -10,7 +10,8 @@
   exception to the `NEXT_PUBLIC_` rule in the root [CLAUDE.md](../CLAUDE.md). An auth
   token is not, and must never carry that prefix.
   Session replay is off deliberately: replays record the DOM, which here
-  includes other people's unlisted cube names. Traces sample at 10% to protect
+  includes other people's unlisted cube names. Traces sample at 10% (except on
+  edge, where they are off, see below) to protect
   the free-tier quota — that rate is the dial to turn down first if quota gets
   tight, since a plain page load already sends session envelopes.
   `error.tsx` shows the digest Sentry indexes the event under, so a tester
@@ -37,7 +38,7 @@
 - **Sentry is on in production.** `NEXT_PUBLIC_SENTRY_DSN` is set in Vercel and
   verified sending: a page load produces envelopes to the project's ingest host,
   and a deliberately thrown error produces two more. Client and edge/server
-  capture share the same options; only the client path has been proven
+  capture share the same options, bar tracing on edge; only the client path has been proven
   end-to-end, because proving the server path means causing a real production
   error. `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` are still unset,
   so stack traces are minified — those three additionally get readable ones, and
@@ -61,7 +62,14 @@
   resolution there is.
 - **Middleware runs on every non-static request, prefetches included**, so a
   cost added there is multiplied by all traffic, including crawlers and the
-  `<Link>` prefetches of visitors who never click. Keep it to cookie and URL
-  checks, and return before any network call on requests that cannot use the
-  result; the session-refresh skip in [auth.md](auth.md) is the case that
-  mattered.
+  `<Link>` prefetches of visitors who never click. **Its CPU is a
+  per-invocation cost, not a per-line one.** Middleware runs on the edge
+  runtime, where a low-traffic site lands mostly on cold isolates that load the
+  whole bundle (about 530 KB, mostly Supabase and Sentry) before the function
+  body runs. So an early return inside it saves almost nothing: skipping the
+  session refresh for cookieless requests left middleware's share unchanged at
+  about half. What moves it is fewer invocations, a smaller bundle, or a warm
+  runtime: `proxy.ts` on Node (the Next 16 replacement for `middleware.ts`) is
+  the untried large lever. Narrowing the matcher is limited by the prefetch
+  rule in [auth.md](auth.md). Sentry tracing is off on edge for this reason
+  (`instrumentation.ts`); errors are still reported.

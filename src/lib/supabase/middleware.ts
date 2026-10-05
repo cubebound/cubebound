@@ -19,10 +19,11 @@ export function hasAuthCookie(names: readonly string[]): boolean {
  * response. Server Components cannot set cookies, so without this a session
  * would silently expire mid-visit.
  *
- * **A request with no session cookie skips all of it.** There is nothing to
- * refresh, and that is most traffic: signed-out visitors, crawlers, and every
- * `<Link>` prefetch they fire. Middleware was half the site's Fluid Active CPU
- * in September 2026, almost all of it this function running for nobody.
+ * **A request with no session cookie skips all of it**, since there is nothing
+ * to refresh. This saves a client construction for signed-out traffic, but it
+ * is not a CPU fix: shipping it in October 2026 left middleware's share of
+ * Fluid Active CPU unchanged at about half, because that cost is paid per
+ * invocation, before this function runs. Only not invoking middleware saves it.
  */
 export async function updateSession(request: NextRequest) {
   if (!hasAuthCookie(request.cookies.getAll().map((c) => c.name))) {
