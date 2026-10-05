@@ -73,6 +73,26 @@ values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**
 
+### The dev keep-alive
+
+`.github/workflows/dev-keepalive.yml` is not a check: it exists only to stop
+`cubebound-dev` pausing (why is in [environments.md](environments.md#keeping-dev-awake)).
+It makes one PostgREST `GET` on `cards` and fails unless the answer is 200. RLS
+with no policies means the result is `[]`, but the request still reaches
+Postgres, which is what counts as activity.
+
+- **It is the one workflow holding real values, and they are dev's
+  browser-safe ones only.** The repository secrets `DEV_SUPABASE_URL` and
+  `DEV_SUPABASE_PUBLISHABLE_KEY` are set by hand in GitHub. Never a secret key,
+  a `DATABASE_URL`, or anything from production: the publishable key can read
+  and write nothing under RLS, so leaking it costs nothing, and that is the only
+  reason this sits alongside the rule above. The step refuses any key not
+  prefixed `sb_publishable_`.
+- **A schedule only fires from the default branch**, so the workflow does
+  nothing until it is on `master`. Run it by hand from the Actions tab
+  (`workflow_dispatch`) to confirm the secrets are set; a missing one fails the
+  run by name.
+
 `npm run typecheck` runs `next typegen` first, because Next generates the global
 route helpers (`LayoutProps<"/">`, `PageProps<…>`) into `.next/types` and
 tsconfig includes them — plain `tsc` fails on a tree that has never been built.
