@@ -37,7 +37,13 @@ import {
   type CardFilters,
 } from "../src/db/queries/cards";
 import { getCardPopularity } from "../src/db/queries/discovery";
-import { collapseIdentityKey, isTokenCard, TOKEN_ID_PATTERN } from "../src/lib/card-ids";
+import {
+  collapseIdentityKey,
+  isRetiredPrinting,
+  isTokenCard,
+  RETIRED_SETS,
+  TOKEN_ID_PATTERN,
+} from "../src/lib/card-ids";
 import { cardFilterParams, cardFiltersFromParams } from "../src/lib/card-search-params";
 import {
   CARD_SORT_LABELS,
@@ -54,11 +60,15 @@ const expect = (ok: boolean, message: string) => {
   if (!ok) failures.push(message);
 };
 
+/** Tokens, written out independently of `tokenCard` in the query layer. */
+const token = sql`(supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN})`;
+
 /**
- * Rows that are cards, written out independently of `realCard` in the query
- * layer. `is not distinct from` because an ordinary supertype is null.
+ * Rows the site offers, written out independently of `offeredCard` in the
+ * query layer: not a token (`is not distinct from` because an ordinary
+ * supertype is null) and not a retired promo printing.
  */
-const real = sql`(not (supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN}))`;
+const real = sql`(not ${token} and set_code not in ${sql([...RETIRED_SETS])})`;
 
 /** Every printing, since the filters run before any grouping. */
 const countRows = async (where: postgres.PendingQuery<postgres.Row[]>) => {
@@ -371,13 +381,16 @@ try {
 
   // ---- tokens are not cards ---------------------------------------------
   const tokenRows = await sql<{ id: string; name: string }[]>`
-    select id, name from cards where not ${real}`;
+    select id, name from cards where ${token}`;
   expect(tokenRows.length > 0, "no token rows in this database: the exclusion below proves nothing");
+  const retiredRows = await countRows(
+    sql`select count(*)::int as n from cards where not ${token} and set_code in ${sql([...RETIRED_SETS])}`,
+  );
   const everything = await countRows(sql`select count(*)::int as n from cards`);
   expect(
-    everything - total === tokenRows.length,
-    `the pool should be ${tokenRows.length} token(s) larger than what the browser counts ` +
-      `(${everything} rows, ${total} cards)`,
+    everything - total === tokenRows.length + retiredRows,
+    `the pool should be ${tokenRows.length} token(s) and ${retiredRows} retired promo printing(s) ` +
+      `larger than what the browser counts (${everything} rows, ${total} cards)`,
   );
 
   /** Every row a search returns, across all its pages. */
@@ -462,13 +475,50 @@ try {
       const [hit] = await sql.unsafe(
         `select exists (select 1 from cards where
            not (supertype is not distinct from 'Token' or id ~ $1)
+           and set_code <> all($3)
            and ${test} ($2)) as ok`,
-        [TOKEN_ID_PATTERN, [value]],
+        [TOKEN_ID_PATTERN, [value], [...RETIRED_SETS]],
       );
-      expect(Boolean(hit?.ok), `the ${label} filter offers "${value}", which only tokens carry`);
+      expect(
+        Boolean(hit?.ok),
+        `the ${label} filter offers "${value}", which only tokens or retired promo printings carry`,
+      );
     }
   }
 
+  // ---- retired promo printings are not offered ------------------------------
+  // OPP, PR and JDG stay in the table for the drafts that dealt them, but no
+  // search may hand one out: the site's own canonical choice of an OPP promo is
+  // how 887 production cube copies ended up on them. Searched by each retired
+  // card's name, every way the browser and the editor search.
+  const retiredNames = (
+    await sql<{ name: string }[]>`
+      select distinct regexp_replace(name, '\\s*\\([^()]*\\)\\s*$', '') as name
+        from cards where set_code in ${sql([...RETIRED_SETS])} and not ${token}
+       order by 1 limit 20`
+  ).map((r) => r.name);
+  expect(retiredRows === 0 || retiredNames.length > 0, "retired rows exist but none could be searched for");
+  for (const name of retiredNames) {
+    const grouped = (await searchCards({ q: name })).cards;
+    const everyPrinting = await allPagesOf({ q: name });
+    const typed = await quickSearchCards(name, { allPrintings: true, limit: 1000 });
+    for (const [label, rows] of [
+      ["searchCards", grouped],
+      ["searchCards all printings", everyPrinting],
+      ["quickSearchCards", typed],
+    ] as const) {
+      const leaked = rows.filter((card) => isRetiredPrinting(card));
+      expect(
+        leaked.length === 0,
+        `${label}("${name}") returned retired promo printing(s): ${leaked.map((c) => c.id).join(", ")}`,
+      );
+    }
+    expect(grouped.length > 0, `searching "${name}" found nothing: its offered printing went missing too`);
+  }
+
+  console.log(
+    `retired promos: ${retiredRows} row(s) kept out; ${retiredNames.length} name(s) searched`,
+  );
   console.log(
     `tokens: ${tokenRows.length} row(s) kept out; ${tokenWords.length} token word(s) searched, ` +
       `${namesakes} real card(s) named after one still found`,

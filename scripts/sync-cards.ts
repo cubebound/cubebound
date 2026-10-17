@@ -1,19 +1,18 @@
 /**
  * Syncs all Riftbound cards into the `cards` table.
  *
- * Two sources, each owning a fixed set of sets (`ownerOf`):
- *   - riot-gallery — Riot's own card gallery feed. Every set except the promos.
- *   - riftcodex    — Riftcodex open API. The promo sets OPP, PR and JDG only,
- *                    which Riot's feed does not carry.
- * A plain run fetches both and writes one merged result. Any row a source
- * returns for a set it does not own is discarded, whichever way the run was
- * started, so neither can overwrite the other's rows. riftscribe (retired) and
- * riot (dormant, the developer API) own nothing and so write nothing.
+ * One source, Riot's own card gallery feed (riot-gallery), owns every set
+ * (`ownerOf`) except the retired promo sets OPP, PR and JDG, which no source
+ * owns: their rows stay in the table, frozen, because drafts reference them,
+ * and nothing offers them (`RETIRED_SETS` in src/lib/card-ids.ts). Any row a
+ * source returns for a set it does not own is discarded, whichever way the
+ * run was started. riftcodex (which carried the promos), riftscribe (retired)
+ * and riot (dormant, the developer API) own nothing and so write nothing.
  *
- *   npm run sync-cards                     both sources, write
+ *   npm run sync-cards                     write
  *   npm run sync-cards -- --dry-run        fetch, map and report; write nothing
  *   npm run sync-cards -- --force          rewrite every row (after a mapping change)
- *   npm run sync-cards -- --only=riftcodex one source (still only its own sets)
+ *   npm run sync-cards -- --only=riot-gallery   one source (still only its own sets)
  *   npm run sync-cards -- --allow-missing=OGN-171,UNL-224
  *
  * Idempotent: diffs by card id against the stored raw payload (`data` jsonb,
@@ -29,9 +28,15 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { cards, type NewCard } from "../src/db/schema";
-import { assignBaseIds, collapseIdentityKey, isTokenCard } from "../src/lib/card-ids";
+import {
+  assignBaseIds,
+  collapseIdentityKey,
+  isTokenCard,
+  RETIRED_SETS,
+} from "../src/lib/card-ids";
 import { cardPagePath } from "../src/lib/card-popularity";
 import { createRiftcodexSource } from "./card-sources/riftcodex";
+import { databaseLabel } from "./lib/database-label";
 import { createRiftScribeSource } from "./card-sources/riftscribe";
 import { createRiotSource } from "./card-sources/riot";
 import { createRiotGallerySource } from "./card-sources/riot-gallery";
@@ -46,17 +51,16 @@ const SOURCES: Record<string, () => CardSource> = {
   riftscribe: createRiftScribeSource,
   riot: createRiotSource,
 };
-const DEFAULT_SOURCES = ["riot-gallery", "riftcodex"];
+const DEFAULT_SOURCES = ["riot-gallery"];
 
 /**
- * Which source a set's rows come from. The promo sets are listed and
- * everything else is Riot's, so a new set lands from the gallery with no code
- * change. Riftcodex stopped updating in July 2026 and never carried Radiance;
- * it stays only because Riot's feed has no promos.
+ * Which source a set's rows come from: Riot's gallery for everything, so a new
+ * set lands with no code change, and nobody for the retired promo sets. A
+ * promo row arriving from any source is discarded and logged rather than
+ * refused, so a promo appearing in Riot's feed one day cannot block a sync.
  */
-const PROMO_SETS = new Set(["OPP", "PR", "JDG"]);
-function ownerOf(setCode: string): string {
-  return PROMO_SETS.has(setCode.toUpperCase()) ? "riftcodex" : "riot-gallery";
+function ownerOf(setCode: string): string | null {
+  return RETIRED_SETS.includes(setCode.toUpperCase()) ? null : "riot-gallery";
 }
 
 const args = process.argv.slice(2);
@@ -328,6 +332,7 @@ async function main() {
     process.exit(1);
   }
   const names = only ? [only] : DEFAULT_SOURCES;
+  console.log(`Database: ${databaseLabel(databaseUrl)}`);
   console.log(`Card sources: ${names.join(", ")}${dryRun ? " (dry run)" : ""}`);
 
   const client = postgres(databaseUrl, { prepare: false });
@@ -436,7 +441,7 @@ async function main() {
     // Reprints can only be resolved with the whole pool in view, and a new set
     // can re-canonicalize rows that were not otherwise touched by this sync —
     // so recompute for every row rather than only the ones just written.
-    // Mirrors assignBaseIds() in src/lib/card-ids.ts.
+    // Mirrors assignBaseIds() in src/lib/card-ids.ts, retired promos last.
     const rebased = await db.execute(sql`
       update cards as c
       set base_id = r.canonical
@@ -444,7 +449,8 @@ async function main() {
         select id,
                first_value(id) over (
                  partition by lower(name), type
-                 order by (rarity = 'Showcase'), set_code,
+                 order by (set_code in (${sql.join(RETIRED_SETS.map((s) => sql`${s}`), sql`, `)})),
+                          (rarity = 'Showcase'), set_code,
                           length(collector_no), collector_no, id
                ) as canonical
         from cards

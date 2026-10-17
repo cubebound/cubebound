@@ -2,11 +2,8 @@
 
 ## What is shipped
 
-Working: card ingestion (sources in [card-data.md](card-data.md)). **The card browser shows fewer
-cards than there are `base_id` groups**, because some groups are promo
-treatments the source spells in the name; see the `collapseKey` bullet in
-[printings.md](printings.md). Also working:
-`/cards` browser, magic-link auth with username claim, cube CRUD, the staged
+Working: card ingestion (sources in [card-data.md](card-data.md)),
+the `/cards` browser, magic-link auth with username claim, cube CRUD, the staged
 edit panel, visual and text views, primer, change log, the public cube view with
 Share and Clone, and CI.
 
@@ -86,9 +83,12 @@ open it rather than trusting this.
     [card-browser.md](card-browser.md).
 6c. Radiance via Riot's gallery feed. Added and pulled forward by the owner on
     17 October 2026, because Riftcodex stopped updating and never carried
-    Radiance: Riot's own feed becomes the source for every set but the promos,
-    with corrections for the cards Riot has wrong. See
-    [card-data.md](card-data.md).
+    Radiance: Riot's own feed becomes the only source, with corrections for
+    the cards Riot has wrong, and the promo sets it does not carry are retired
+    (kept for old drafts, offered nowhere, every cube moved off them by
+    `retire-promos`). Production needs the sync and
+    `retire-promos` run in the order [card-data.md](card-data.md) gives, around
+    the deploy. See also [printings.md](printings.md).
 
 **Next**
 

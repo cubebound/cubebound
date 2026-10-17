@@ -32,7 +32,7 @@ import {
   REGIONS,
   sortByCanonical,
 } from "@/lib/riftbound";
-import { TOKEN_ID_PATTERN } from "@/lib/card-ids";
+import { RETIRED_SETS, TOKEN_ID_PATTERN } from "@/lib/card-ids";
 
 export const PAGE_SIZE = 60;
 
@@ -177,8 +177,9 @@ function energyCondition(bucket: string): SQL | undefined {
 }
 
 function buildWhere(filters: CardFilters): SQL | undefined {
-  // Tokens are not cards, so no view of the pool shows one.
-  const clauses: SQL[] = [realCard];
+  // Neither tokens (not cards) nor retired promo printings (not offered) show
+  // in any view of the pool; see `offeredCard`.
+  const clauses: SQL[] = [offeredCard];
   const term = filters.q?.trim();
   if (term) {
     const pattern = `%${escapeLike(term)}%`;
@@ -295,13 +296,36 @@ export const tokenCard = sql`("cards"."supertype" is not distinct from 'Token' o
 export const realCard = sql`(not ${tokenCard})`;
 
 /**
+ * A printing from a retired promo set (OPP, PR, JDG): a real card the site no
+ * longer hands out. Binds `RETIRED_SETS` from src/lib/card-ids.ts, whose
+ * `isRetiredPrinting` it mirrors; why they are kept at all is there. Qualified
+ * by hand like `tokenCard`, so the same scoping rule applies.
+ */
+export const retiredPrinting = sql`("cards"."set_code" in (${sql.join(
+  RETIRED_SETS.map((set) => sql`${set}`),
+  sql`, `,
+)}))`;
+
+/**
+ * Every row the site offers: a card, and not a retired printing. What every
+ * view of the pool filters on (browser, both searches, the filter lists, the
+ * import catalog, starter lists, card pages). `realCard` alone is still right
+ * where a retired printing must count as its card: cloning a cube copies what
+ * it holds, and popularity counts a pick by the card it is.
+ */
+export const offeredCard = sql`(${realCard} and not ${retiredPrinting})`;
+
+/**
  * Which printing represents a collapsed group — the `DISTINCT ON` tie-break.
  *
  * The same sequence `comparePrintings` applies in src/lib/card-ids.ts, plus a
- * new first rule: a plainly-named printing beats a treatment-named one. That
- * rule is load-bearing rather than cosmetic. A dozen SFD legends have an OPP
- * "(Metal)" promo, and OPP sorts before SFD, so without it the collapsed row
- * would be titled "Battle Mistress (Metal)".
+ * new first rule: a plainly-named printing beats a treatment-named one. It was
+ * load-bearing while the promo sets were offered (a dozen SFD legends had an
+ * OPP "(Metal)" promo, OPP sorts before SFD, and the collapsed row read
+ * "Battle Mistress (Metal)"). Every query using this now filters on
+ * `offeredCard`, so no live group has a treatment-named member; the rule stays
+ * as the defence if a source starts spelling one again. The retired-last rule
+ * of `comparePrintings` is not repeated here for the same reason.
  */
 const canonicalFirst = [
   sql`(${cards.name} ~ '\\([^()]*\\)\\s*$')`, // plain name before a treatment name
@@ -552,8 +576,9 @@ export async function quickSearchCards(
       then ${cards.champion} || ', ' || ${cards.name}
       else ${cards.name}
     end)`;
-  // Tokens are not cards, and this is how the editor adds one.
-  const matches = and(or(ilike(cards.name, pattern), ilike(fullName, pattern)), realCard);
+  // This is how the editor adds a card, so it offers what `offeredCard`
+  // allows: no tokens, no retired promo printings.
+  const matches = and(or(ilike(cards.name, pattern), ilike(fullName, pattern)), offeredCard);
 
   const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
     "printing_count",
@@ -586,7 +611,9 @@ export async function quickSearchCards(
 }
 
 /**
- * Every printing of each of the given cards, base printing first.
+ * Every offered printing of each of the given cards, base printing first.
+ * Retired promo printings are left out: this is the list the picker offers to
+ * switch *to*, and a printing the site no longer hands out is not a choice.
  *
  * Two columns only — see `CardPrinting`. Ordering by columns it does not select
  * is fine; the database sorts on what it reads, not on what it returns.
@@ -596,7 +623,7 @@ export async function getPrintingsForBases(baseIds: string[]): Promise<CardPrint
   return db
     .select({ id: cards.id, baseId: cards.baseId })
     .from(cards)
-    .where(inArray(cards.baseId, baseIds))
+    .where(and(inArray(cards.baseId, baseIds), sql`not ${retiredPrinting}`))
     .orderBy(cards.baseId, sql`(${cards.id} = ${cards.baseId}) desc`, cards.id);
 }
 
@@ -726,23 +753,23 @@ async function readFilterOptions(): Promise<FilterOptions> {
            min(coalesce(${cards.data}->'card'->'set'->'value'->>'label',
                         ${cards.data}->'card'->'set'->>'label')) as label
       from ${cards}
-     where ${realCard}
+     where ${offeredCard}
      group by ${cards.setCode}
     union all
     select distinct 'domain'::text, d, null::text
       from ${cards}, unnest(${cards.domains}) as d
-     where ${realCard}
+     where ${offeredCard}
     union all
-    select distinct 'type'::text, ${cards.type}, null::text from ${cards} where ${realCard}
+    select distinct 'type'::text, ${cards.type}, null::text from ${cards} where ${offeredCard}
     union all
-    select distinct 'rarity'::text, ${cards.rarity}, null::text from ${cards} where ${realCard}
+    select distinct 'rarity'::text, ${cards.rarity}, null::text from ${cards} where ${offeredCard}
     union all
     select distinct 'trait'::text, t,
            (case when exists (
               select 1 from ${cards} champ where champ.champion = t
             ) then 'champion' end)::text
       from ${cards}, unnest(${cards.tags}) as t
-     where ${realCard}
+     where ${offeredCard}
   `);
 
   const sets: SetOption[] = [];
@@ -777,10 +804,9 @@ async function readFilterOptions(): Promise<FilterOptions> {
   const regions = new Set<string>(REGIONS);
 
   return {
-    // By printed name, not by code. The codes interleave the promo sets through
-    // the real ones (JDG, OGN, OGS, OPP, PR…), which reads as no order at all;
-    // by name the main sets and the "Riftbound … Promotional" ones fall into
-    // their own runs.
+    // By printed name, not by code: codes read as no order at all, and a
+    // set's name is what anyone looks for. (The promo sets that used to
+    // interleave through them are no longer offered.)
     sets: sets.sort((a, b) => a.label.localeCompare(b.label)),
     domains: sortByCanonical(domains, [...DOMAINS, COLORLESS]),
     types: sortByCanonical(types, CARD_TYPES),
@@ -815,7 +841,7 @@ export async function getImportCatalog(): Promise<
       champion: cards.champion,
     })
     .from(cards)
-    .where(and(eq(cards.id, cards.baseId), realCard))
+    .where(and(eq(cards.id, cards.baseId), offeredCard))
     .orderBy(cards.name);
 }
 
@@ -823,7 +849,14 @@ export async function getImportCatalog(): Promise<
 export async function getCardsByIds(
   ids: string[],
 ): Promise<
-  { id: string; name: string; type: string; supertype: string | null; baseId: string }[]
+  {
+    id: string;
+    name: string;
+    type: string;
+    supertype: string | null;
+    setCode: string;
+    baseId: string;
+  }[]
 > {
   if (ids.length === 0) return [];
   return db
@@ -832,13 +865,16 @@ export async function getCardsByIds(
     // switch if both sides share a base, which is the same rule
     // `swapPrintingAction` applies one edit at a time.
     // `supertype` rides along for the same reason: the add paths refuse a
-    // token (`isTokenCard`) without reading the rows again. Deliberately not
-    // filtered here, so a token already in a cube can still be removed.
+    // token (`isTokenCard`) without reading the rows again, and `setCode` so
+    // they refuse a retired promo printing (`isRetiredPrinting`) the same way.
+    // Deliberately not filtered here, so either one already in a cube can
+    // still be removed.
     .select({
       id: cards.id,
       name: cards.name,
       type: cards.type,
       supertype: cards.supertype,
+      setCode: cards.setCode,
       baseId: cards.baseId,
     })
     .from(cards)
@@ -846,11 +882,11 @@ export async function getCardsByIds(
 }
 
 /**
- * Rows that are not cards to start a cube with: tokens, the basic runes, and
- * the special-slot reprints.
+ * Rows that are not cards to start a cube with: tokens, retired promo
+ * printings, the basic runes, and the special-slot reprints.
  *
- * - **Tokens** by the shared rule, `realCard`, which needs both its halves; see
- *   `tokenCard`.
+ * - **Tokens and retired promos** by the shared rule, `offeredCard`; tokens
+ *   need both halves of `tokenCard`.
  * - **Basic runes** (`supertype = 'Basic'`) are resources, not picks.
  * - **The id shape** catches what is left: `VEN-R01` to `R06` (basic runes
  *   again) and `VEN-SP1` to `SP6` (champion reprints in a special slot, whose
@@ -862,7 +898,7 @@ export async function getCardsByIds(
  * Outer columns are qualified by hand; see database.md.
  */
 const startingCard = sql`(
-  ${realCard}
+  ${offeredCard}
   and "cards"."supertype" is distinct from 'Basic'
   and "cards"."id" ~ '^[A-Z]+-[0-9]+[a-z]?(-[a-z]+)?$'
 )`;
@@ -952,7 +988,7 @@ export async function getCardIdentities(): Promise<CardIdentity[]> {
       champion: cards.champion,
     })
     .from(cards)
-    .where(realCard)
+    .where(offeredCard)
     .orderBy(collapseKey, ...canonicalFirst);
 
   identitiesMemo = { at: Date.now(), value: rows };
@@ -977,7 +1013,7 @@ export async function getRepresentativeCardsByKeys(keys: string[]): Promise<Brow
   return db
     .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
     .from(cards)
-    .where(and(inArray(collapseKey, keys), realCard))
+    .where(and(inArray(collapseKey, keys), offeredCard))
     .orderBy(collapseKey, ...canonicalFirst);
 }
 

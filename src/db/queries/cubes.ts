@@ -12,7 +12,8 @@ import {
   type CubeChange,
   type NewCubeChange,
 } from "../schema";
-import { browseColumns, realCard, type BrowseCard } from "./cards";
+import { browseColumns, realCard, retiredPrinting, type BrowseCard } from "./cards";
+import { RETIRED_SETS } from "@/lib/card-ids";
 import type { DraftmancerSourceCard } from "@/lib/draftmancer-export";
 import type { CubeSection } from "@/lib/riftbound";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -254,8 +255,17 @@ export async function getCubeCards(cubeId: string): Promise<CubeCardRow[]> {
     .select({
       ...browseColumns,
       // Real printing count so the editor can show that alternates exist.
+      // Offered printings only, matching what the picker lists (`getPrintings`):
+      // a badge counting a retired promo would promise a printing nobody can
+      // pick. `alt.set_code`, written out, because `retiredPrinting` is
+      // qualified as "cards" and would bind to the outer row (database.md).
       printingCount: sql<number>`(
-        select count(*)::int from ${cards} alt where alt.base_id = ${cards.baseId}
+        select count(*)::int from ${cards} alt
+         where alt.base_id = ${cards.baseId}
+           and alt.set_code not in (${sql.join(
+             RETIRED_SETS.map((set) => sql`${set}`),
+             sql`, `,
+           )})
       )`,
       section: cubeCards.section,
       quantity: cubeCards.quantity,
@@ -409,12 +419,12 @@ export async function getCubeHoldingsForBases(
   return holdings;
 }
 
-/** Every printing of a card, base printing first, for the printing picker. */
+/** A card's offered printings, base first: what the printing picker lists. */
 export async function getPrintings(baseId: string): Promise<BrowseCard[]> {
   return db
     .select({ ...browseColumns, printingCount: sql<number>`count(*) over ()::int` })
     .from(cards)
-    .where(eq(cards.baseId, baseId))
+    .where(and(eq(cards.baseId, baseId), sql`not ${retiredPrinting}`))
     .orderBy(sql`(${cards.id} = ${cards.baseId}) desc`, asc(cards.id));
 }
 

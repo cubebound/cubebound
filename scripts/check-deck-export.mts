@@ -24,6 +24,7 @@ import postgres from "postgres";
 
 import { fromEnvFile } from "./lib/env";
 
+import { isTokenCard } from "../src/lib/card-ids";
 import { deckListName, toDeckList } from "../src/lib/deck-export";
 import { previewImport } from "../src/lib/import-list";
 import { getImportCatalog } from "../src/db/queries/cards";
@@ -108,11 +109,16 @@ try {
   // ---- promo variants resolve to a card that actually exists -----------
   // `Battle Mistress (Metal)` must export as a name a builder knows. The
   // assertion is against the pool rather than a list of suffixes, so a new
-  // set's new variant marker is covered without a code change.
-  const variants = catalog.filter((card) => /\s*\([^)]*\)\s*$/.test(card.name));
+  // set's new variant marker is covered without a code change. Read from the
+  // whole table, not the catalog: the promo sets are retired and the catalog
+  // no longer offers one, but drafts that dealt them still export.
+  const variants = (
+    await sql<{ id: string; name: string; type: string; champion: string | null; supertype: string | null }[]>`
+      select id, name, type, champion, supertype from cards`
+  ).filter((card) => /\s*\([^)]*\)\s*$/.test(card.name) && !isTokenCard(card));
   expect(
     variants.length > 0,
-    "no promo variants in the catalog — this assertion is not testing anything",
+    "no promo variants in the card table — this assertion is not testing anything",
   );
   const knownNames = new Set(catalog.map((card) => card.name.toLowerCase()));
   const orphanVariants = variants.filter((card) => {

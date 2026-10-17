@@ -163,7 +163,9 @@ the bots smart; C adds the deck builder.
   (`Daughter of the Void`, champion `Kai'Sa`) — exported raw, every legend fails
   to match. And promo printings carry a suffix (`(Metal)` on most, plus
   `(Launch Exclusive)`, `(GG EZ)`), each of which has a same-named plain card in
-  the pool, so the suffix is stripped. `deckListName`
+  the pool, so the suffix is stripped. Promos are retired and no longer reach
+  a cube ([printings.md](printings.md)), so this now matters for drafts that
+  dealt one before that, which still export. `deckListName`
   does both, in that order, so a variant legend still gets its champion.
   Mainboard and sideboard are separate lists, never concatenated: the flat
   format has no notion of a sideboard, so appending one would present cards the

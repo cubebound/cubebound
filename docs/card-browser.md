@@ -2,7 +2,7 @@
 
 ## Filters, sorting and caching
 
-- Filter dropdowns are built from the **distinct values actually in the DB**, then sorted by the canonical lists in `src/lib/riftbound.ts` with unrecognized values kept at the end (`sortByCanonical`). A new set's new rarity therefore appears without a code change — `Promo` already does, and is not in `RARITIES`. That is also why sorting asserts on a **rank**, not a value: "sort by rarity ends at Showcase" is wrong, because `Promo` sorts after it.
+- Filter dropdowns are built from the **distinct values actually in the DB**, then sorted by the canonical lists in `src/lib/riftbound.ts` with unrecognized values kept at the end (`sortByCanonical`). A new set's new rarity therefore appears without a code change, sorted after everything `RARITIES` names. That is also why sorting asserts on a **rank**, not a value: "sort by rarity ends at Showcase" holds only until a rarity outside the list arrives, as `Promo` did while the promo sets were offered.
 - **Tokens are not cards, so no view of the pool shows one.** Recruit, Sprite,
   Gold and the rest are rows in `cards` because the source serves them, but
   nobody builds a cube out of them. `searchCards` (through `buildWhere`),
@@ -25,6 +25,25 @@
   unfiltered** (`getCardById`, `getCardsByIds`, `getPrintings*`), so a token
   already sitting in a cube can still be shown, removed and logged. What the
   add paths do about tokens is in [cube-editor.md](cube-editor.md).
+- **Retired promo printings are not offered either, by the same reads and one
+  more rule.** `offeredCard` is `realCard` and not `retiredPrinting`
+  (why the promos are retired but kept is in [printings.md](printings.md)), and
+  it is what `buildWhere`, `quickSearchCards`, every `readFilterOptions` branch
+  (so no OPP, PR or JDG set option and no `Promo` rarity), `getImportCatalog`,
+  the starter lists, `getCardIdentities` and `getRepresentativeCardsByKeys`
+  filter on, so a promo has no card page and no sitemap entry. The printing
+  picker's lists, `getPrintingsForBases` and `getPrintings`, leave retired
+  printings out (tokens need no such rule there, since they group only with
+  tokens), and `getCubeCards`' printing count does
+  the same so its badge never promises a printing nobody can pick; that
+  subquery spells out `alt.set_code` because `retiredPrinting` is qualified
+  `"cards"` and would bind to the outer row ([database.md](database.md)).
+  **`realCard` alone stays where a retired printing must still count as its
+  card**: cloning copies what a cube holds, and popularity counts a cube's copy
+  by the card it is. `getCardById` and `getCardsByIds` stay unfiltered for
+  both rules, so a promo already in a cube can still be shown and removed; so
+  do draft state, `pack.png`, a past draft's exports and the change log,
+  because a draft that dealt a promo has to replay.
 - **Set, domain, rarity and energy are multi-select; they OR within a filter and
   AND across filters.** Ticking Fury and Calm means either — an AND would return
   only dual-domain cards, a much rarer question. The URL keys stay **singular and
@@ -72,9 +91,10 @@
   (`data->'card'->'set'->>'label'` for Riftcodex rows, `…->'set'->'value'->>'label'`
   for Riot's gallery, read through one `coalesce` with the gallery's path first, because its own `set.label` is the caption "Card Set"), not a lookup table, so a
   newly synced set names itself like every other filter value. Reading only one
-  path shows every set from the other source as its bare code. Ordered
-  by **name**, not code: the codes interleave promos through the real sets
-  (JDG, OGN, OGS, OPP, PR…), which reads as no order at all.
+  path shows every set from the other source as its bare code; no offered row
+  is a Riftcodex one any more, so that half is now a defence. Ordered
+  by **name**, not code: codes read as no order at all, and a set's name is
+  what anyone looks for.
 - **Sorting is `?sort=` over set, played ("Most played", see below), name,
   energy, type and rarity.** `CARD_SORTS` order is the dropdown's order, and
   "Most played" sits second because at the bottom of the list nobody found it.

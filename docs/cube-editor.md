@@ -212,18 +212,20 @@
   **A replace is only a `printing_switched` when both sides share a `base_id`** —
   the same rule `swapPrintingAction` applies one edit at a time — and otherwise
   logs as a removal plus an addition, because that is what it is.
-- **Every add path refuses a token server-side; taking one out is never
-  refused.** The searches and the import catalog already hide tokens (see
-  [card-browser.md](card-browser.md)), so a person never reaches the refusal;
-  it is there for a forged request. `tokenError` in `src/app/cube/actions.ts`
-  guards `addCardAction`, `adjustQuantityAction` when `delta > 0`,
-  `swapPrintingAction` when only the "to" side is a token,
-  `saveCubeEditsAction`, `commitImportAction` and `createCubeFromListAction`,
-  each against rows it has already read, which is why `getCardsByIds` carries
-  `supertype`. `saveCubeEditsAction` checks its adds, and the "to" side of a
-  replace unless both sides are tokens, **before anything is written**, so a
-  batch with a token in it writes nothing. Removing, decrementing or moving a
-  token always works, because a cube may hold one from before the rule and has
+- **Every add path refuses a token or a retired promo printing server-side;
+  taking one out is never refused.** The searches, the import catalog and the
+  printing picker already hide both (see [card-browser.md](card-browser.md)),
+  so a person never reaches the refusal; it is there for a forged request.
+  `notOfferedError` in `src/app/cube/actions.ts` guards `addCardAction`,
+  `adjustQuantityAction` when `delta > 0`, `saveCubeEditsAction`,
+  `commitImportAction` and `createCubeFromListAction`, and `swapRefusal` guards
+  the "to" side of `swapPrintingAction` and of a staged replace, letting
+  through only a switch between two printings of one token. Each checks rows it
+  has already read, which is why `getCardsByIds` carries `supertype` and
+  `setCode`. The promo refusal names the printing and says to add its normal
+  printing instead. `saveCubeEditsAction` checks **before anything is written**,
+  so a batch with either in it writes nothing. Removing, decrementing or moving
+  one always works, because a cube may hold one from before the rule and has
   to be able to shed it.
 - **Bulk import never guesses.** The Import tab parses a pasted list
   (`src/lib/import-list.ts`, pure and catalog-driven): optional leading
@@ -312,7 +314,8 @@
   `getSetStarterCards` collapses printings by the browser's rule (see
   [printings.md](printings.md)) and files each card by `defaultSectionForType`.
 - **A starter list leaves out what is not a card to start a cube with.** Tokens
-  by the shared rule (`realCard`; see [card-browser.md](card-browser.md)),
+  and retired promo printings by the shared rule (`offeredCard`; see
+  [card-browser.md](card-browser.md)),
   basic runes by supertype, and anything whose id is not an ordinary `SET-NNN`
   shape (`^[A-Z]+-[0-9]+[a-z]?(-[a-z]+)?$`), which catches the `VEN-R0n` basic
   runes and the `VEN-SPn` special-slot reprints. A Showcase

@@ -16,7 +16,9 @@ in behind it and broke `check:printings` on import.
 
 Migrations run manually and separately per environment. `npm run db:migrate`
 against dev is part of normal development; production is migrated deliberately
-by the owner at merge time.
+by the owner at merge time. Card data reaches production the same way, by
+running the sync against it rather than by deploying; when a sync or a card
+data script has to run relative to a deploy is in [card-data.md](card-data.md).
 
 Prefer `db:migrate` (versioned files) over `db:push` (diffs the schema and can
 drop columns). `db:generate` writes a migration from a schema diff — useful as a

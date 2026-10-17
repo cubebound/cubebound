@@ -21,9 +21,12 @@ import {
   cardIdentityKey,
   collapseIdentityKey,
   composeCardId,
+  isRetiredPrinting,
   isTokenCard,
   nameWithoutTreatment,
   provisionalBaseId,
+  RETIRED_SETS,
+  retiredPrintingTargets,
   TOKEN_ID_PATTERN,
 } from "../src/lib/card-ids";
 import { cardPagePath } from "../src/lib/card-popularity";
@@ -59,8 +62,9 @@ try {
       supertype: string | null;
       champion: string | null;
       rules_text: string | null;
+      image_full: string | null;
     }[]
-  >`select id, base_id, name, type, set_code, collector_no, rarity, supertype, champion, rules_text from cards`;
+  >`select id, base_id, name, type, set_code, collector_no, rarity, supertype, champion, rules_text, image_full from cards`;
 
   expect(rows.length > 0, "no cards in the database");
 
@@ -281,6 +285,47 @@ try {
     namesakes.every((r) => !isTokenCard(r)),
     `a card named after a token was classed as one: ` +
       namesakes.filter(isTokenCard).map((r) => `${r.id} "${r.name}"`).join("; "),
+  );
+
+  // --- retired promo printings are never a card's canonical printing -------
+  // The regression this guards: "OPP" sorted before "SFD", "UNL" and "VEN", so
+  // an OPP promo was canonical for 65 cards and the site handed it out, into
+  // 887 production cube copies. `comparePrintings` now orders retired sets
+  // last, and the sync's recompute SQL mirrors it (the SQL/TS agreement above).
+  const asPrinting = (r: (typeof rows)[number]) => ({
+    id: r.id,
+    name: r.name,
+    type: r.type,
+    setCode: r.set_code,
+    collectorNo: r.collector_no,
+    rarity: r.rarity,
+    supertype: r.supertype,
+    imageFull: r.image_full,
+  });
+  const byIdRow = new Map(rows.map((r) => [r.id, r]));
+  const retiredCanonical = rows.filter(
+    (r) => !isRetiredPrinting(asPrinting(r)) && isRetiredPrinting(asPrinting(byIdRow.get(r.base_id) ?? r)),
+  );
+  expect(
+    retiredCanonical.length === 0,
+    `${retiredCanonical.length} offered printing(s) have a retired promo as their canonical printing, e.g. ` +
+      retiredCanonical.slice(0, 5).map((r) => `${r.id} -> ${r.base_id}`).join(", "),
+  );
+  const retiredInSql = new Set(
+    (await sql<{ id: string }[]>`select id from cards where set_code in ${sql([...RETIRED_SETS])}`).map((r) => r.id),
+  );
+  const retiredInTs = rows.filter((r) => isRetiredPrinting(asPrinting(r)));
+  expect(
+    retiredInTs.length === retiredInSql.size && retiredInTs.every((r) => retiredInSql.has(r.id)),
+    `SQL and isRetiredPrinting disagree on which rows are retired`,
+  );
+  // Every retired printing a cube could still hold has somewhere to go.
+  const targets = retiredPrintingTargets(rows.map(asPrinting));
+  const homeless = retiredInTs.filter((r) => !isTokenCard(r) && !targets.has(r.id));
+  expect(
+    homeless.length === 0,
+    `${homeless.length} retired printing(s) have no offered printing of the same card: ` +
+      homeless.slice(0, 5).map((r) => `${r.id} "${r.name}"`).join(", "),
   );
 
   // Every base_id must point at a row that exists, and canonical rows point at

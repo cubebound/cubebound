@@ -7,16 +7,18 @@ already normalized to our `cards` row shape. Every row's `data` jsonb stores
 `{ source: "<adapter>", card: <raw payload> }` so we always know which API a
 row came from.
 
-**Every set has exactly one owning source, and a row from any other source is
-discarded.** `ownerOf` in `sync-cards.ts` lists the promo sets (OPP, PR, JDG)
-as riftcodex's and gives every other set to riot-gallery, so a new set lands
-from the gallery with no code change. A plain `npm run sync-cards` fetches both
-and writes one merged result; the discard applies however the run is started,
-so neither source can overwrite the other's rows. `CARD_SOURCE` is no longer
+**Every set has at most one owning source, and a row from any other source is
+discarded.** `ownerOf` in `sync-cards.ts` gives every set to riot-gallery, so a
+new set lands with no code change, except the retired promo sets (OPP, PR, JDG,
+`RETIRED_SETS`; see [printings.md](printings.md)), which **no source owns**. A
+promo row arriving from any source is therefore discarded and logged, not
+refused, so a promo appearing in Riot's feed one day cannot block a sync. The
+discard applies however the run is started, so no source can overwrite another's
+rows. `CARD_SOURCE` is no longer
 read (the sync warns if it is set): choosing a source per run is what let the
 pool be half-switched, and ownership per set replaces it.
 
-- **riot-gallery (active, every set but the promos)** — the public feed behind
+- **riot-gallery (active, the only source)** — the public feed behind
   Riot's own card gallery (`content.publishing.riotgames.com/…/riftbound_gallery_cards`),
   no key. It is the upstream Riftcodex and RiftScribe both copied, and was the
   only source carrying Radiance once Riftcodex stopped updating in July 2026.
@@ -49,11 +51,12 @@ pool be half-switched, and ownership per set replaces it.
   cosmetic**: drafts replay against live card data and the bots pick by domain
   ([draft.md](draft.md)), so storing the right value from the first sync means
   Riot's eventual fix changes nothing under an active draft.
-- **riftcodex (promo sets only)** — Riftcodex open API (`https://api.riftcodex.com`),
+- **riftcodex (retired, owns no sets)** — Riftcodex open API (`https://api.riftcodex.com`),
   no auth. `GET /cards?page=N&size=100` (`size` caps at 100; 422 above),
   envelope `{ items, total, page, size, pages }`. It was the whole pool until
-  it stopped updating in July 2026, and stays only because Riot's feed has no
-  promos. `riftbound_id` (`ogn-299*-298`) maps to our canonical ids:
+  it stopped updating in July 2026, then the promo sets' source until those
+  were retired, because Riot's feed carries no promos. The frozen promo rows
+  are still the ones it wrote. `riftbound_id` (`ogn-299*-298`) maps to our canonical ids:
   `*` signature, `a`/`b` alt art, `tNN`/`rNN`/`spN` tokens and specials; the
   trailing segment is the set size, not part of the identity. Their feed
   contains stale duplicate records under the same `riftbound_id` — keep the one
@@ -75,13 +78,12 @@ pool be half-switched, and ownership per set replaces it.
   this, the printings of one legend spell its card page differently, which
   `check:printings` fails on.
 
-  **Its known OPP id bug is deferred, and any fix must be additive.** Riftcodex
-  collapses 28 OPP `riftbound_id`s onto 12 canonical ids, and plain/Metal pairs
-  share one, so 32 promo printings never arrive. A fix may add new ids but must
-  **never rename a stored id**: `drafts.packs` is jsonb holding card ids, so a
+  Riftcodex collapsed 28 OPP `riftbound_id`s onto 12 canonical ids, so 32
+  promo printings never arrived. That stopped mattering when the promos were
+  retired, but **a stored id is never renamed**, whatever the source: `drafts.packs` is jsonb holding card ids, so a
   renamed id leaves every draft that dealt it unable to resume.
-- **Rules text comes from the rich HTML, not the `plain` field, for both
-  active sources.** Riftcodex copies Riot's HTML, and both `plain` alternatives
+- **Rules text comes from the rich HTML, not the `plain` field.** Riftcodex
+  copied Riot's HTML, and both `plain` alternatives
   are the tags deleted with nothing in their place: measured 27 September
   2026, 625 of 1,288 cards ran one ability into the next
   (`resolve.)Give a unit`), 30 flattened a "Choose one" list, and 105 still
@@ -124,20 +126,26 @@ until another source overwrites the same id. That is deliberate — losing cards
 is worse than keeping a stale row — but a row a retired source wrote can carry
 that source's gaps: the riftscribe token rows (`UNL-T0n`) had a null
 supertype, which is why the token rule also matches on id
-([card-browser.md](card-browser.md)).
+([card-browser.md](card-browser.md)). A set no source owns is the extreme
+case: its rows are never written again, which is exactly what the retired
+promos need.
 
 **The sync refuses to write if a stored card is missing from the source that
 owns its set** (`checkFloor`). Never deleting means a card that silently stops
 arriving would just stop updating, which is exactly what unstable paging
-produced; the floor turns that into a refusal. If a source really has dropped
+produced; the floor turns that into a refusal. A set with no owner is skipped,
+since nothing is expected to deliver it. If a source really has dropped
 a card, `--allow-missing=<ids>` lets the run through.
 
 ## Syncing, per environment
 
 ### Card data
 
-Cards come from both owning sources via `npm run sync-cards`. No Riot API key
-is needed. **Dev's card table is
+Cards come from Riot's gallery feed via `npm run sync-cards`. No Riot API key
+is needed. **It prints the project it is writing to**, through
+`scripts/lib/database-label.ts`: dev and production share one Supabase pooler
+host, so only the project ref in the connection's user name tells them apart,
+and a host alone would read the same for both. **Dev's card table is
 populated by re-running the sync, not copied from production** — so a data
 correction that lands through the sync (a fixed adapter mapping, a
 `--force` re-map) has to be run again against production, and is not carried
@@ -156,8 +164,29 @@ across by deploying.
   to the sets it owns. A real run prints any set whose rows changed source, so
   a hand-over shows up once rather than as a wall of unexplained updates.
 - Never hand-edit card data; fix the sync instead.
+- **A change to which printing is canonical is synced into production before
+  the code relying on it deploys.** `base_id` is stored, and only the sync
+  recomputes it, so deploying first serves the new code against the old
+  canonical choices. The promo retirement is the case that made this a rule:
+  the code hides every promo assuming none is canonical any more, and against
+  the old `base_id` 43 cards would vanish from import and the printing picker.
+- **`npm run retire-promos` (`scripts/retire-promo-printings.ts`) moves every
+  cube off the retired promo printings**, onto `retiredPrintingTargets`' choice
+  ([printings.md](printings.md)). It is **report-only unless `--apply`** — the
+  reverse of the sync's `--dry-run`, because this writes into people's cubes —
+  and refuses unless the sync has already made no promo canonical. `--apply`
+  is one transaction that locks `cube_cards`, moves every promo row in every
+  section and every promo cover, merges into an existing row up to 99 copies,
+  logs one `printing_switched` per cube, section and promo with no actor and
+  one shared timestamp, and rolls back unless no promo is left and every cube's
+  copy count is unchanged. **It does not bump `cubes.updated_at`**: that would
+  push every touched cube to the top of the recency lists for a change its
+  owner did not make. It writes a gitignored `retire-promos-*.json` journal so
+  a run can be reversed exactly, and a second run finds nothing to do.
+  **Production's order is sync, `retire-promos` (report), `retire-promos --apply`,
+  then deploy, then one more `retire-promos`** expecting nothing, to catch a
+  promo added in the window between the apply and the deploy.
 
 ## Still open
 
 - The Riot adapter stays dormant until our API application is approved.
-- Riftcodex's OPP id collapse, above, is deferred.

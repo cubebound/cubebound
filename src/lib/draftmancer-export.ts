@@ -144,7 +144,8 @@ export function draftmancerRarity(
  *
  * **`special` rates 2, not 0.** Zero is the bottom of Draftmancer's scale
  * rather than an absence, so an unresolvable card would be picked dead last —
- * and there are 339 Promo rows sitting in real cubes. 2 is the middle of the
+ * and 339 Promo rows sat in real cubes when this was written (the promo sets
+ * are retired now, but drafts that dealt one still export). 2 is the middle of the
  * 1–4 range actually in use, so it is neither favoured nor buried.
  */
 const RARITY_RATING: Record<DraftmancerRarity, number> = {

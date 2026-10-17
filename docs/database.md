@@ -44,8 +44,9 @@ Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 Migrations are applied **per environment and by hand** — see [environments.md](environments.md).
 A migration in a merged branch is not live until production is migrated.
 
-`0001`'s suffix-stripping rule is superseded by `0003`; only `0003` must stay in
-step with `src/lib/card-ids.ts`. Adding a column to a populated table means
+`0001`'s suffix-stripping rule is superseded by `0003`, and `0003` by the
+recompute SQL every sync runs; what a `base_id` rule change edits is in
+[printings.md](printings.md). Adding a column to a populated table means
 add-nullable → backfill → set-not-null, never `ADD COLUMN NOT NULL`.
 
 ## Writing queries
