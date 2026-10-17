@@ -22,7 +22,7 @@ import { fromEnvFile } from "./lib/env";
 import { createTestAccount } from "./lib/test-account";
 
 import { addCubeCard, createCube, getCubeCards } from "../src/db/queries/cubes";
-import { TOKEN_ID_PATTERN } from "../src/lib/card-ids";
+import { RETIRED_SETS, TOKEN_ID_PATTERN } from "../src/lib/card-ids";
 import { canEditCube } from "../src/lib/cube-access";
 import { defaultSectionForType, isCubeSection } from "../src/lib/riftbound";
 import { slugify, uniqueSlug } from "../src/lib/slug";
@@ -400,22 +400,35 @@ try {
       `replay is not exercising the action: the owner's own replay changed nothing (${baseline} -> ${afterOwner})`,
     );
 
-    // Tokens are not cards: the owner's own request, with the card swapped for
-    // a token, must be refused. The searches never offer one, so this is the
-    // forged request the server-side refusal exists for.
+    // Neither a token (not a card) nor a retired promo printing (a card the
+    // site no longer hands out) may go in a cube: the owner's own request, with
+    // the card swapped for one, must be refused. The searches never offer
+    // either, so this is the forged request the server-side refusal exists for.
     const [token] = await sql<{ id: string }[]>`
       select id from cards
        where supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN}
        order by id limit 1`;
+    const [retired] = await sql<{ id: string }[]>`
+      select id from cards
+       where set_code in ${sql([...RETIRED_SETS])}
+         and not (supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN})
+       order by id limit 1`;
     const addedId = added?.id ?? "";
-    if (!token) {
-      failures.push("no token row in this database; the token replay was skipped");
-    } else if (!addedId || !request.postData.includes(JSON.stringify(addedId))) {
-      failures.push(`the captured Add does not carry ${addedId}; the token replay was skipped`);
-    } else {
+    for (const [label, forbidden] of [
+      ["token", token],
+      ["retired promo printing", retired],
+    ] as const) {
+      if (!forbidden) {
+        failures.push(`no ${label} row in this database; the ${label} replay was skipped`);
+        continue;
+      }
+      if (!addedId || !request.postData.includes(JSON.stringify(addedId))) {
+        failures.push(`the captured Add does not carry ${addedId}; the ${label} replay was skipped`);
+        continue;
+      }
       const forged = {
         ...request,
-        postData: request.postData.replaceAll(JSON.stringify(addedId), JSON.stringify(token.id)),
+        postData: request.postData.replaceAll(JSON.stringify(addedId), JSON.stringify(forbidden.id)),
       };
       const before = await getCubeCards(cube.id);
       const headers: Record<string, string> = {};
@@ -438,8 +451,8 @@ try {
       await res.text();
       const after = await getCubeCards(cube.id);
       expect(
-        !after.some((c) => c.id === token.id) && after.length === before.length,
-        `the owner's Add with ${token.id} swapped in put a token in the cube`,
+        !after.some((c) => c.id === forbidden.id) && after.length === before.length,
+        `the owner's Add with ${forbidden.id} swapped in put a ${label} in the cube`,
       );
     }
   }

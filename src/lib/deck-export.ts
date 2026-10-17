@@ -41,16 +41,16 @@ function typeRank(type: string): number {
 /**
  * Drops a promo variant's suffix: `Battle Mistress (Metal)` → `Battle Mistress`.
  *
- * Thirty-five cards carry one — `(Metal)` on 24, plus `(Starter)`,
- * `(Launch Exclusive)`, `(Ultimate)` and `(GG EZ)` — and they are separate rows
- * with their own ids rather than alt art of a base printing. **Every one of
+ * Promo printings carry one — mostly `(Metal)`, plus `(Launch Exclusive)` and
+ * `(GG EZ)` — and they are separate rows with their own ids rather than alt art
+ * of a base printing. **Every one of
  * them has a same-named plain card in the pool**, which is what makes stripping
  * safe: the drafter holds the same card, printed differently, and a text list
  * has no way to say which printing anyway (the binary deck code encodes that in
  * a variant suffix on the card code). Left in, every such line fails to import.
  *
- * Only a *trailing* parenthetical is removed. Four cards have parentheses
- * elsewhere in the name and are left alone.
+ * Only a *trailing* parenthetical is removed; a parenthetical elsewhere in a
+ * name is part of it (see `nameWithoutTreatment` in card-ids.ts).
  */
 function withoutVariantSuffix(name: string): string {
   return name.replace(/\s*\([^)]*\)\s*$/, "");

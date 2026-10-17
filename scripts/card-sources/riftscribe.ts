@@ -1,5 +1,8 @@
 /**
- * RiftScribe adapter — the ACTIVE card source.
+ * RiftScribe adapter — RETIRED. It owns no sets, so `sync-cards` discards
+ * everything it returns; kept for comparison only. Measured October 2026 it
+ * is a lossy copy of Riot's gallery feed: no supertype, tags or artist, and
+ * rules text with its line breaks deleted.
  *
  * Open API, no auth. Verified against https://riftscribe.gg/api-docs and
  * /openapi.json (2026-08):

@@ -12,7 +12,7 @@
  * `SFD-224`) and across sets (`OGN-013` "Pouty Poro" reprinted as `UNL-220`),
  * and nothing in `UNL-220` reveals that it is the same card as `OGN-013`. So
  * the canonical printing is resolved from the card data — see `assignBaseIds`,
- * which mirrors the SQL in the migration that backfills the column.
+ * which mirrors the recompute SQL in scripts/sync-cards.ts.
  *
  * Identity is (name, type), verified safe against the whole pool: no
  * (name, type) group disagrees on domains, energy, might or power cost, and no
@@ -61,14 +61,16 @@ export function composeCardId(
 /**
  * A card's name with a trailing printing treatment removed.
  *
- * The source spells some treatments in the name rather than the id, so 34 rows
- * read "Nine-Tailed Fox (Metal)", "Dark Child (Starter)", "Teemo, Scout
- * (GG EZ)". Identity being (name, type), each of those became its own canonical
- * printing and showed up as a second entry in the collapsed browser.
+ * The sources spell some treatments in the name rather than the id: "Nine-Tailed
+ * Fox (Metal)", "Teemo, Scout (GG EZ)". Identity being (name, type), each of
+ * those became its own canonical printing and showed up as a second entry in
+ * the collapsed browser.
  *
- * **Only a trailing parenthetical.** `Recruit (271) // Buff` and `Sprite (274)
- * // Buff` are four genuinely distinct cards carrying one mid-name, and a
- * looser match would merge cards the game keeps apart.
+ * **Only a trailing parenthetical.** Riftcodex named four distinct tokens
+ * `Recruit (271) // Buff`, `Sprite (274) // Buff` and so on, a parenthetical
+ * mid-name, and a looser match would merge cards the game keeps apart. Riot's
+ * gallery no longer spells them that way, so `check:printings` asserts the
+ * rule on those names directly.
  *
  * Mirrors the `regexp_replace` inside `collapseKey` in
  * src/db/queries/cards.ts; `check:printings` asserts the two agree on every
@@ -98,11 +100,11 @@ const TOKEN_ID = new RegExp(TOKEN_ID_PATTERN);
 /**
  * Whether a row is a token (Recruit, Sprite, Gold…) rather than a card.
  *
- * **Both halves are needed, and only production shows why.** The riftcodex
- * tokens carry `supertype = 'Token'`, but six more (`UNL-T01` to `UNL-T07`)
- * came from the retired riftscribe source, which wrote a null supertype. Dev
- * does not hold those six, so a supertype-only rule passes every check there
- * and still lets tokens through in production. A card merely *named* after a
+ * **Both halves are needed.** Tokens from Riot's gallery and Riftcodex carry
+ * `supertype = 'Token'`, but production once held six (`UNL-T01` to
+ * `UNL-T07`) from the retired riftscribe source with a null supertype, which a
+ * supertype-only rule let through while every check on dev passed. A source
+ * can write a null supertype again; the id half costs nothing. A card merely *named* after a
  * token ("Recruit the Vanguard") is neither, and stays.
  *
  * Mirrors `tokenCard` in src/db/queries/cards.ts. `check:printings` asserts
@@ -112,6 +114,85 @@ const TOKEN_ID = new RegExp(TOKEN_ID_PATTERN);
  */
 export function isTokenCard(card: { id: string; supertype: string | null }): boolean {
   return card.supertype === "Token" || TOKEN_ID.test(card.id);
+}
+
+/**
+ * The promo sets the site no longer offers: organized-play, general and judge
+ * promos. Retired in October 2026 when Riot's gallery feed became the only card
+ * source, because it carries none of them.
+ *
+ * **Every one is an alternate printing of a card a main set carries**, checked
+ * against all 133 OPP records the old source held, so retiring them removes no
+ * card. Their rows stay in `cards`: drafts store card ids in `drafts.packs` and
+ * replay against live rows, and 130 production drafts had dealt one. Nothing
+ * offers them any more (browser, search, filters, import, starter lists,
+ * picker, card pages, add paths), but anything reading by id still resolves
+ * them. `scripts/retire-promo-printings.ts` moved every cube off them.
+ *
+ * A string list rather than a `Set` because the SQL half binds it as a
+ * parameter (`retiredPrinting` in src/db/queries/cards.ts).
+ */
+export const RETIRED_SETS: readonly string[] = ["OPP", "PR", "JDG"];
+const RETIRED = new Set(RETIRED_SETS);
+
+/** Whether a row is a printing from a retired promo set. */
+export function isRetiredPrinting(card: { setCode: string }): boolean {
+  return RETIRED.has(card.setCode.toUpperCase());
+}
+
+/** Whether a row is a card the site still hands out: not a token, not retired. */
+export function isOfferedCard(card: { id: string; supertype: string | null; setCode: string }): boolean {
+  return !isTokenCard(card) && !isRetiredPrinting(card);
+}
+
+/**
+ * The offered printing each retired printing is replaced by, in cubes.
+ *
+ * The same card (`collapseIdentityKey`, so "Prodigal Explorer (Metal)" finds
+ * "Prodigal Explorer"), and among its offered printings **the one with the same
+ * art if there is one**, otherwise the one the browser shows for the card.
+ * Three promos in production cubes carried art no main printing has except a
+ * Vendetta showcase reprint (OPP-120 Rengar is VEN-179's art), and moving those
+ * to the main printing would have changed what 32 cube entries look like.
+ * Preferring the representative among same-art printings keeps every other
+ * promo on the main printing rather than an odd special-slot reprint.
+ *
+ * Retired rows with no offered printing of their card are left out of the
+ * map; the caller decides whether that is fatal.
+ */
+export function retiredPrintingTargets<
+  T extends PrintingLike & { supertype: string | null; imageFull: string | null },
+>(pool: T[]): Map<string, T> {
+  const art = (url: string | null) => (url ?? "").split("?")[0];
+  const offeredByKey = new Map<string, T[]>();
+  for (const card of pool) {
+    if (!isOfferedCard(card)) continue;
+    const key = collapseIdentityKey(card);
+    const group = offeredByKey.get(key);
+    if (group) group.push(card);
+    else offeredByKey.set(key, [card]);
+  }
+  for (const group of offeredByKey.values()) group.sort(compareRepresentatives);
+
+  const targets = new Map<string, T>();
+  for (const card of pool) {
+    if (!isRetiredPrinting(card)) continue;
+    const offered = offeredByKey.get(collapseIdentityKey(card));
+    if (!offered) continue;
+    const sameArt = card.imageFull ? offered.find((o) => art(o.imageFull) === art(card.imageFull)) : undefined;
+    targets.set(card.id, sameArt ?? offered[0]);
+  }
+  return targets;
+}
+
+/**
+ * The browser's representative order within one card: a plainly-named
+ * printing first, then `comparePrintings`. Mirrors `canonicalFirst` in
+ * src/db/queries/cards.ts.
+ */
+function compareRepresentatives(a: PrintingLike, b: PrintingLike): number {
+  const treated = (c: PrintingLike) => Number(nameWithoutTreatment(c.name) !== c.name.trim());
+  return treated(a) - treated(b) || comparePrintings(a, b);
 }
 
 /**
@@ -155,16 +236,25 @@ export function cardIdentityKey(card: Pick<PrintingLike, "name" | "type">): stri
 
 /**
  * Orders printings so the canonical one sorts first:
- *   1. a real printing before a Showcase reprint,
- *   2. earliest set code,
- *   3. lowest collector number (numerically),
- *   4. plain id before its `a` / `-star` variants.
+ *   1. an offered printing before a retired promo (`RETIRED_SETS`),
+ *   2. a real printing before a Showcase reprint,
+ *   3. earliest set code,
+ *   4. lowest collector number (numerically),
+ *   5. plain id before its `a` / `-star` variants.
  *
- * Every group in the current pool has at least one non-Showcase printing, so
- * rule 1 decides most of them; the rest are tie-breakers that only need to be
- * deterministic and stable.
+ * Rule 1 is why promos stopped reaching cubes. Without it "OPP" sorted before
+ * "SFD", "UNL" and "VEN" under rule 3, the promo became the canonical printing
+ * of 65 cards, and import, starter lists and the browser handed it out: 887
+ * production cube copies before October 2026. Every group in the current pool
+ * has at least one non-Showcase printing, so rule 2 decides most of the rest;
+ * the others are tie-breakers that only need to be deterministic and stable.
+ *
+ * Mirrored by the recompute SQL in scripts/sync-cards.ts, which is what keeps
+ * stored `base_id` current; `check:printings` asserts the two agree.
  */
 function comparePrintings(a: PrintingLike, b: PrintingLike): number {
+  const retired = Number(isRetiredPrinting(a)) - Number(isRetiredPrinting(b));
+  if (retired !== 0) return retired;
   const showcase = Number(a.rarity === "Showcase") - Number(b.rarity === "Showcase");
   if (showcase !== 0) return showcase;
   if (a.setCode !== b.setCode) return a.setCode < b.setCode ? -1 : 1;
@@ -175,9 +265,11 @@ function comparePrintings(a: PrintingLike, b: PrintingLike): number {
 }
 
 /**
- * Maps every printing to the id of its canonical printing. Mirrors the SQL in
- * `drizzle/0003_base_id_print_groups.sql`; the mismatch check in
- * `scripts/check-printings.mts` asserts the two agree across the whole pool.
+ * Maps every printing to the id of its canonical printing. Mirrors the
+ * recompute SQL every sync runs in `scripts/sync-cards.ts` (which superseded
+ * the backfill in `drizzle/0003_base_id_print_groups.sql`); the mismatch check
+ * in `scripts/check-printings.mts` asserts stored `base_id` agrees across the
+ * whole pool.
  */
 export function assignBaseIds<T extends PrintingLike>(cards: T[]): Map<string, string> {
   const groups = new Map<string, T[]>();

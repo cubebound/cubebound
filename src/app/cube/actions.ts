@@ -42,7 +42,7 @@ import {
 } from "@/db/queries/cubes";
 import type { Cube, NewCubeChange, User } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-import { isTokenCard } from "@/lib/card-ids";
+import { isRetiredPrinting, isTokenCard } from "@/lib/card-ids";
 import { canEditCube, canUseCube, suspensionError } from "@/lib/cube-access";
 import {
   mergeImportRows,
@@ -106,16 +106,37 @@ async function requireOwnedCube(
   return { cube, profile: current.profile };
 }
 
+type RefusableCard = { id: string; name: string; supertype: string | null; setCode: string };
+
 /**
- * The refusal for any write that would put a token into a cube.
+ * The refusal for any write that would put into a cube something the site does
+ * not offer: a token (not a card, see `isTokenCard`) or a retired promo
+ * printing (a card we no longer hand out, see `isRetiredPrinting`). Null when
+ * the card may go in.
  *
- * Tokens are not cards (see `isTokenCard`), and the searches and the import
- * catalog already leave them out, so a person never reaches this. It exists for
- * a forged request, checked against rows each action has already read. Taking
- * one *out* is never refused: a cube may hold one from before this rule.
+ * The searches, the import catalog and the picker already leave both out, so a
+ * person never reaches this. It exists for a forged request, checked against
+ * rows each action has already read. Taking one *out* is never refused: a cube
+ * may hold one from before the rule and has to be able to shed it.
  */
-function tokenError(card: { name: string }): ActionState {
-  return { error: `${card.name} is a token, and tokens can't go in a cube.` };
+function notOfferedError(card: RefusableCard): ActionState | null {
+  if (isTokenCard(card)) return { error: `${card.name} is a token, and tokens can't go in a cube.` };
+  if (isRetiredPrinting(card)) {
+    return {
+      error: `${card.name} (${card.id}) is a promo printing we no longer offer. Add its normal printing instead.`,
+    };
+  }
+  return null;
+}
+
+/**
+ * Whether switching one printing for another puts something not offered in.
+ * Only the "to" side matters, except that moving between two printings of one
+ * token is not adding a token.
+ */
+function swapRefusal(from: RefusableCard, to: RefusableCard): ActionState | null {
+  if (isTokenCard(to) && isTokenCard(from) && !isRetiredPrinting(to)) return null;
+  return notOfferedError(to);
 }
 
 function editorPath(username: string, slug: string): string {
@@ -370,7 +391,8 @@ export async function addCardAction(
 
   const card = await getCardById(cardId);
   if (!card) return { error: "Card not found." };
-  if (isTokenCard(card)) return tokenError(card);
+  const refused = notOfferedError(card);
+  if (refused) return refused;
 
   const target =
     section && isCubeSection(section)
@@ -518,8 +540,10 @@ export async function adjustQuantityAction(
   }
 
   const card = await getCardById(cardId);
-  // One fewer is always allowed; one more of a token is adding one.
-  if (delta > 0 && card && isTokenCard(card)) return tokenError(card);
+  // One fewer is always allowed; one more of a token or a retired printing is
+  // adding one.
+  const refused = delta > 0 && card ? notOfferedError(card) : null;
+  if (refused) return refused;
   const quantity = await adjustCubeCardQuantity(owned.cube.id, cardId, section, delta);
   await logChange(owned, {
     kind: delta > 0 ? "cards_added" : "cards_removed",
@@ -571,9 +595,11 @@ export async function swapPrintingAction(
   const [from, to] = await Promise.all([getCardById(fromCardId), getCardById(toCardId)]);
   if (!from || !to) return { error: "Card not found." };
   if (from.baseId !== to.baseId) return { error: "That is not a printing of the same card." };
-  // Unreachable while a token only groups with tokens, which `check:printings`
-  // asserts; kept so that invariant is not the only thing standing here.
-  if (isTokenCard(to) && !isTokenCard(from)) return tokenError(to);
+  // The picker lists neither a token beside a card (a token only groups with
+  // tokens, which `check:printings` asserts) nor a retired printing; kept so
+  // those are not the only things standing here.
+  const refused = swapRefusal(from, to);
+  if (refused) return refused;
 
   const switched = await switchCopyPrinting(owned.cube.id, fromCardId, toCardId, section);
   if (switched) {
@@ -813,8 +839,8 @@ export async function createCubeFromListAction(
   const knownIds = new Set(known.map((card) => card.id));
   const unknown = merge.rows.find((entry) => !knownIds.has(entry.cardId));
   if (unknown) return { error: `That card no longer exists: ${unknown.cardId}` };
-  const token = known.find(isTokenCard);
-  if (token) return tokenError(token);
+  const refused = known.map(notOfferedError).find(Boolean);
+  if (refused) return refused;
 
   const cube = await createCubeWithLog(
     { id: creator.profile.id, username: creator.profile.username },
@@ -861,8 +887,8 @@ export async function commitImportAction(
   const namesById = new Map(known.map((c) => [c.id, c.name]));
   const unknown = entries.find((e) => !namesById.has(e.cardId));
   if (unknown) return { error: `That card no longer exists: ${unknown.cardId}` };
-  const token = known.find(isTokenCard);
-  if (token) return tokenError(token);
+  const refused = known.map(notOfferedError).find(Boolean);
+  if (refused) return refused;
 
   // One statement, not one per line: `mergeImportRows` has already collapsed
   // duplicates, so the whole import is a single upsert and a single
@@ -914,16 +940,14 @@ export async function saveCubeEditsAction(
   if (missing) return { error: `That card no longer exists: ${missing}` };
 
   // Refused before anything is written, so a batch is all or nothing. Removes
-  // are not checked: taking a token out is always allowed. A replace is, on
-  // its "to" side, unless it only switches between printings of one token.
-  const tokenAdd =
-    plan.adds.map((row) => byId.get(row.cardId)!).find(isTokenCard) ??
+  // are not checked: taking a token or a retired printing out is always
+  // allowed. A replace is, on its "to" side (see `swapRefusal`).
+  const refused =
+    plan.adds.map((row) => notOfferedError(byId.get(row.cardId)!)).find(Boolean) ??
     plan.replaces
-      .filter(
-        (swap) => isTokenCard(byId.get(swap.toCardId)!) && !isTokenCard(byId.get(swap.fromCardId)!),
-      )
-      .map((swap) => byId.get(swap.toCardId)!)[0];
-  if (tokenAdd) return tokenError(tokenAdd);
+      .map((swap) => swapRefusal(byId.get(swap.fromCardId)!, byId.get(swap.toCardId)!))
+      .find(Boolean);
+  if (refused) return refused;
 
   const log: Omit<NewCubeChange, "cubeId" | "actorId" | "actorUsername">[] = [];
 

@@ -41,3 +41,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Journals written by scripts/retire-promo-printings.ts (one per --apply run)
+retire-promos-*.json

@@ -123,11 +123,15 @@ for Piltover Archive (see [draft.md](draft.md)). `src/lib/draftmancer-export.ts`
   we have until pick data exists. One function resolves the tier and both the
   rarity and the rating come from it, so the two cannot disagree.
   **Showcase and Promo are printing treatments, not power tiers**, so the
-  resolution looks through `base_id` to the canonical printing — all 120
-  showcase rows resolve that way (70 Rare, 42 Epic). Promo mostly does not (73
-  of 117 are their own base) and lands on `special`, rated a neutral **2, never
-  0**: zero is the bottom of the scale rather than an absence, and 339 Promo
-  rows sit in real cubes, so bots would take every one of them last. A real
+  resolution looks through `base_id` to the canonical printing. Showcase almost
+  always resolves, because `comparePrintings` never makes a Showcase printing
+  canonical while another exists. A promo printing that was its own base
+  landed on `special`, rated a neutral **2, never 0**: zero is the bottom of
+  the scale rather than an absence, and 339 Promo rows sat in real cubes when
+  this was written, so bots would have taken every one of them last. The
+  promos are retired now and no add path lets one into a cube
+  ([printings.md](printings.md)), so this fallback has no live Promo case; it
+  stays for any printing that does not resolve to a tier. A real
   export of the 426-card dev cube comes out 123 rare, 119 uncommon, 82 common,
   80 mythic, 22 special.
 - **Costless is an empty `mana_cost`, not `{0}`** — legends, runes and

@@ -48,7 +48,14 @@ import {
   resolveLine,
   type CatalogCard,
 } from "../src/lib/import-list";
-import { collapseIdentityKey, isTokenCard, TOKEN_ID_PATTERN } from "../src/lib/card-ids";
+import {
+  collapseIdentityKey,
+  isRetiredPrinting,
+  isTokenCard,
+  nameWithoutTreatment,
+  RETIRED_SETS,
+  TOKEN_ID_PATTERN,
+} from "../src/lib/card-ids";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 
@@ -292,6 +299,31 @@ try {
     );
   }
 
+  // --- 2d. Retired promo printings are not offered -------------------------
+  // OPP, PR and JDG stay in the table for old drafts, but the catalog must not
+  // offer one: a promo as a card's canonical printing is how 887 production
+  // cube copies ended up on them. Pasting a promo's name still matches, and
+  // lands on the card's offered printing. Independent SQL, not the catalog.
+  const retired = await sql<{ id: string; name: string }[]>`
+    select id, name from cards
+     where set_code in ${sql([...RETIRED_SETS])}
+       and not (supertype is not distinct from 'Token' or id ~ ${TOKEN_ID_PATTERN})`;
+  const retiredIds = new Set(retired.map((r) => r.id));
+  const retiredInCatalog = catalog.filter((c) => retiredIds.has(c.id));
+  expect(
+    retiredInCatalog.length === 0,
+    `the import catalog holds ${retiredInCatalog.length} retired promo printing(s): ` +
+      retiredInCatalog.slice(0, 5).map((c) => c.id).join(", "),
+  );
+  for (const promo of retired.slice(0, 40)) {
+    const plain = nameWithoutTreatment(promo.name);
+    const row = previewImport(plain, catalog).rows[0];
+    expect(
+      row?.resolution.status === "matched" && !retiredIds.has(row.resolution.card.id),
+      `pasting "${plain}" (a retired ${promo.id}) should match the card's offered printing`,
+    );
+  }
+
   // --- 3. Ambiguity, on a synthetic catalog ---------------------------------
   const twins: CatalogCard[] = [
     { id: "AAA-001", name: "Twinned Name", type: "Unit" },
@@ -473,6 +505,7 @@ try {
       (c) =>
         c.set_code !== set.code ||
         isTokenCard(c) ||
+        isRetiredPrinting({ setCode: c.set_code }) ||
         c.supertype === "Basic" ||
         !/^[A-Z]+-[0-9]+[a-z]?(-[a-z]+)?$/.test(c.id) ||
         (c.rarity === "Showcase" && c.base_set !== c.set_code),

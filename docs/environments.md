@@ -16,7 +16,9 @@ in behind it and broke `check:printings` on import.
 
 Migrations run manually and separately per environment. `npm run db:migrate`
 against dev is part of normal development; production is migrated deliberately
-by the owner at merge time.
+by the owner at merge time. Card data reaches production the same way, by
+running the sync against it rather than by deploying; when a sync or a card
+data script has to run relative to a deploy is in [card-data.md](card-data.md).
 
 Prefer `db:migrate` (versioned files) over `db:push` (diffs the schema and can
 drop columns). `db:generate` writes a migration from a schema diff — useful as a
@@ -43,8 +45,9 @@ The dev project was created partway through development, after the Share button
 went live. Everything up to and including migration `0007` and the champion
 re-sync was applied **directly to production** before that; dev was then created
 empty and brought to the same point with `db:migrate` and `sync-cards`. So the
-two start aligned, and dev's card table has no riftscribe residue where
-production has six rows.
+two start aligned, except that dev never held the six riftscribe token rows
+(`UNL-T0n`) production did. Riot's gallery serves those same ids, so the first
+production sync from it overwrites them.
 
 That history is worth knowing because git does not record it: a migration file
 present in the repo says nothing about which project has run it. Confirm

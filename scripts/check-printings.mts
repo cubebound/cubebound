@@ -21,12 +21,20 @@ import {
   cardIdentityKey,
   collapseIdentityKey,
   composeCardId,
+  isRetiredPrinting,
   isTokenCard,
   nameWithoutTreatment,
   provisionalBaseId,
+  RETIRED_SETS,
+  retiredPrintingTargets,
   TOKEN_ID_PATTERN,
 } from "../src/lib/card-ids";
 import { cardPagePath } from "../src/lib/card-popularity";
+import {
+  galleryCardId,
+  type GalleryCard,
+  mapGalleryCards,
+} from "./card-sources/riot-gallery";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 const failures: string[] = [];
@@ -54,8 +62,9 @@ try {
       supertype: string | null;
       champion: string | null;
       rules_text: string | null;
+      image_full: string | null;
     }[]
-  >`select id, base_id, name, type, set_code, collector_no, rarity, supertype, champion, rules_text from cards`;
+  >`select id, base_id, name, type, set_code, collector_no, rarity, supertype, champion, rules_text, image_full from cards`;
 
   expect(rows.length > 0, "no cards in the database");
 
@@ -65,6 +74,73 @@ try {
   expect(provisionalBaseId("UNL-T01") === "UNL-T01", "token ids have no suffix to strip");
   expect(composeCardId("ogn", 1, "") === "OGN-001", "compose should pad the collector number");
   expect(composeCardId("UNL", 3, "t03") === "UNL-T03", "compose should format tokens");
+
+  // --- Riot's gallery ids and names map onto ours ----------------------------
+  // Pure, against literal feed shapes. Both of the first two mistakes made
+  // writing this adapter were here: an id rule that dropped the eleven
+  // `ven-sp3-006` specials, and a signature champion read from a subtitle
+  // that 44 of 60 signatures do not have.
+  const idCases: [string, string | null][] = [
+    ["ogn-119-298", "OGN-119"],
+    ["ogn-119a-298", "OGN-119a"],
+    ["sfd-227-star-221", "SFD-227-star"],
+    ["ven-sp3-006", "VEN-SP3"],
+    ["unl-t01", "UNL-T01"],
+    ["rad-r04", "RAD-R04"],
+    ["rad-r04a", "RAD-R04a"],
+    ["ogn-119", null],
+  ];
+  for (const [raw, want] of idCases) {
+    expect(galleryCardId(raw) === want, `galleryCardId(${raw}) should be ${want}, got ${galleryCardId(raw)}`);
+  }
+
+  const lbl = (label: string) => ({ id: label.toLowerCase(), label });
+  const feedCard = (over: Partial<GalleryCard> & { id: string; name: string }): GalleryCard => ({
+    collectorNumber: Number(/-(\d+)/.exec(over.id)?.[1] ?? 1),
+    set: { value: { id: over.id.split("-")[0].toUpperCase(), label: "Test Set" } },
+    domain: { values: [lbl("Mind")] },
+    rarity: { value: lbl("Rare") },
+    ...over,
+  });
+  const unitType = { type: [lbl("Unit")], superType: [lbl("Champion")] };
+  const feed: GalleryCard[] = [
+    feedCard({ id: "ogn-001-298", name: "Master Yi", subtitle: "Honed", cardType: unitType, tags: { tags: ["Master Yi"] } }),
+    feedCard({ id: "ogn-002-298", name: "Kennen", subtitle: "Swift", cardType: unitType, tags: { tags: ["Kennen"] } }),
+    // A signature names its champion in its tags; this subtitle is a nickname.
+    feedCard({ id: "ogs-020-024", name: "Highlander", subtitle: "Yi", cardType: { type: [lbl("Spell")], superType: [lbl("Signature")] }, tags: { tags: ["Master Yi"] } }),
+    // A legend with region tags beside its champion, and the gallery's stray Champion supertype.
+    feedCard({ id: "ven-155-166", name: "Heart of the Tempest", cardType: { type: [lbl("Legend")], superType: [lbl("Champion")] }, tags: { tags: ["Yordle", "Kennen"] } }),
+    // The OGS starter legends: Champion with subtitle "Starter", which is a treatment.
+    feedCard({ id: "ogs-017-024", name: "Dark Child", subtitle: "Starter", cardType: { type: [lbl("Legend")], superType: [lbl("Champion")] }, tags: { tags: ["Annie"] } }),
+    feedCard({
+      id: "sfd-161-221", name: "B.F. Sword", cardType: { type: [lbl("Gear")] },
+      might: { value: { id: 3, label: "3" } },
+      text: { richText: { body: "<p>[Equip] :rb_energy_1:</p>" } },
+      effect: { richText: { body: "<p>[Ganking]</p>" } },
+    }),
+    // Corrections: wrong domain and missing type, both applied while the feed still says `from`.
+    feedCard({ id: "rad-067-167", name: "Clocktower Guardian", cardType: { type: [lbl("Unit")] }, domain: { values: [lbl("Fury")] } }),
+    feedCard({ id: "rad-006-167", name: "Scorched Earth", domain: { values: [] } }),
+    // ... and not once Riot has fixed it.
+    feedCard({ id: "rad-001-167", name: "Amateur Demolitionist", cardType: { type: [lbl("Unit")] }, domain: { values: [lbl("Fury")] } }),
+    feedCard({ id: "rad-999-167", name: "No Type Yet", domain: { values: [lbl("Calm")] } }),
+  ];
+  const mapped = mapGalleryCards(feed, new Date(0));
+  const byId = new Map(mapped.rows.map((r) => [r.id, r]));
+  const row = (id: string) => byId.get(id);
+  expect(row("OGN-001")?.name === "Master Yi, Honed" && row("OGN-001")?.champion === "Master Yi", "a champion unit should be named champion-first");
+  expect(row("OGS-020")?.name === "Highlander" && row("OGS-020")?.champion === "Master Yi", `a signature's champion comes from its tags, got ${row("OGS-020")?.champion}`);
+  expect(row("VEN-155")?.champion === "Kennen" && row("VEN-155")?.supertype === null, "a legend's champion is the tag naming a champion, and it has no supertype");
+  expect(row("OGS-017")?.name === "Dark Child" && row("OGS-017")?.champion === "Annie", `a starter legend keeps its title, got "${row("OGS-017")?.name}"`);
+  expect(row("SFD-161")?.might === null, "gear's equip bonus must not be stored as might");
+  expect(row("SFD-161")?.rulesText === "[Equip] :rb_energy_1:\n[Ganking]", `equipment effect text should follow the ability, got ${JSON.stringify(row("SFD-161")?.rulesText)}`);
+  expect(JSON.stringify(row("RAD-067")?.domains) === '["Mind"]', "a domain correction applies while the feed still says the wrong value");
+  expect(row("RAD-006")?.type === "Spell" && JSON.stringify(row("RAD-006")?.domains) === '["Fury"]', "a missing type and domain are filled from the corrections");
+  expect(
+    JSON.stringify(row("RAD-001")?.domains) === '["Fury"]' && mapped.notes.some((n) => n.includes("RAD-001") && n.includes("can be deleted")),
+    "a correction Riot has caught up with is reported as deletable",
+  );
+  expect(!byId.has("RAD-999") && mapped.deliveredIds.has("RAD-999"), "an untyped card is skipped but still counted as delivered");
 
   // --- tokens are not cards --------------------------------------------------
   // Synthetic, because the half that matters most is not in dev at all: the
@@ -211,6 +287,47 @@ try {
       namesakes.filter(isTokenCard).map((r) => `${r.id} "${r.name}"`).join("; "),
   );
 
+  // --- retired promo printings are never a card's canonical printing -------
+  // The regression this guards: "OPP" sorted before "SFD", "UNL" and "VEN", so
+  // an OPP promo was canonical for 65 cards and the site handed it out, into
+  // 887 production cube copies. `comparePrintings` now orders retired sets
+  // last, and the sync's recompute SQL mirrors it (the SQL/TS agreement above).
+  const asPrinting = (r: (typeof rows)[number]) => ({
+    id: r.id,
+    name: r.name,
+    type: r.type,
+    setCode: r.set_code,
+    collectorNo: r.collector_no,
+    rarity: r.rarity,
+    supertype: r.supertype,
+    imageFull: r.image_full,
+  });
+  const byIdRow = new Map(rows.map((r) => [r.id, r]));
+  const retiredCanonical = rows.filter(
+    (r) => !isRetiredPrinting(asPrinting(r)) && isRetiredPrinting(asPrinting(byIdRow.get(r.base_id) ?? r)),
+  );
+  expect(
+    retiredCanonical.length === 0,
+    `${retiredCanonical.length} offered printing(s) have a retired promo as their canonical printing, e.g. ` +
+      retiredCanonical.slice(0, 5).map((r) => `${r.id} -> ${r.base_id}`).join(", "),
+  );
+  const retiredInSql = new Set(
+    (await sql<{ id: string }[]>`select id from cards where set_code in ${sql([...RETIRED_SETS])}`).map((r) => r.id),
+  );
+  const retiredInTs = rows.filter((r) => isRetiredPrinting(asPrinting(r)));
+  expect(
+    retiredInTs.length === retiredInSql.size && retiredInTs.every((r) => retiredInSql.has(r.id)),
+    `SQL and isRetiredPrinting disagree on which rows are retired`,
+  );
+  // Every retired printing a cube could still hold has somewhere to go.
+  const targets = retiredPrintingTargets(rows.map(asPrinting));
+  const homeless = retiredInTs.filter((r) => !isTokenCard(r) && !targets.has(r.id));
+  expect(
+    homeless.length === 0,
+    `${homeless.length} retired printing(s) have no offered printing of the same card: ` +
+      homeless.slice(0, 5).map((r) => `${r.id} "${r.name}"`).join(", "),
+  );
+
   // Every base_id must point at a row that exists, and canonical rows point at
   // themselves.
   const ids = new Set(rows.map((r) => r.id));
@@ -263,10 +380,21 @@ try {
   );
 
   // And the other half: a parenthetical that is *not* trailing is part of the
-  // name. `Recruit (271) // Buff` and its three siblings are distinct cards.
+  // name. Riftcodex named four OGN tokens `Recruit (271) // Buff` and so on;
+  // Riot's gallery calls them `Recruit (DE)`, so after the October 2026 source
+  // switch no live row carries one. The rule is asserted on those names
+  // directly, and the live loop still covers any row that does.
+  for (const name of ["Recruit (271) // Buff", "Sprite (274) // Buff"]) {
+    expect(nameWithoutTreatment(name) === name, `a mid-name parenthetical was stripped: "${name}"`);
+  }
+  expect(
+    collapseIdentityKey({ name: "Recruit (271) // Buff", type: "Unit" }) !==
+      collapseIdentityKey({ name: "Recruit (272) // Buff", type: "Unit" }),
+    "two cards differing only in a mid-name parenthetical collapsed together",
+  );
   const midName = rows.filter((r) => /\([^()]*\)/.test(r.name) && !/\([^()]*\)\s*$/.test(r.name));
   expect(
-    midName.length > 0 && midName.every((r) => nameWithoutTreatment(r.name) === r.name.trim()),
+    midName.every((r) => nameWithoutTreatment(r.name) === r.name.trim()),
     `a mid-name parenthetical was stripped: ` +
       midName
         .filter((r) => nameWithoutTreatment(r.name) !== r.name.trim())
@@ -346,6 +474,15 @@ try {
     tagged.length === 0,
     `${tagged.length} card(s) store HTML tags in their rules text, e.g. ` +
       tagged.slice(0, 3).map((r) => r.id).join(", "),
+  );
+  // Both sources write a literal "[NO TEXT]" on textless cards (runes, some
+  // promos), and production showed it to readers until `richToRulesText`
+  // learned to drop it.
+  const placeholder = rows.filter((r) => (r.rules_text ?? "").includes("[NO TEXT]"));
+  expect(
+    placeholder.length === 0,
+    `${placeholder.length} card(s) store the source's "[NO TEXT]" placeholder as rules text, e.g. ` +
+      placeholder.slice(0, 3).map((r) => r.id).join(", "),
   );
   const multiLine = rows.filter((r) => (r.rules_text ?? "").includes("\n")).length;
   expect(
