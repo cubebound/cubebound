@@ -130,7 +130,7 @@ const sheetNamed = (sheets: { name: string; lines: string[] }[], name: string) =
 // --- rarity: treatments look through to the canonical printing ---------------
 {
   scenario();
-  // 120 Showcase rows all resolve through base_id — 70 to Rare, 42 to Epic.
+  // Showcase rows resolve through base_id to the printing that carries a tier.
   expect(
     draftmancerRarity({ rarity: "Showcase", baseRarity: "Epic" }) === "mythic",
     "a showcase Epic resolves through its base printing",
@@ -138,7 +138,7 @@ const sheetNamed = (sheets: { name: string; lines: string[] }[], name: string) =
   const showcaseEpic = draftmancerRating({ rarity: "Showcase", baseRarity: "Epic" });
   expect(showcaseEpic === 4, `a showcase Epic should rate 4, got ${showcaseEpic}`);
 
-  // 73 of 117 Promo rows are their own base, so there is nothing to look through.
+  // Most Promo rows are their own base, so there is nothing to look through.
   expect(
     draftmancerRarity({ rarity: "Promo", baseRarity: "Promo" }) === "special",
     "an unresolvable Promo is 'special', the value that exists for exactly this",

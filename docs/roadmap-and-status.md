@@ -2,12 +2,10 @@
 
 ## What is shipped
 
-Working: card ingestion (**production** 1,294 printings / 966 `base_id` groups
-across 8 sets; **dev** 1,288 / 960 — the difference is production's six
-riftscribe token rows, see [environments.md](environments.md)). **The card browser
-collapses to fewer than that** — 935 production / 929 dev — because 31 of those
-groups are promo treatments the source spells in the name; see the `collapseKey`
-bullet in [printings.md](printings.md). Also working:
+Working: card ingestion (sources in [card-data.md](card-data.md)). **The card browser shows fewer
+cards than there are `base_id` groups**, because some groups are promo
+treatments the source spells in the name; see the `collapseKey` bullet in
+[printings.md](printings.md). Also working:
 `/cards` browser, magic-link auth with username claim, cube CRUD, the staged
 edit panel, visual and text views, primer, change log, the public cube view with
 Share and Clone, and CI.
@@ -86,6 +84,11 @@ open it rather than trusting this.
 6b. ✅ Tokens are not cards: hide them from the browser and keep them out of
     cubes. Merged `351526a`; see the tokens bullet in
     [card-browser.md](card-browser.md).
+6c. Radiance via Riot's gallery feed. Added and pulled forward by the owner on
+    17 October 2026, because Riftcodex stopped updating and never carried
+    Radiance: Riot's own feed becomes the source for every set but the promos,
+    with corrections for the cards Riot has wrong. See
+    [card-data.md](card-data.md).
 
 **Next**
 

@@ -48,8 +48,8 @@ const ENTITIES: Record<string, string> = {
  *
  * The source HTML-escapes its rules text (`[Empowered][&gt;]`, `&quot;When I
  * attack…&quot;`), and 105 cards were shown to readers with the codes printed.
- * The sync decodes on the way in (see `richToRulesText` in the Riftcodex
- * adapter); this is also run at render so a database synced before that fix
+ * The sync decodes on the way in (see `richToRulesText` in
+ * scripts/card-sources/types.ts); this is also run at render so a database synced before that fix
  * still reads correctly. Decoding twice is harmless: the decoded text holds no
  * references left to decode, unless a card's text genuinely spells one out,
  * which none does.

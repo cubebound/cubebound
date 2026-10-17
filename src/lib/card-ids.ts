@@ -61,14 +61,16 @@ export function composeCardId(
 /**
  * A card's name with a trailing printing treatment removed.
  *
- * The source spells some treatments in the name rather than the id, so 34 rows
- * read "Nine-Tailed Fox (Metal)", "Dark Child (Starter)", "Teemo, Scout
- * (GG EZ)". Identity being (name, type), each of those became its own canonical
- * printing and showed up as a second entry in the collapsed browser.
+ * The sources spell some treatments in the name rather than the id: "Nine-Tailed
+ * Fox (Metal)", "Teemo, Scout (GG EZ)". Identity being (name, type), each of
+ * those became its own canonical printing and showed up as a second entry in
+ * the collapsed browser.
  *
- * **Only a trailing parenthetical.** `Recruit (271) // Buff` and `Sprite (274)
- * // Buff` are four genuinely distinct cards carrying one mid-name, and a
- * looser match would merge cards the game keeps apart.
+ * **Only a trailing parenthetical.** Riftcodex named four distinct tokens
+ * `Recruit (271) // Buff`, `Sprite (274) // Buff` and so on, a parenthetical
+ * mid-name, and a looser match would merge cards the game keeps apart. Riot's
+ * gallery no longer spells them that way, so `check:printings` asserts the
+ * rule on those names directly.
  *
  * Mirrors the `regexp_replace` inside `collapseKey` in
  * src/db/queries/cards.ts; `check:printings` asserts the two agree on every
@@ -98,11 +100,11 @@ const TOKEN_ID = new RegExp(TOKEN_ID_PATTERN);
 /**
  * Whether a row is a token (Recruit, Sprite, Gold…) rather than a card.
  *
- * **Both halves are needed, and only production shows why.** The riftcodex
- * tokens carry `supertype = 'Token'`, but six more (`UNL-T01` to `UNL-T07`)
- * came from the retired riftscribe source, which wrote a null supertype. Dev
- * does not hold those six, so a supertype-only rule passes every check there
- * and still lets tokens through in production. A card merely *named* after a
+ * **Both halves are needed.** Tokens from Riot's gallery and Riftcodex carry
+ * `supertype = 'Token'`, but production once held six (`UNL-T01` to
+ * `UNL-T07`) from the retired riftscribe source with a null supertype, which a
+ * supertype-only rule let through while every check on dev passed. A source
+ * can write a null supertype again; the id half costs nothing. A card merely *named* after a
  * token ("Recruit the Vanguard") is neither, and stays.
  *
  * Mirrors `tokenCard` in src/db/queries/cards.ts. `check:printings` asserts

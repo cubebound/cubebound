@@ -241,9 +241,9 @@ type CardSearchResult = {
  * What "the same card" means when printings are collapsed, as SQL.
  *
  * `cards.base_id` is the stored answer, and it is right for every card whose
- * printings share a name. It is wrong for 31 of them, because the source puts
- * the *treatment* in the name — "Nine-Tailed Fox (Metal)", "Ahri, Alluring
- * (Launch Exclusive)", "Dark Child (Starter)". Identity in `assignBaseIds` is
+ * printings share a name. It is wrong for the ones whose source puts the
+ * *treatment* in the name — "Nine-Tailed Fox (Metal)", "Ahri, Alluring
+ * (Launch Exclusive)". Identity in `assignBaseIds` is
  * (name, type), so those names never match the plain card and each promo
  * became its own canonical printing, showing up as a second entry in a
  * collapsed browser that had promised one row per card.
@@ -299,10 +299,9 @@ export const realCard = sql`(not ${tokenCard})`;
  *
  * The same sequence `comparePrintings` applies in src/lib/card-ids.ts, plus a
  * new first rule: a plainly-named printing beats a treatment-named one. That
- * rule is load-bearing rather than cosmetic. Four starter legends — Dark
- * Child, Wuju Bladesman, Might of Demacia, Lady of Luminosity — exist only as
- * an OGS "(Starter)" printing and an OPP plain one, and OGS sorts first, so
- * without it the collapsed row would be titled "Dark Child (Starter)".
+ * rule is load-bearing rather than cosmetic. A dozen SFD legends have an OPP
+ * "(Metal)" promo, and OPP sorts before SFD, so without it the collapsed row
+ * would be titled "Battle Mistress (Metal)".
  */
 const canonicalFirst = [
   sql`(${cards.name} ~ '\\([^()]*\\)\\s*$')`, // plain name before a treatment name
@@ -318,7 +317,7 @@ const canonicalFirst = [
  *
  * `/cards` with nothing set is the same 60 rows for every visitor and is the
  * page people land on, so it was the most repeated query on the site — and it
- * counts across all 1,288 rows before returning any of them. The cache is
+ * counts across the whole pool before returning any of them. The cache is
  * deliberately **only** the unfiltered first page, in the two orders a page
  * can open in: printed order (the editor's browse view) and most played (what
  * `/cards` opens on, see `DEFAULT_CARD_SORT`). Four entries at most, and no
@@ -703,7 +702,10 @@ async function readFilterOptions(): Promise<FilterOptions> {
   //  - the set's printed name comes from the stored raw payload rather than a
   //    lookup table, so a newly synced set names itself. `min()` because the
   //    grouping needs an aggregate; every set has exactly one label, and the
-  //    code stands in for a row whose payload has none.
+  //    code stands in for a row whose payload has none. The two live sources
+  //    nest it differently: Riftcodex at `set.label`, Riot's gallery at
+  //    `set.value.label`. Both are read, or every gallery set's filter would
+  //    show its code ("OGN") instead of its name.
   //  - every branch leaves tokens out, so no filter offers a value only a
   //    token carries. Filtered per branch rather than in a CTE to keep the
   //    statement's shape; it is still one statement.
@@ -720,7 +722,8 @@ async function readFilterOptions(): Promise<FilterOptions> {
   }>(sql`
     select 'set'::text as kind,
            ${cards.setCode} as value,
-           min(${cards.data}->'card'->'set'->>'label') as label
+           min(coalesce(${cards.data}->'card'->'set'->>'label',
+                        ${cards.data}->'card'->'set'->'value'->>'label')) as label
       from ${cards}
      where ${realCard}
      group by ${cards.setCode}
@@ -889,7 +892,7 @@ function starterFilter(setCode?: string) {
  * One of each card from a set, for the new-cube screen's set starting point.
  *
  * Collapsed by the browser's own rule (`collapseKey`, `canonicalFirst`), so a
- * promo treatment spelled into the name ("(Metal)", "(Starter)") and an alt art
+ * promo treatment spelled into the name ("(Metal)", "(GG EZ)") and an alt art
  * are one card, represented by its plainest printing. That makes this the third
  * query that collapses printings, deliberately; see printings.md. Only `id` and
  * `type` come back, because the caller files each card by type and nothing

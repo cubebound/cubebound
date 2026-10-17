@@ -19,7 +19,7 @@ browse, clone or draft against bots.
 npm install
 cp .env.example .env.local   # then fill in your own Supabase project
 npm run db:migrate           # apply migrations
-npm run sync-cards           # pull the card pool (~1,300 printings, no API key)
+npm run sync-cards           # pull the card pool (no API key)
 npm run dev
 ```
 

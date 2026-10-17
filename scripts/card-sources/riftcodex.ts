@@ -1,11 +1,11 @@
 /**
- * Riftcodex adapter — the ACTIVE card source.
+ * Riftcodex adapter — the source for the PROMO sets only (OPP, PR, JDG).
  *
- * Replaced RiftScribe because that API cannot express the game: its `faction`
- * is a single string, so every multi-domain card lost a domain — all 180
- * legends included, which made Chaos and Order legends unfindable. It also
- * stopped at 950 cards, missing VEN, OPP, PR and JDG entirely, and left
- * artist, tags and supertype empty.
+ * It was the whole pool until October 2026, when it stopped updating (no
+ * record changed after 21 July) and never carried Radiance. Riot's own gallery
+ * feed (`riot-gallery.ts`) owns every other set now; Riftcodex remains because
+ * it is the only source carrying the promos. `scripts/sync-cards.ts` discards
+ * any row it returns for a set it does not own.
  *
  * Verified against https://api.riftcodex.com (2026-08):
  *
@@ -24,8 +24,13 @@
 
 import type { NewCard } from "../../src/db/schema";
 import { provisionalBaseId } from "../../src/lib/card-ids";
-import { decodeEntities } from "../../src/lib/rules-text";
-import { type CardSource, fetchWithRetry, titleCase } from "./types";
+import {
+  buildPowerCost,
+  type CardSource,
+  fetchWithRetry,
+  richToRulesText,
+  titleCase,
+} from "./types";
 
 const PAGE_SIZE = 100;
 
@@ -155,44 +160,6 @@ export function splitCardName(
   };
 }
 
-/**
- * Rules text as we store it: the source's `rich` HTML reduced to plain text
- * that keeps its line structure.
- *
- * `plain` was stored before, and it is not what it looks like: the source
- * builds it by deleting the tags, so every `<br />` and paragraph break
- * vanished with nothing in its place. Measured on 27 September 2026: 625 of
- * 1,288 cards ran one ability into the next ("resolve.)Give a unit"), 30 lost
- * the options of a "Choose one" list, and 105 still carried HTML codes
- * (`[Empowered][&gt;]`, `&quot;`). The symbol tokens and `[bracket]` markers
- * are in `rich` exactly as in `plain`, so the renderer needs nothing else.
- *
- * Breaks and every block boundary become newlines, a list item becomes a "• "
- * line, any other tag is dropped, and character references are decoded. Falls
- * back to `plain` (decoded) when a card has no `rich`.
- */
-export function richToRulesText(
-  rich: string | null | undefined,
-  plain: string | null | undefined,
-): string | null {
-  const source = rich ?? plain;
-  if (!source) return null;
-  const text = decodeEntities(
-    source
-      .replace(/<li\b[^>]*>/gi, "\n• ")
-      // Every block boundary is a line boundary, whichever block follows
-      // which: `</ul><p>` ends a list as surely as `</p><p>` ends a paragraph.
-      .replace(/<br\s*\/?>|<\/?(p|ul|ol|div)\b[^>]*>|<\/li>/gi, "\n")
-      .replace(/<[^>]+>/g, ""),
-  );
-  const cleaned = text
-    .split("\n")
-    .map((line) => line.replace(/[ \t]+/g, " ").trim())
-    .filter((line) => line.length > 0)
-    .join("\n");
-  return cleaned.length > 0 ? cleaned : null;
-}
-
 function toRow(card: RiftcodexCard, syncedAt: Date): NewCard | null {
   const id = riftcodexCardId(card.riftbound_id);
   if (!id) return null;
@@ -227,21 +194,6 @@ function toRow(card: RiftcodexCard, syncedAt: Date): NewCard | null {
     data: { source: "riftcodex", card },
     updatedAt: syncedAt,
   };
-}
-
-/**
- * Power is a single integer here too. Attribute it to the card's domain when
- * that is unambiguous, otherwise record it as payable from any domain rather
- * than inventing a split — multi-domain cards do not say which domain the
- * pips belong to.
- */
-function buildPowerCost(
-  power: number | null | undefined,
-  domains: string[],
-): Record<string, number> | null {
-  if (!power || power <= 0) return null;
-  if (domains.length === 1) return { [domains[0].toLowerCase()]: power };
-  return { any: power };
 }
 
 export function createRiftcodexSource(): CardSource {

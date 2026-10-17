@@ -123,10 +123,10 @@ const RIFTBOUND_RARITY: Record<string, DraftmancerRarity> = {
  * treatments to the printing that actually carries a power tier.
  *
  * `Showcase` and `Promo` are treatments rather than tiers, and `base_id` is the
- * canonical printing: all 120 showcase rows resolve that way (70 Rare, 42
- * Epic), so a showcase bomb is rated as the bomb it is. Promo mostly does not —
- * 73 of 117 are their own base — and those land on `special`, which is exactly
- * what that value is for.
+ * canonical printing: `comparePrintings` never makes a Showcase printing
+ * canonical while another exists, so a showcase bomb is rated as the bomb it
+ * is. Most Promo rows are their own base, and those land on `special`, which
+ * is exactly what that value is for.
  */
 export function draftmancerRarity(
   card: Pick<DraftmancerSourceCard, "rarity" | "baseRarity">,

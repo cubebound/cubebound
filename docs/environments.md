@@ -43,8 +43,9 @@ The dev project was created partway through development, after the Share button
 went live. Everything up to and including migration `0007` and the champion
 re-sync was applied **directly to production** before that; dev was then created
 empty and brought to the same point with `db:migrate` and `sync-cards`. So the
-two start aligned, and dev's card table has no riftscribe residue where
-production has six rows.
+two start aligned, except that dev never held the six riftscribe token rows
+(`UNL-T0n`) production did. Riot's gallery serves those same ids, so the first
+production sync from it overwrites them.
 
 That history is worth knowing because git does not record it: a migration file
 present in the repo says nothing about which project has run it. Confirm

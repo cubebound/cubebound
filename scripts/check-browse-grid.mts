@@ -61,11 +61,18 @@ let userId: string | undefined;
 
 try {
   // A card with several printings, plus a second card sharing the search term,
-  // so the grouped and ungrouped counts differ meaningfully.
+  // so the grouped and ungrouped counts differ meaningfully. Every printing
+  // under its name must have its own art, because renders are counted by image
+  // URL: some promos reuse a printing's art outright (OPP-007b is VEN-R01's
+  // Fury Rune), and picking that card made a correct grid look double-drawn.
   const [group] = await sql<{ base_id: string; printings: number }[]>`
-    select base_id, count(*)::int as printings
-    from cards group by base_id having count(*) > 1
-    order by count(*) desc, base_id limit 1`;
+    select c.base_id, count(*)::int as printings
+    from cards c group by c.base_id
+    having count(*) > 1
+       and (select count(*) = count(distinct o.image_thumb)
+              from cards o
+             where o.name = (select b.name from cards b where b.id = c.base_id))
+    order by count(*) desc, c.base_id limit 1`;
   const printings = await sql<
     { id: string; base_id: string; name: string; image_thumb: string | null }[]
   >`select id, base_id, name, image_thumb from cards

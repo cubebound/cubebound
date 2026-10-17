@@ -12,10 +12,12 @@
   `isTokenCard` in `src/lib/card-ids.ts`, mirrored in SQL by
   `tokenCard`/`realCard` in `src/db/queries/cards.ts`, which binds the same
   `TOKEN_ID_PATTERN` so there is one source for both. **A token is supertype
-  `Token` *or* a `SET-Tnn` id, and both halves are needed**: production holds
-  retired-riftscribe token rows (`UNL-T0n`, see [card-data.md](card-data.md))
-  with a null supertype that dev does not, so a supertype-only rule passes
-  every check on dev and still leaks tokens in production. **The SQL compares
+  `Token` *or* a `SET-Tnn` id, and both halves are needed**: a row keeps
+  whatever the source that last wrote it said, and the retired riftscribe
+  source wrote its token rows (`UNL-T0n`, see [card-data.md](card-data.md))
+  with a null supertype. Production held six that dev never did, so a
+  supertype-only rule passed every check on dev and still leaked tokens in
+  production. **The SQL compares
   with `is not distinct from`, never `=`**: an ordinary card's supertype is
   null, so `=` turns the whole negation null and every ordinary card silently
   drops out of the browser. A card merely *named* after a token ("Recruit the
@@ -60,15 +62,17 @@
   revalidation story to get wrong, and a cold instance simply reads once.
 - **The unfiltered first page of `/cards` is memoised the same way and for the
   same reason** — it is the identical 60 rows for every visitor, on the page
-  people land on, and it counts across all 1,288 rows before returning any of
+  people land on, and it counts across the whole pool before returning any of
   them. **Only the opening views are cached**: no filter or page number, in
   printed order or most played (the two orders a page opens in), so at most
   four entries and no way for a crafted querystring to grow the map. Anything else reads through. The cached object is
   shared between requests, so nothing may mutate it — callers render it and
   nothing more; if that changes, copy on read.
 - **A set's printed name comes from the stored raw payload**
-  (`data->'card'->'set'->>'label'`), not a lookup table, so a newly synced set
-  names itself like every other filter value. Ordered
+  (`data->'card'->'set'->>'label'` for Riftcodex rows, `…->'set'->'value'->>'label'`
+  for Riot's gallery, read through one `coalesce`), not a lookup table, so a
+  newly synced set names itself like every other filter value. Reading only one
+  path shows every set from the other source as its bare code. Ordered
   by **name**, not code: the codes interleave promos through the real sets
   (JDG, OGN, OGS, OPP, PR…), which reads as no order at all.
 - **Sorting is `?sort=` over set, played ("Most played", see below), name,

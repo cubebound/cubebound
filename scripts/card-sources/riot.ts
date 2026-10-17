@@ -2,8 +2,11 @@
  * Riot API adapter — DORMANT.
  *
  * riftbound-content-v1 requires app-specific approval; dev keys get 403.
- * Kept ready for when our API application is approved — activate with
- * CARD_SOURCE=riot (requires RIOT_API_KEY, optionally RIOT_API_REGION).
+ * Kept ready for when our API application is approved. It owns no sets yet, so
+ * `npm run sync-cards -- --only=riot` fetches and discards; activating it means
+ * giving it sets in `ownerOf` (scripts/sync-cards.ts). Requires RIOT_API_KEY,
+ * optionally RIOT_API_REGION. Not to be confused with `riot-gallery.ts`, which
+ * reads the public feed behind Riot's card gallery and needs no key.
  *
  * Endpoint: GET https://{region}.api.riotgames.com/riftbound/content/v1/contents?locale=en
  * (regional route: americas | asia | europe; auth via X-Riot-Token header).
@@ -141,7 +144,7 @@ export function createRiotSource(): CardSource {
     async fetchCards(syncedAt) {
       const apiKey = process.env.RIOT_API_KEY;
       if (!apiKey) {
-        throw new Error("RIOT_API_KEY is required when CARD_SOURCE=riot");
+        throw new Error("RIOT_API_KEY is required for the riot source");
       }
       const region = process.env.RIOT_API_REGION ?? "americas";
       if (!VALID_REGIONS.includes(region as (typeof VALID_REGIONS)[number])) {
@@ -156,7 +159,7 @@ export function createRiotSource(): CardSource {
       if (res.status === 403) {
         throw new Error(
           "Riot API returned 403 — riftbound-content-v1 needs app-specific approval; " +
-            "dev keys are rejected. Use CARD_SOURCE=riftscribe until our application is approved.",
+            "dev keys are rejected. The riot-gallery source covers the same data until our application is approved.",
         );
       }
       if (!res.ok) {
