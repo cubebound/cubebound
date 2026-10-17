@@ -81,14 +81,14 @@ open it rather than trusting this.
 6b. ✅ Tokens are not cards: hide them from the browser and keep them out of
     cubes. Merged `351526a`; see the tokens bullet in
     [card-browser.md](card-browser.md).
-6c. Radiance via Riot's gallery feed. Added and pulled forward by the owner on
+6c. ✅ Radiance via Riot's gallery feed. Added and pulled forward by the owner on
     17 October 2026, because Riftcodex stopped updating and never carried
     Radiance: Riot's own feed becomes the only source, with corrections for
     the cards Riot has wrong, and the promo sets it does not carry are retired
     (kept for old drafts, offered nowhere, every cube moved off them by
-    `retire-promos`). Production needs the sync and
-    `retire-promos` run in the order [card-data.md](card-data.md) gives, around
-    the deploy. See also [printings.md](printings.md).
+    `retire-promos`). Merged `4218593`; production was synced and moved off the
+    promos before the deploy, in the order [card-data.md](card-data.md) gives.
+    See also [printings.md](printings.md).
 
 **Next**
 
