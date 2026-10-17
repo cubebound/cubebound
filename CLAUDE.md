@@ -290,7 +290,7 @@ job.
 | A card query, a filter, sorting, `/cards` | [docs/card-browser.md](docs/card-browser.md) |
 | A card's own page, `/cards/{type}/{slug}`, `cardPagePath`, a percentage on screen | [docs/card-browser.md](docs/card-browser.md) |
 | `base_id`, `collapseKey`, the printing picker, retired promo sets, `card-ids.ts`, `0003` | [docs/printings.md](docs/printings.md) |
-| The sync, an adapter, `scripts/card-sources/`, `retire-promos` | [docs/card-data.md](docs/card-data.md) |
+| The sync, an adapter, `scripts/card-sources/` | [docs/card-data.md](docs/card-data.md) |
 | Card art, a thumbnail, an `<img>`, `card-art.tsx` | [docs/card-images.md](docs/card-images.md) |
 | A colour, a class string, a font, focus, cursor, the logo, the nav | [docs/chrome-and-theme.md](docs/chrome-and-theme.md) |
 | Any string a visitor reads | [docs/voice-and-copy.md](docs/voice-and-copy.md) |

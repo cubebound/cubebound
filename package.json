@@ -13,7 +13,6 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "sync-cards": "tsx scripts/sync-cards.ts",
-    "retire-promos": "tsx scripts/retire-promo-printings.ts",
     "check:auth-flow": "tsx scripts/check-auth-flow.mts",
     "check:printings": "tsx scripts/check-printings.mts",
     "check:primer-safety": "tsx scripts/check-primer-safety.mts",

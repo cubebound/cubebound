@@ -127,7 +127,8 @@ export function isTokenCard(card: { id: string; supertype: string | null }): boo
  * replay against live rows, and 130 production drafts had dealt one. Nothing
  * offers them any more (browser, search, filters, import, starter lists,
  * picker, card pages, add paths), but anything reading by id still resolves
- * them. `scripts/retire-promo-printings.ts` moved every cube off them.
+ * them. A one-off script moved every cube off them on 17 October 2026
+ * (docs/card-data.md).
  *
  * A string list rather than a `Set` because the SQL half binds it as a
  * parameter (`retiredPrinting` in src/db/queries/cards.ts).
