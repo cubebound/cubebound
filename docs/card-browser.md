@@ -70,7 +70,7 @@
   nothing more; if that changes, copy on read.
 - **A set's printed name comes from the stored raw payload**
   (`data->'card'->'set'->>'label'` for Riftcodex rows, `…->'set'->'value'->>'label'`
-  for Riot's gallery, read through one `coalesce`), not a lookup table, so a
+  for Riot's gallery, read through one `coalesce` with the gallery's path first, because its own `set.label` is the caption "Card Set"), not a lookup table, so a
   newly synced set names itself like every other filter value. Reading only one
   path shows every set from the other source as its bare code. Ordered
   by **name**, not code: the codes interleave promos through the real sets

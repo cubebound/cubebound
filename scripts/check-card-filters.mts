@@ -429,8 +429,23 @@ try {
     }
   }
 
-  // No filter offers a value only a token carries.
   const options = await getFilterOptions();
+
+  // Each set's filter label is its own printed name. The label is read from
+  // the stored payload, whose shape differs by source, and Riot's gallery
+  // nests a caption ("Card Set") beside the name: read in the wrong order,
+  // every gallery set was labelled "Card Set" and nothing else noticed.
+  const setLabels = options.sets.map((o) => o.label);
+  expect(
+    new Set(setLabels).size === setLabels.length,
+    `two sets share a filter label: ${setLabels.join(", ")}`,
+  );
+  expect(
+    options.sets.every((o) => o.label !== o.code && o.label !== "Card Set"),
+    `a set's filter label is not its name: ${options.sets.map((o) => `${o.code}="${o.label}"`).join(", ")}`,
+  );
+
+  // No filter offers a value only a token carries.
   const offered: [string, string, string[]][] = [
     ["set", "set_code = any", options.sets.map((o) => o.code)],
     ["type", "type = any", options.types],

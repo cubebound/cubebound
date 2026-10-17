@@ -704,8 +704,9 @@ async function readFilterOptions(): Promise<FilterOptions> {
   //    grouping needs an aggregate; every set has exactly one label, and the
   //    code stands in for a row whose payload has none. The two live sources
   //    nest it differently: Riftcodex at `set.label`, Riot's gallery at
-  //    `set.value.label`. Both are read, or every gallery set's filter would
-  //    show its code ("OGN") instead of its name.
+  //    `set.value.label`. The gallery's path is read first because its
+  //    `set.label` also exists and is the field's caption, "Card Set": read
+  //    the other way round, every gallery set was labelled "Card Set".
   //  - every branch leaves tokens out, so no filter offers a value only a
   //    token carries. Filtered per branch rather than in a CTE to keep the
   //    statement's shape; it is still one statement.
@@ -722,8 +723,8 @@ async function readFilterOptions(): Promise<FilterOptions> {
   }>(sql`
     select 'set'::text as kind,
            ${cards.setCode} as value,
-           min(coalesce(${cards.data}->'card'->'set'->>'label',
-                        ${cards.data}->'card'->'set'->'value'->>'label')) as label
+           min(coalesce(${cards.data}->'card'->'set'->'value'->>'label',
+                        ${cards.data}->'card'->'set'->>'label')) as label
       from ${cards}
      where ${realCard}
      group by ${cards.setCode}
