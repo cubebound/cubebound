@@ -60,7 +60,8 @@
   alert, middleware was 49% of the total. Per-route CPU needs Observability
   Plus, which is Pro-only, so on Hobby the Type and Runtime tabs are the
   resolution there is.
-- **Middleware runs on every non-static request, prefetches included**, so a
+- **Middleware runs on every non-static request bar the crawler files,
+  prefetches included**, so a
   cost added there is multiplied by all traffic, including crawlers and the
   `<Link>` prefetches of visitors who never click. **Its CPU is a
   per-invocation cost, not a per-line one.** Middleware runs on the edge
@@ -71,5 +72,8 @@
   about half. What moves it is fewer invocations, a smaller bundle, or a warm
   runtime: `proxy.ts` on Node (the Next 16 replacement for `middleware.ts`) is
   the untried large lever. Narrowing the matcher is limited by the prefetch
-  rule in [auth.md](auth.md). Sentry tracing is off on edge for this reason
+  rule in [auth.md](auth.md), so it skips only what middleware could never act
+  on: `robots.txt`, `sitemap.xml` and `riot.txt` are excluded, because the bots
+  fetching them carry no cookie and middleware could only pass them through.
+  Sentry tracing is off on edge for this reason
   (`instrumentation.ts`); errors are still reported.

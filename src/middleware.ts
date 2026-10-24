@@ -44,7 +44,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Everything except Next internals and static assets.
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // Everything except Next internals, static assets, and the crawler files.
+    // `robots.txt`, `sitemap.xml` and `riot.txt` are fetched by bots that carry
+    // no cookie, so middleware could only ever pass them through, and middleware
+    // CPU is paid per invocation, not per line (see docs/monitoring.md).
+    "/((?!_next/static|_next/image|favicon.ico|robots\\.txt|sitemap\\.xml|riot\\.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
