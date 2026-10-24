@@ -49,11 +49,11 @@ function runAction<T extends { error?: string }>(
   call: () => Promise<T>,
   onError: (message: string) => void,
 ): Promise<T | null> {
-  return callAction(
-    call,
-    onError,
-    "Lost contact with the server. Your draft is saved. Reload the page to pick up where you left off.",
-  );
+  return callAction(call, onError, {
+    lost: "Lost contact with the server. Your draft is saved. Reload the page to pick up where you left off.",
+    updated:
+      "cubebound.gg was updated while this draft was open. Your draft is saved. Reload the page to pick up where you left off.",
+  });
 }
 
 /**

@@ -202,7 +202,10 @@ decides when work goes live. Asked, merge each branch `--no-ff`, add a separate
   `JAVASCRIPT-NEXTJS-9` and `-2`. **Outside `useActionState`, call an action
   through `callAction` in `src/lib/call-action.ts`**, which sends both
   failures to one `onError`, returns null on either and re-throws a redirect.
-  `follow-button.tsx`, `cover-picker.tsx`, `import-cards.tsx`,
+  It also tells a tab left open across a deploy to reload: its action ids are
+  the old build's, so Next rejects with "Server Action … was not found" (Sentry
+  `JAVASCRIPT-NEXTJS-6`) and no retry can succeed. `onUpdated` is how a caller
+  keeps unsaved work across that reload. `follow-button.tsx`, `cover-picker.tsx`, `import-cards.tsx`,
   `delete-draft.tsx` and `add-to-cube.tsx` predate it and keep their own catch.
 - **The two call shapes do not cost the same to guard.** A `startTransition`
   call site is free to wrap. Wrapping a `useActionState` action in a client
