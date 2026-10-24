@@ -215,6 +215,44 @@ try {
       );
     }
   }
+
+  /**
+   * **robots.txt must not disallow a preview.** Twitterbot obeys it, so a rule
+   * that matches an advertised og:image breaks that platform's link cards and
+   * nothing else, with every page still rendering. `robots.ts` disallows URL
+   * variants with wildcards, and `/u/*?` once matched `/u/<name>/opengraph-image?<hash>`
+   * that way. Matched the way Google and X read the file: `*` is any run, and a
+   * rule is a prefix. The cube and profile pages themselves must stay allowed too.
+   */
+  const robots = await (await fetch(`${APP}/robots.txt`)).text();
+  const disallowed = robots
+    .split(/\r?\n/)
+    .map((line) => /^Disallow:\s*(\S+)/i.exec(line.trim())?.[1])
+    .filter((rule): rule is string => Boolean(rule));
+  const blockedBy = (url: string) =>
+    disallowed.find((rule) =>
+      new RegExp(
+        "^" + rule.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*"),
+      ).test(url),
+    );
+  const profileHtml = await (await fetch(`${APP}/u/${username}`)).text();
+  const profileTag = profileHtml.match(/<meta property="og:image" content="([^"]*)"/)?.[1];
+  expect(Boolean(profileTag), "the profile page should carry an og:image tag");
+  for (const url of [
+    tag,
+    profileTag,
+    `${APP}/cube/${username}/${withCover.slug}`,
+    `${APP}/u/${username}`,
+  ]) {
+    if (!url) continue;
+    const { pathname, search } = new URL(url);
+    const rule = blockedBy(pathname + search);
+    expect(!rule, `robots.txt disallows ${pathname + search} (rule ${rule}), which crawlers need`);
+  }
+  expect(
+    Boolean(blockedBy(`/cube/${username}/${withCover.slug}?tab=analytics`)),
+    "robots.txt should disallow ?tab= variants of a cube page; the rule has gone missing",
+  );
 } catch (error) {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);
 } finally {

@@ -47,7 +47,7 @@
   no bill to cap and **"set a spend cap" is not the control** — an earlier
   version of these docs said it was, repeatedly, and it was wrong. Exceeding
   Hobby limits degrades or pauses the project rather than charging anything, so
-  the goal is staying inside them: keep per-request query counts low (see [page-speed.md](page-speed.md)), keep card images on Riot's CDN, and check Vercel → Usage and
+  the goal is staying inside them: keep per-request query counts low (see [page-speed.md](page-speed.md)), keep card images on Riot's CDN, keep crawlers off URL variants (`robots.ts`, see [share-previews-and-seo.md](share-previews-and-seo.md)), and check Vercel → Usage and
   Supabase → Usage for actual headroom rather than guessing.
 - **Fluid Active CPU is the Vercel limit that binds**: 4 CPU-hours on Hobby,
   over a **rolling 30-day window**, not a billing cycle. Going over pauses the
