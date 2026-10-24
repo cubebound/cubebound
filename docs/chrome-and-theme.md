@@ -113,7 +113,7 @@
   with the flag alone**, and framing the site to get a narrow viewport is
   blocked by our own `frame-ancestors 'none'`. Drive
   `Emulation.setDeviceMetricsOverride` over CDP against a headless Chrome on
-  :9222 — the same WebSocket approach `check-auth-flow.mts` uses — and assert
+  :9222 — `openPage` in `scripts/lib/chrome.ts` is the driver the checks use — and assert
   `scrollWidth === clientWidth` rather than eyeballing it.
 - **The nav's section links carry a current-page indicator**, which is why
   `src/app/nav-links.tsx` is a client component in an otherwise server-rendered

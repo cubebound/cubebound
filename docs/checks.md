@@ -46,10 +46,19 @@ hydrated — a click then lands on a button with no handler and silently does
 nothing. That is how `check:cube-ownership` started failing two runs in three
 the moment the loading boundaries landed. It now waits for the skeleton to
 clear *and* for the button to carry React's internal props key, then polls for
-the write instead of sleeping a fixed budget. `check:auth-flow` and
+the write instead of sleeping a fixed budget. `check:primer-toolbar` waits the
+same way on its own button. `check:auth-flow` and
 `check:magic-link` still use readyState, which is fine only because `/welcome`
 and `/login` have no loading boundary — **adding one to either route means
 fixing those checks the same way.**
+
+**The CDP plumbing is shared; the readiness wait is not.** `scripts/lib/chrome.ts`
+holds the target lookup, the socket, the reply map and `evaluate`, which the
+Chrome-driven checks used to copy four times with small drifts, two of them
+defaulting to `localhost` where the rest used `127.0.0.1`. `CDP_URL` now
+defaults to `http://127.0.0.1:9222` for all of them, because Chrome binds the
+debugging port on IPv4. The wait stays in each check because it names that
+check's own control; `waitForLoad` is only the readyState poll above.
 
 `check:cube-ownership` is also structural: it fails if a new action in
 `src/app/cube/actions.ts` skips `requireOwnedCube` without a documented

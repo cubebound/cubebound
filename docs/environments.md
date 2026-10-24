@@ -10,7 +10,8 @@ once. `scripts/lib/env.ts` holds the env-file reader **and imports nothing**:
 some checks run without `--env-file-if-exists`, so anything they import must
 not reach `src/db/index.ts`, which reads `DATABASE_URL` at load time and
 throws. Keeping the reader beside the account helpers pulled the database layer
-in behind it and broke `check:printings` on import.
+in behind it and broke `check:printings` on import. `scripts/lib/chrome.ts`,
+the CDP driver, imports nothing for the same reason.
 
 ### Migrations
 

@@ -20,10 +20,10 @@ import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { openPage } from "./lib/chrome";
 import { resolveSiteUrl } from "../src/lib/site-url";
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
-const CDP = process.env.CDP_URL ?? "http://localhost:9222";
 const PROBE_FILE =
   process.env.SIGNIN_PROBE_FILE ?? join(tmpdir(), "cubebound-otp-probe.json");
 
@@ -47,47 +47,14 @@ const expect = (ok: boolean, msg: string) => {
   if (!ok) failures.push(msg);
 };
 
-/** Minimal CDP driver: open a tab, set headers, drive the page. */
+/** Chrome's page, with these headers on every request it makes. */
 async function connect(extraHeaders: Record<string, string>) {
-  const targets = await (await fetch(`${CDP}/json/list`)).json();
-  const page = targets.find((t: { type: string }) => t.type === "page");
-  if (!page) throw new Error("no page target on the CDP endpoint");
-
-  const ws = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => {
-    ws.onopen = resolve;
-    ws.onerror = reject;
-  });
-
-  let id = 0;
-  const pending = new Map<number, (v: unknown) => void>();
-  ws.onmessage = (event) => {
-    const msg = JSON.parse(String(event.data));
-    if (msg.id && pending.has(msg.id)) {
-      pending.get(msg.id)!(msg.result);
-      pending.delete(msg.id);
-    }
-  };
-  const send = (method: string, params: Record<string, unknown> = {}) =>
-    new Promise<Record<string, unknown>>((resolve) => {
-      const n = ++id;
-      pending.set(n, resolve as (v: unknown) => void);
-      ws.send(JSON.stringify({ id: n, method, params }));
-    });
-
+  const page = await openPage();
+  const { send, evaluate } = page;
   await send("Page.enable");
   await send("Runtime.enable");
   await send("Network.enable");
   await send("Network.setExtraHTTPHeaders", { headers: extraHeaders });
-
-  const evaluate = async (expression: string) => {
-    const res = (await send("Runtime.evaluate", {
-      expression,
-      awaitPromise: true,
-      returnByValue: true,
-    })) as { result?: { value?: unknown } };
-    return res.result?.value;
-  };
 
   const go = async (url: string) => {
     await send("Page.navigate", { url });
@@ -97,7 +64,7 @@ async function connect(extraHeaders: Record<string, string>) {
     }
   };
 
-  return { evaluate, go, close: () => ws.close() };
+  return { evaluate, go, close: () => page.close() };
 }
 
 /**

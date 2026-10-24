@@ -1,4 +1,4 @@
-Shared script helpers. `env.ts` imports nothing on purpose; `database-label.ts` names the project a script writes to.
+Shared script helpers. `env.ts` imports nothing on purpose; `database-label.ts` names the project a script writes to; `chrome.ts` is the CDP driver the browser checks share.
 
 Read before changing anything here: [docs/environments.md](../../docs/environments.md), [docs/checks.md](../../docs/checks.md), [docs/card-data.md](../../docs/card-data.md).
 
