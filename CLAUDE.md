@@ -196,8 +196,14 @@ decides when work goes live. Asked, merge each branch `--no-ff`, add a separate
   nothing in between it reaches `error.tsx` — so a lost packet replaces the
   whole page with "Something broke". That is what Sentry `JAVASCRIPT-NEXTJS-7`
   (`TypeError: Load failed`, WebKit's wording for a failed `fetch`) is.
-  `follow-button.tsx`, `cover-picker.tsx`, `import-cards.tsx` and
-  `draft-client.tsx`'s `runAction` each catch it.
+  Awaited bare outside a transition it fails differently but no better: the
+  rejection goes unhandled and the busy flag the caller set stays on, so the
+  control freezes. Four editor call sites shipped that way, as Sentry
+  `JAVASCRIPT-NEXTJS-9` and `-2`. **Outside `useActionState`, call an action
+  through `callAction` in `src/lib/call-action.ts`**, which sends both
+  failures to one `onError`, returns null on either and re-throws a redirect.
+  `follow-button.tsx`, `cover-picker.tsx`, `import-cards.tsx`,
+  `delete-draft.tsx` and `add-to-cube.tsx` predate it and keep their own catch.
 - **The two call shapes do not cost the same to guard.** A `startTransition`
   call site is free to wrap. Wrapping a `useActionState` action in a client
   closure is not: React's SSR only emits a form's no-JS submit fields when the

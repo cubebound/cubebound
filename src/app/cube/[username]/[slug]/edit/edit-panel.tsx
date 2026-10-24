@@ -13,6 +13,7 @@ import CardHoverPreview, {
   useCardPreview,
   type PreviewCard,
 } from "@/components/card-hover-preview";
+import { callAction } from "@/lib/call-action";
 import { CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
 import {
   EDIT_BOARDS,
@@ -296,9 +297,14 @@ function PanelBody({
     const key = `${specifyVersions ? "all" : "one"}:${current}`;
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const response = await quickSearchAction(cubeId, current, specifyVersions);
+      const response = await callAction(
+        () => quickSearchAction(cubeId, current, specifyVersions),
+        (message) => {
+          if (!cancelled) setError(message);
+        },
+      );
       if (cancelled) return;
-      setAnswered({ key, items: response.results ?? [] });
+      setAnswered({ key, items: response?.results ?? [] });
     }, SEARCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
@@ -407,12 +413,15 @@ function PanelBody({
       section: row.section,
       quantity: 1,
     }));
-    const response = await saveCubeEditsAction(cubeId, payload);
+    // A lost request leaves the batch exactly as it was: nothing is cleared
+    // until a save comes back, so the reader can simply press Save again.
+    const response = await callAction(
+      () => saveCubeEditsAction(cubeId, payload),
+      setError,
+      "Couldn't reach the server, so nothing was saved. Your changes are still here; press Save to try again.",
+    );
     setSaving(false);
-    if (response.error) {
-      setError(response.error);
-      return;
-    }
+    if (!response) return;
     setRows([]);
     clearAdd();
     clearRemove();

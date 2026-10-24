@@ -11,6 +11,7 @@ import {
   validateDraftConfig,
   type DraftConfig,
 } from "@/lib/draft/config";
+import { callAction } from "@/lib/call-action";
 import { aspectRatio } from "@/lib/riftbound";
 
 import {
@@ -42,30 +43,17 @@ export interface DraftTile {
  * connection, a sleeping laptop — leaves `isPending` true forever, which
  * disables every card and shows "Bots picking…" with no way back. Draft state
  * is persisted server-side, so the honest recovery is to say so and let the
- * page be reloaded.
- *
- * A `redirect()` inside an action surfaces as a thrown NEXT_REDIRECT, which
- * must be re-thrown or the navigation is swallowed.
+ * page be reloaded. The mechanics, redirects included, are `callAction`'s.
  */
-async function runAction<T extends { error?: string }>(
+function runAction<T extends { error?: string }>(
   call: () => Promise<T>,
   onError: (message: string) => void,
 ): Promise<T | null> {
-  try {
-    const result = await call();
-    if (result?.error) {
-      onError(result.error);
-      return null;
-    }
-    return result;
-  } catch (error) {
-    const digest = (error as { digest?: string })?.digest;
-    if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) throw error;
-    onError(
-      "Lost contact with the server. Your draft is saved. Reload the page to pick up where you left off.",
-    );
-    return null;
-  }
+  return callAction(
+    call,
+    onError,
+    "Lost contact with the server. Your draft is saved. Reload the page to pick up where you left off.",
+  );
 }
 
 /**

@@ -78,10 +78,14 @@
   wrote once per click, so a run of edits was a run of round trips against a
   pool of six. **Escape hides the panel and keeps the batch**; only Discard All
   throws it away, and a `beforeunload` warns if you leave with one pending,
-  because staged work lives only in that tab.
+  because staged work lives only in that tab. **A Save that fails keeps the
+  batch too**: nothing is cleared until the write comes back, and a dropped
+  request says nothing was saved and to press Save again. Before it went
+  through `callAction` a lost Save left the button stuck on saving.
 - **It has two type-aheads and only one of them touches the database.** Add
   searches the whole card pool through `quickSearchAction` (two round trips per
-  debounced keystroke). Remove/Replace searches **the cube's own contents**,
+  debounced keystroke); a failed search shows the panel's error line, where an
+  `{ error }` used to read as no results. Remove/Replace searches **the cube's own contents**,
   which the page has already loaded to render the list, so it is passed down as
   a prop and filtered client-side for **no query at all**. The remove picker
   lists **one entry per copy** — two copies of a printing are two entries, and
