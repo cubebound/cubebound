@@ -27,7 +27,7 @@ one pack as a single high-resolution image to post, replacing the screenshots
 creators were taking of the pack view. It renders server-side because Riot's card
 CDN sends no CORS headers, which makes it the first feature where card art costs
 us bandwidth, and the reason it is the one export that needs an account. See
-"Crack-A-Pack".
+[crack-a-pack.md](crack-a-pack.md).
 
 **Self-serve account deletion has shipped** — an account can delete itself from
 `/settings`, and `/privacy` describes what that does. See
@@ -37,17 +37,6 @@ us bandwidth, and the reason it is the one export that needs an account. See
 `/cards` opens on "Most played", each widely cubed card has a page of the cards
 cubed alongside it, and a signed-in owner can add a card to a cube from any
 card's detail box. See [card-browser.md](card-browser.md).
-
-Open items:
-- **The production origin is derived from the request**, not from config —
-  `resolveSiteUrl` reads the forwarded host, so cubebound.gg, preview
-  deployments and localhost each build their own correct magic-link and share
-  URLs. The live domain must stay on the Supabase redirect allowlist; see
-  "Auth and data access" for what breaks when it isn't.
-
-- Feature work lands on a branch and pushes to
-  `github.com/cubebound/cubebound`; `master` is production — see
-  "Environments".
 
 ## Build order
 

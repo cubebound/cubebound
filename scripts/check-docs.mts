@@ -156,6 +156,48 @@ for (const stub of stubs) {
   expectTrue(`${relative(REPO, stub)} is not in a directory`, statSync(dirname(stub)).isDirectory());
 }
 
+// --- the check counts are stated once, and are right ------------------------
+// Counts are what goes stale first: "the other nine are pure" sat in two files
+// after CI had run ten for weeks. So docs/checks.md states them in one sentence
+// and nothing else does, and this derives the true numbers from package.json
+// (every `check:*` script) and the CI workflow (every one it runs).
+const NUMBER_WORDS = [
+  "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+  "eighteen", "nineteen", "twenty", "twenty-one", "twenty-two", "twenty-three",
+  "twenty-four", "twenty-five", "twenty-six", "twenty-seven", "twenty-eight",
+  "twenty-nine", "thirty", "thirty-one", "thirty-two", "thirty-three", "thirty-four",
+  "thirty-five", "thirty-six", "thirty-seven", "thirty-eight", "thirty-nine", "forty",
+];
+const word = (n: number) => NUMBER_WORDS[n] ?? String(n);
+const capitalised = (text: string) => text[0].toUpperCase() + text.slice(1);
+
+const checkScripts = Object.keys(
+  (JSON.parse(read(join(REPO, "package.json"))) as { scripts: Record<string, string> }).scripts,
+).filter((name) => name.startsWith("check:"));
+const ciChecks = [
+  ...new Set(
+    [...read(join(REPO, ".github", "workflows", "ci.yml")).matchAll(/npm run (check:[a-z-]+)/g)].map(
+      (m) => m[1],
+    ),
+  ),
+];
+const pure = ciChecks.length;
+const manual = checkScripts.length - pure;
+const checksDoc = read(join(DOCS_DIR, "checks.md")).replace(/\s+/g, " ");
+
+expectTrue(
+  `CI runs a check package.json does not define: ${ciChecks.filter((c) => !checkScripts.includes(c)).join(", ")}`,
+  ciChecks.every((c) => checkScripts.includes(c)),
+);
+for (const [phrase, truth] of [
+  [`the ${word(pure)} pure checks`, `CI runs ${pure}`],
+  [`The other ${word(manual)} need`, `${manual} check scripts are not in CI`],
+  [`${capitalised(word(checkScripts.length))} scripts in total`, `package.json has ${checkScripts.length}`],
+] as const) {
+  expectTrue(`docs/checks.md must say "${phrase}": ${truth}`, checksDoc.includes(phrase));
+}
+
 if (failures.length > 0) {
   console.error(`docs check FAILED:\n - ${failures.join("\n - ")}`);
 } else {

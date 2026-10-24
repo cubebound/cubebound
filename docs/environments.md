@@ -26,15 +26,16 @@ drop columns). `db:generate` writes a migration from a schema diff — useful as
 starting point, but most migrations here are hand-written so the RLS statement
 and the comment explaining *why* travel with the DDL.
 
-- **The schema is current: production is migrated through `0013`, and `drizzle/`
-  holds nothing newer.** `0013` (`cube_cards_cube_id_section_idx`) was applied
-  by hand at the Draftmancer export deploy on 17 August 2026; `0012`
-  (moderation) the same way on 16 August. Confirm either with
-  `select indexname from pg_indexes where tablename = 'cube_cards'` rather than
-  by reading this doc. Note that a hand-applied migration writes no row to
-  production's `drizzle.__drizzle_migrations`, so that ledger and this repo's
-  journal are already out of step — which is survivable only because `0013` is
-  `CREATE INDEX IF NOT EXISTS` and re-running it is a no-op. The rule stands: a
+- **What production has applied is read from production's schema, not from
+  this doc or from its migration ledger.** Look for the object the migration
+  creates: for an index, `select indexname from pg_indexes where tablename =
+  'cube_cards'`; for a table, `information_schema.tables`. The ledger is not
+  enough because a hand-applied migration writes no row to production's
+  `drizzle.__drizzle_migrations`, and `0012` (moderation) and `0013`
+  (`cube_cards_cube_id_section_idx`) were both applied by hand, on 16 and
+  17 August 2026, so that ledger and this repo's journal are out of step —
+  which is survivable only because `0013` is `CREATE INDEX IF NOT EXISTS` and
+  re-running it is a no-op. The rule stands: a
   deploy does not run migrations, so a feature adding tables fails at request
   time however green the build looks. **Check `git log origin/master..master`
   before assuming what is live** — this doc describes the code, not the
@@ -67,7 +68,7 @@ week; what it sends and which secrets it may hold are in
 ### Branching
 
 `master` is production: pushing to it deploys the live site. Feature work
-happens on branches; pushing a branch produces a Vercel preview deployment and
+happens on branches of `github.com/cubebound/cubebound`; pushing a branch produces a Vercel preview deployment and
 does not touch production *code*. `master` holds everything that is live.
 
 **Delete a branch when it merges.** `master` is then the only long-lived one,
@@ -89,11 +90,7 @@ unpublished the same day, and that URL now 404s by intent.
 and rarity-slot presets — was abandoned unmerged on 18 September 2026 and its
 branch deleted; it is not coming back, so treat that ground as unbuilt.
 
-**What merged, in order, is `git log`'s business rather than this doc's.** The
-last several are the draft settings rework and Crack-A-Pack
-(`draft-screen-rollout`), the printing-collapse work (`printing-treatments`),
-the owner's redirect off the visitor view, real 404s on `/edit` and
-`/settings`, and the Printing dropdown's two-column query. None of them added
-a migration, so production needs nothing applied by hand. A gate run is seventeen
-scripts, `check:account-deletion` being the seventeenth; the other nine are pure
-and run in CI instead.
+**What merged, in order, is `git log`'s business rather than this doc's**, and
+so is whether a merge leaves production needing a migration applied by hand:
+`git log --oneline <range> -- drizzle/` lists every migration a range added,
+and an empty answer means there is nothing to apply.

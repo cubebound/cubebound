@@ -74,10 +74,8 @@ exemption.
 ### What CI runs
 
 `.github/workflows/ci.yml`, on every push and pull request: typecheck, lint,
-the ten pure checks — `check:primer-safety`, `check:draft`,
-`check:analytics`, `check:markdown-edit`, `check:draftmancer`,
-`check:pack-image`, `check:staged-edit`, `check:popularity`, `check:oauth` and
-`check:docs` — and a production build. It uses **placeholder** Supabase
+the pure checks listed under [What CI covers today](#what-ci-covers-today), and
+a production build. It uses **placeholder** Supabase
 values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**
@@ -121,7 +119,7 @@ the browser.
 with "no /auth/v1/otp request was captured within 15s", which reads as a broken sign-in
 path. The real cause is that the check waits for React to hydrate before clicking submit,
 and a poisoned `.next` never hydrates, so the click degrades to a native POST that Next
-rejects and no OTP request is ever made. The other sixteen pass, which makes it look
+rejects and no OTP request is ever made. Every other check passes, which makes it look
 specific to sign-in. There is no browser to hard-reload in a headless run, so the fix is
 to stop the dev server, delete `.next`, and restart it. Confirmed 19 September 2026: it
 failed identically on a comment-only branch and on `master`, and passed on both once
@@ -140,5 +138,6 @@ CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
   `check:oauth` and `check:docs`. The other seventeen need a live Supabase or the
   card pool and are a documented pre-deploy manual gate — see
   [gate-runbook.md](gate-runbook.md). Run that gate before deploying.
-  (Twenty-seven scripts in total; if that number moves, this line and the count
-  above it move with it.)
+  (Twenty-seven scripts in total. `check:docs` derives all three numbers from
+  `package.json` and `ci.yml` and fails when this sentence disagrees, which is
+  why no other file states them.)
