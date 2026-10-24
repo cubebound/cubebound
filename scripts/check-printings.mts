@@ -20,7 +20,6 @@ import {
   assignBaseIds,
   cardIdentityKey,
   collapseIdentityKey,
-  composeCardId,
   isRetiredPrinting,
   isTokenCard,
   nameWithoutTreatment,
@@ -72,8 +71,6 @@ try {
   expect(provisionalBaseId("OGN-100a") === "OGN-100", "alt art should drop its letter");
   expect(provisionalBaseId("OGN-301-star") === "OGN-301", "signature should drop -star");
   expect(provisionalBaseId("UNL-T01") === "UNL-T01", "token ids have no suffix to strip");
-  expect(composeCardId("ogn", 1, "") === "OGN-001", "compose should pad the collector number");
-  expect(composeCardId("UNL", 3, "t03") === "UNL-T03", "compose should format tokens");
 
   // --- Riot's gallery ids and names map onto ours ----------------------------
   // Pure, against literal feed shapes. Both of the first two mistakes made

@@ -51,32 +51,16 @@ pool be half-switched, and ownership per set replaces it.
   cosmetic**: drafts replay against live card data and the bots pick by domain
   ([draft.md](draft.md)), so storing the right value from the first sync means
   Riot's eventual fix changes nothing under an active draft.
-- **riftcodex (retired, owns no sets)** — Riftcodex open API (`https://api.riftcodex.com`),
-  no auth. `GET /cards?page=N&size=100` (`size` caps at 100; 422 above),
-  envelope `{ items, total, page, size, pages }`. It was the whole pool until
-  it stopped updating in July 2026, then the promo sets' source until those
-  were retired, because Riot's feed carries no promos. The frozen promo rows
-  are still the ones it wrote. `riftbound_id` (`ogn-299*-298`) maps to our canonical ids:
-  `*` signature, `a`/`b` alt art, `tNN`/`rNN`/`spN` tokens and specials; the
-  trailing segment is the set size, not part of the identity. Their feed
-  contains stale duplicate records under the same `riftbound_id` — keep the one
-  with the newer `metadata.updated_on`.
-
-  **Card names arrive three different ways and `splitCardName` normalizes all
-  three.** `OGN` writes `Ahri - Inquisitive`; champion units become
-  `Ahri, Inquisitive` and legends keep only the title with the champion stored
-  separately. `VEN` breaks both halves of that: its units print
-  `Akali, Silent` with no separator (champion lost), and its legends print the
-  whole trait line first — `Yordle, Kennen - Heart of the Tempest` — which made
-  `champion` the traits. So the champion is the **last** segment before the
-  separator, and when there is no separator it is the leading comma segment
-  only if the card's own `tags` confirm it (which leaves ordinary titles like
-  `Heisho, Shell of the World` alone). A third quirk: some alt-art legends
-  arrive as the bare title (`VEN-194`, `Defender of Tomorrow`, where its base
-  is `Jayce - Defender of Tomorrow`). A legend with no separator and exactly
-  one tag takes that tag as its champion; with several it stays null. Without
-  this, the printings of one legend spell its card page differently, which
-  `check:printings` fails on.
+- **riftcodex and riftscribe (retired; adapters deleted)** — both adapters were
+  deleted on 23 October 2026 and live in git history, but **the rows they wrote
+  are still in the table and still shape it.** Riftcodex
+  (`api.riftcodex.com`) was the whole pool until it stopped updating in July
+  2026, then the promo sets' source until those were retired, because Riot's
+  feed carries no promos, so **the frozen promo rows are Riftcodex payloads**
+  (`data.source` is `riftcodex`). RiftScribe was dropped earlier because its
+  `faction` is a single string, so every multi-domain card lost a domain: a
+  lossy copy of Riot's gallery feed with no supertype, tags or artist. What
+  that left in the table is below.
 
   Riftcodex collapsed 28 OPP `riftbound_id`s onto 12 canonical ids, so 32
   promo printings never arrived. That stopped mattering when the promos were
@@ -94,12 +78,6 @@ pool be half-switched, and ownership per set replaces it.
   drops the upstream's literal `[NO TEXT]`, written on textless runes and some
   promos, which readers were shown as rules text. `check:printings` fails if
   stored text regresses or holds the placeholder.
-- **riftscribe (retired, owns no sets)** — RiftScribe open API
-  (`https://riftscribe.gg`). Dropped because its `faction` is a single string,
-  so every multi-domain card lost a domain: all legends came through with one
-  domain and Chaos/Order legends could not be found at all. It is a lossy copy
-  of Riot's gallery feed, with no supertype, tags or artist. Kept for
-  comparison only; `--only=riftscribe` fetches and discards.
 - **riot (dormant, owns no sets)** — `riftbound-content-v1`, Riot's developer
   API, not to be confused with the gallery feed. Kept because it's the official
   source, but the endpoint requires app-specific approval and returns 403 on

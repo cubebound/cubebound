@@ -6,8 +6,9 @@
  * owns: their rows stay in the table, frozen, because drafts reference them,
  * and nothing offers them (`RETIRED_SETS` in src/lib/card-ids.ts). Any row a
  * source returns for a set it does not own is discarded, whichever way the
- * run was started. riftcodex (which carried the promos), riftscribe (retired)
- * and riot (dormant, the developer API) own nothing and so write nothing.
+ * run was started. riot (dormant, the developer API) owns nothing and so
+ * writes nothing. The retired riftcodex and riftscribe adapters were deleted
+ * on 23 October 2026; they are in git history if a comparison is ever needed.
  *
  *   npm run sync-cards                     write
  *   npm run sync-cards -- --dry-run        fetch, map and report; write nothing
@@ -35,9 +36,7 @@ import {
   RETIRED_SETS,
 } from "../src/lib/card-ids";
 import { cardPagePath } from "../src/lib/card-popularity";
-import { createRiftcodexSource } from "./card-sources/riftcodex";
 import { databaseLabel } from "./lib/database-label";
-import { createRiftScribeSource } from "./card-sources/riftscribe";
 import { createRiotSource } from "./card-sources/riot";
 import { createRiotGallerySource } from "./card-sources/riot-gallery";
 import type { CardSource } from "./card-sources/types";
@@ -47,8 +46,6 @@ config();
 
 const SOURCES: Record<string, () => CardSource> = {
   "riot-gallery": createRiotGallerySource,
-  riftcodex: createRiftcodexSource,
-  riftscribe: createRiftScribeSource,
   riot: createRiotSource,
 };
 const DEFAULT_SOURCES = ["riot-gallery"];

@@ -1,11 +1,12 @@
 /**
- * Riot gallery adapter — the source for every set except the promos.
+ * Riot gallery adapter — the source for every set except the retired promos.
  *
  * Reads the feed behind Riot's own card gallery (playriftbound.com/card-gallery),
  * served by Riot's public publishing-content API. No key, no auth. This is the
  * upstream Riftcodex and RiftScribe both copied, and it was the only source
  * carrying Radiance when Riftcodex stopped updating in July 2026. It has no
- * promo sets (OPP, PR, JDG); those stay on Riftcodex. Ownership per set is
+ * promo sets (OPP, PR, JDG), which are retired and owned by no source; their
+ * frozen rows are the ones Riftcodex wrote. Ownership per set is
  * enforced in `scripts/sync-cards.ts`, not here.
  *
  *   GET <FEED_URL>  -> { data: GalleryCard[], metadata: { totalItems, ... }, linkdata }
