@@ -56,8 +56,11 @@ calling anything broken.
   environment, not the code.
 - **Restart Chrome before trusting any Chrome-driven failure.** After hours of runs on a
   reused profile, `check:cube-ownership` failed four times running with "editor never
-  became clickable: skeleton" on code that was fine. Kill the `chrome.exe` processes,
-  delete the profile directory, relaunch.
+  became clickable: skeleton" on code that was fine. Stop **only the debug Chrome**, the
+  processes whose command line carries your `--user-data-dir`, then delete that profile
+  directory and relaunch. **Never kill every `chrome.exe`**: the owner's own browser is
+  running on the same machine, and a blanket `taskkill /IM chrome.exe` closes it. See
+  docs/gate-runbook.md for the command.
 - **A long session poisons the dev server too.** If failures start clustering late in a
   sitting, restart it before concluding anything.
 

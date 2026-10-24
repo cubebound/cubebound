@@ -115,9 +115,19 @@ believing any gate result late in a sitting.
   listening on 9222: `netstat` showed no listener and `/json/version` refused
   the connection. Nothing reported an error — the first sign was
   `check:auth-flow` failing with **`check crashed: fetch failed`**, which names
-  neither Chrome nor the port. Killing every `chrome.exe`, deleting the profile
+  neither Chrome nor the port. Stopping the debug Chrome, deleting the profile
   directory and launching `chrome.exe` directly rather than through
   `Start-Process` bound it immediately and it stayed up for the rest of the run.
+- **"Stopping the debug Chrome" means only the processes on the gate's own
+  profile, never every `chrome.exe`.** The owner's browser runs on the same
+  machine, and on 23 October 2026 a gate run's `taskkill /IM chrome.exe`
+  closed it. Match on the profile directory instead:
+
+  ```powershell
+  Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe'" |
+    Where-Object { $_.CommandLine -like '*\cbchrome*' } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+  ```
   **So `fetch failed` in a Chrome-driven check means look at 9222 before looking
   at the code**, and confirm the endpoint answers before starting a gate rather
   than assuming a running process implies a listening one.
