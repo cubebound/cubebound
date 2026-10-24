@@ -51,8 +51,8 @@
   Deliberately: `base_id` is stored and read by the printing picker, the
   contents switcher, the swap guard, the import catalog and the Draftmancer
   rarity resolution, so rewriting it is a re-sync per environment, run before
-  the deploy that relies on it ([card-data.md](card-data.md)). The cost of not doing that is recorded where it bites — the tile's
-  printing badge stays partitioned by `base_id` so it agrees with what the
+  the deploy that relies on it ([card-data.md](card-data.md)). The cost of not doing that is that the tile's
+  printing badge, `printingCountByBase`, stays partitioned by `base_id` so it agrees with what the
   picker will offer, which means those cards undercount by one and their
   treatment printing is reachable only through "All printings". No offered
   printing is treatment-named today, so that cost has no live case. If the deeper
@@ -61,7 +61,9 @@
   `check:printings` asserting they agree.
 - **The promo sets OPP, PR and JDG are retired: kept in `cards`, offered
   nowhere.** `RETIRED_SETS` in `src/lib/card-ids.ts` is the list, mirrored in
-  SQL by `retiredPrinting` in `src/db/queries/cards.ts`. Riot's gallery feed,
+  SQL by `retiredSetCode` in `src/db/queries/cards.ts`, the one place `src/`
+  binds it (`retiredPrinting` is that over `"cards"."set_code"`; the scripts
+  bind their own). Riot's gallery feed,
   the only source, carries none of them, and every one is an alternate printing
   of a card a main set carries (checked against all 133 OPP records the old
   source held), so retiring them removes no card. **The rows stay because

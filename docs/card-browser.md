@@ -36,7 +36,7 @@
   printings out (tokens need no such rule there, since they group only with
   tokens), and `getCubeCards`' printing count does
   the same so its badge never promises a printing nobody can pick; that
-  subquery spells out `alt.set_code` because `retiredPrinting` is qualified
+  subquery applies `retiredSetCode` to `alt.set_code` because `retiredPrinting` is qualified
   `"cards"` and would bind to the outer row ([database.md](database.md)).
   **`realCard` alone stays where a retired printing must still count as its
   card**: cloning copies what a cube holds, and popularity counts a cube's copy
@@ -88,11 +88,14 @@
   shared between requests, so nothing may mutate it — callers render it and
   nothing more; if that changes, copy on read.
 - **A set's printed name comes from the stored raw payload**
-  (`data->'card'->'set'->>'label'` for Riftcodex rows, `…->'set'->'value'->>'label'`
-  for Riot's gallery, read through one `coalesce` with the gallery's path first, because its own `set.label` is the caption "Card Set"), not a lookup table, so a
-  newly synced set names itself like every other filter value. Reading only one
-  path shows every set from the other source as its bare code; no offered row
-  is a Riftcodex one any more, so that half is now a defence. Ordered
+  (`data->'card'->'set'->'value'->>'label'`, Riot's gallery's path; its own
+  `set.label` is the caption "Card Set", and reading that labelled every set
+  "Card Set"), not a lookup table, so a
+  newly synced set names itself like every other filter value. Riftcodex's
+  `set.label` is no longer read: only the retired promo rows carry that shape,
+  and `offeredCard` leaves them out (checked against production, 23 October
+  2026). A source that nests the label anywhere else shows its sets as bare
+  codes, so a new adapter means a new path here. Ordered
   by **name**, not code: codes read as no order at all, and a set's name is
   what anyone looks for.
 - **Sorting is `?sort=` over set, played ("Most played", see below), name,

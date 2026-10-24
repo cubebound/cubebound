@@ -252,7 +252,7 @@ type CardSearchResult = {
  *
  * Stripping the suffix here rather than rewriting `base_id` keeps the fix to
  * the two queries that collapse printings — no migration, and nothing stored
- * changes. See the limits recorded on `printingCount` below.
+ * changes. The printing badge still counts by `base_id`; see `printingCountByBase`.
  *
  * **Only a trailing parenthetical**, which is why this cannot be a plain
  * `like '%(%'`: `Recruit (271) // Buff` and `Sprite (274) // Buff` are four
@@ -302,10 +302,15 @@ export const realCard = sql`(not ${tokenCard})`;
  * `isRetiredPrinting` it mirrors; why they are kept at all is there. Qualified
  * by hand like `tokenCard`, so the same scoping rule applies.
  */
-export const retiredPrinting = sql`("cards"."set_code" in (${sql.join(
-  RETIRED_SETS.map((set) => sql`${set}`),
-  sql`, `,
-)}))`;
+export const retiredPrinting = retiredSetCode(sql`"cards"."set_code"`);
+
+/** The same rule over any set-code column, for a query that aliases `cards`. */
+export function retiredSetCode(setCode: SQLWrapper): SQL {
+  return sql`(${setCode} in (${sql.join(
+    RETIRED_SETS.map((set) => sql`${set}`),
+    sql`, `,
+  )}))`;
+}
 
 /**
  * Every row the site offers: a card, and not a retired printing. What every
@@ -336,6 +341,19 @@ const canonicalFirst = [
   cards.collectorNo,
   cards.id, // plain id before its a / -star variants
 ];
+
+/**
+ * How many printings of each card the query matched, so a tile can say "2
+ * printings". Aliased so it can be read back out of a `DISTINCT ON` subquery.
+ *
+ * **Partitioned by `base_id`, not by `collapseKey`.** The badge has to agree
+ * with what the printing picker will offer, and the picker reads `base_id`
+ * (`getPrintings`). Counting the collapsed group would promise a printing the
+ * picker then could not list.
+ */
+const printingCountByBase = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
+  "printing_count",
+);
 
 /**
  * The unfiltered first page, memoised.
@@ -413,19 +431,6 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(Math.max(1, filters.page ?? 1), pageCount);
   const offset = (page - 1) * PAGE_SIZE;
-
-  // Printings matching the current filters, so a tile can say "2 printings".
-  // Needs an explicit alias to be referenced back out of the subquery below.
-  //
-  // **Partitioned by `base_id`, not by `collapseKey`.** The badge has to agree
-  // with what the printing picker will offer, and the picker reads `base_id`
-  // (`getPrintings`). Counting the collapsed group would promise a printing
-  // the picker then could not list. So for those 31 cards the badge undercounts
-  // by one, and the treatment printing stays reachable through "All printings"
-  // — the honest reading of a `base_id` this query no longer groups by.
-  const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
-    "printing_count",
-  );
 
   const sort = filters.sort ?? "set";
 
@@ -522,7 +527,7 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
 
   if (!grouped) {
     const rows = await db
-      .select({ ...browseColumns, printingCount })
+      .select({ ...browseColumns, printingCount: printingCountByBase })
       .from(cards)
       .where(where)
       .orderBy(...orderFor(cards))
@@ -536,7 +541,7 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
   // printing stands for the group. It never needs the group's base printing to
   // have survived the filter — "Fury commons" collapses whatever it matched.
   const representative = db
-    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
+    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount: printingCountByBase })
     .from(cards)
     .where(where)
     .orderBy(collapseKey, ...canonicalFirst)
@@ -585,16 +590,13 @@ export async function quickSearchCards(
   // allows: no tokens, no retired promo printings.
   const matches = and(or(ilike(cards.name, pattern), ilike(fullName, pattern)), offeredCard);
 
-  const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
-    "printing_count",
-  );
 
   // "Specify versions" in the edit panel: on, every printing is its own
   // suggestion and the reader picks the art directly; off, one entry per card,
   // which is the `collapseKey` grouping the browse grid uses by the same rule.
   if (allPrintings) {
     return db
-      .select({ ...browseColumns, printingCount })
+      .select({ ...browseColumns, printingCount: printingCountByBase })
       .from(cards)
       .where(matches)
       .orderBy(sql`(${fullName} ilike ${prefix}) desc`, cards.name, cards.id)
@@ -602,7 +604,7 @@ export async function quickSearchCards(
   }
 
   const grouped = db
-    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
+    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount: printingCountByBase })
     .from(cards)
     .where(matches)
     .orderBy(collapseKey, ...canonicalFirst)
@@ -726,11 +728,11 @@ async function readFilterOptions(): Promise<FilterOptions> {
   //  - the set's printed name comes from the stored raw payload rather than a
   //    lookup table, so a newly synced set names itself. `min()` because the
   //    grouping needs an aggregate; every set has exactly one label, and the
-  //    code stands in for a row whose payload has none. The two live sources
-  //    nest it differently: Riftcodex at `set.label`, Riot's gallery at
-  //    `set.value.label`. The gallery's path is read first because its
-  //    `set.label` also exists and is the field's caption, "Card Set": read
-  //    the other way round, every gallery set was labelled "Card Set".
+  //    code stands in for a row whose payload has none. Riot's gallery nests it
+  //    at `set.value.label`; its `set.label` is the field's caption, "Card
+  //    Set", and reading that labelled every set "Card Set". Only the retired
+  //    promo rows still carry Riftcodex's shape, and `offeredCard` leaves them
+  //    out (checked against production, 23 October 2026).
   //  - every branch leaves tokens out, so no filter offers a value only a
   //    token carries. Filtered per branch rather than in a CTE to keep the
   //    statement's shape; it is still one statement.
@@ -747,8 +749,7 @@ async function readFilterOptions(): Promise<FilterOptions> {
   }>(sql`
     select 'set'::text as kind,
            ${cards.setCode} as value,
-           min(coalesce(${cards.data}->'card'->'set'->'value'->>'label',
-                        ${cards.data}->'card'->'set'->>'label')) as label
+           min(${cards.data}->'card'->'set'->'value'->>'label') as label
       from ${cards}
      where ${offeredCard}
      group by ${cards.setCode}
@@ -999,11 +1000,8 @@ export function getCardIdentities(): Promise<CardIdentity[]> {
  */
 export async function getRepresentativeCardsByKeys(keys: string[]): Promise<BrowseCard[]> {
   if (keys.length === 0) return [];
-  const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
-    "printing_count",
-  );
   return db
-    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
+    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount: printingCountByBase })
     .from(cards)
     .where(and(inArray(collapseKey, keys), offeredCard))
     .orderBy(collapseKey, ...canonicalFirst);
