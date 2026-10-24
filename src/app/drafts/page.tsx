@@ -8,7 +8,7 @@ import {
   DRAFTS_PAGE_SIZE,
   listDraftsForUser,
 } from "@/db/queries/drafts";
-import { getCurrentUser } from "@/lib/auth";
+import { loadViewer } from "@/lib/cube-request";
 import { DEFAULT_DRAFT_CONFIG, finalPoolSize } from "@/lib/draft/config";
 
 import DeleteDraft from "./delete-draft";
@@ -36,7 +36,7 @@ export default async function DraftsPage({
 }: {
   searchParams: Promise<{ page?: string | string[] }>;
 }) {
-  const current = await getCurrentUser();
+  const current = await loadViewer();
   if (!current) redirect("/login");
   if (!current.profile) redirect("/welcome");
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import type { PoolCounts } from "@/components/draft-settings";
-import { getCubeByOwnerAndSlug } from "@/db/queries/cubes";
+
 import {
   getDraft,
   getDraftPicks,
@@ -11,7 +11,7 @@ import {
   getLatestDraft,
   listDraftsForUser,
 } from "@/db/queries/drafts";
-import { getCurrentUser } from "@/lib/auth";
+import { loadCube, loadViewer } from "@/lib/cube-request";
 import { canViewCube } from "@/lib/cube-access";
 import { btn } from "@/lib/ui";
 
@@ -56,17 +56,17 @@ export default async function DraftPage({
   params: Promise<{ username: string; slug: string }>;
   searchParams: Promise<{ draft?: string | string[]; new?: string | string[] }>;
 }) {
-  const { username, slug } = await params;
-  const query = await searchParams;
+  const [{ username, slug }, query] = await Promise.all([params, searchParams]);
   const requestedId = Array.isArray(query.draft) ? query.draft[0] : query.draft;
   // "New draft" routes here rather than dealing on the spot, so the settings
   // are seen before anything is dealt — otherwise they are reachable only on a
   // cube you have never drafted, which is nobody after the first time.
   const wantsNew = (Array.isArray(query.new) ? query.new[0] : query.new) === "1";
-  const cube = await getCubeByOwnerAndSlug(username, slug);
+  // Both are request-cached, and the `[slug]` layout has already asked, so
+  // neither touches the database or Supabase again here.
+  const [cube, current] = await Promise.all([loadCube(username, slug), loadViewer()]);
 
   // Same rule as the public page: anyone who can view a cube can draft it.
-  const current = await getCurrentUser();
   if (!canViewCube(cube, current?.profile?.id, current?.profile?.isAdmin)) notFound();
 
   const publicPath = `/cube/${cube.ownerUsername}/${cube.slug}`;

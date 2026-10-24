@@ -7,7 +7,7 @@ import ProviderButtons from "@/components/provider-buttons";
 import { countCubesForOwner } from "@/db/queries/cubes";
 import { countDraftsForUser } from "@/db/queries/drafts";
 import { countAdmins } from "@/db/queries/moderation";
-import { getCurrentUser } from "@/lib/auth";
+import { loadViewer } from "@/lib/cube-request";
 import { isOAuthProvider, PROVIDER_LABELS, providersOf } from "@/lib/auth-providers";
 
 import DeleteAccount from "./delete-account";
@@ -22,7 +22,7 @@ export const metadata: Metadata = { title: "Settings" };
  * the mailbox — there is no password to fall back on and no support queue.
  */
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
-  const current = await getCurrentUser();
+  const current = await loadViewer();
   if (!current) redirect("/login?next=/settings");
   if (!current.profile) redirect("/welcome");
 

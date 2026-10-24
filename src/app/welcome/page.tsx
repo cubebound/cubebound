@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { getCurrentUser } from "@/lib/auth";
+import { loadViewer } from "@/lib/cube-request";
 import { safeReturnPath } from "@/lib/site-url";
 
 import UsernameForm from "./username-form";
@@ -15,7 +15,7 @@ export default async function WelcomePage({
 }: {
   searchParams: Promise<{ next?: string | string[] }>;
 }) {
-  const [current, params] = await Promise.all([getCurrentUser(), searchParams]);
+  const [current, params] = await Promise.all([loadViewer(), searchParams]);
   // Carried from the sign-in that sent them here, so claiming a username is a
   // step on the way back rather than the end of the trip.
   const next = safeReturnPath(Array.isArray(params.next) ? params.next[0] : params.next);

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import AuthHashError from "@/app/auth-hash-error";
 import { LogoMark } from "@/components/logo";
-import { getCurrentUser } from "@/lib/auth";
+import { loadViewer } from "@/lib/cube-request";
 import { btn, link } from "@/lib/ui";
 
 // Title and description come from the layout's defaults; only the canonical is
@@ -43,7 +43,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   // Signed in without a profile means the username was never claimed, and
   // cube creation needs one — send them to finish that instead of to a form
   // that would bounce them.
-  const current = await getCurrentUser();
+  const current = await loadViewer();
   const build = current?.profile
     ? { href: "/cubes/new", label: "Create a cube" }
     : current

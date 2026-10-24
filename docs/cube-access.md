@@ -20,11 +20,13 @@
   visitor **while the cube is still public**. Three routes have been bitten by
   this now — the cube layout, the profile layout, and these two — so the rule is
   the check goes in the layout.
-- **`settings/page.tsx` reads through `loadCube`/`loadViewer`**, not
-  `getCubeByOwnerAndSlug`/`getCurrentUser` directly. It was the one cube route
-  still on the raw queries, which was invisible until it gained a layout that
-  asks the same two questions — `cache()` makes those one query each instead of
-  two.
+- **Every page under the `[slug]` layout reads through `loadCube`/`loadViewer`**,
+  not `getCubeByOwnerAndSlug`/`getCurrentUser` directly, because the layout has
+  already asked the same two questions and `cache()` makes those one query each
+  instead of two. `settings/page.tsx` was still on the raw queries, which was
+  invisible until it gained its own layout, and `draft/page.tsx` was too. Lint
+  now refuses the viewer half anywhere in a render (see
+  [page-speed.md](page-speed.md)); the cube half has no rule, so it is on you.
 - **The owner never sees the public page — it redirects them to `/edit`.** The
   editor is the same five tabs plus the ability to change something, so landing
   there signed in as the owner only ever meant a trip through an Edit button.

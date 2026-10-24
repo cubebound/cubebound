@@ -2,10 +2,10 @@ import Link from "next/link";
 
 import AccountMenu from "@/app/account-menu";
 import { signOut } from "@/app/auth/actions";
-import { getCurrentUser } from "@/lib/auth";
+import { loadViewer } from "@/lib/cube-request";
 
 export default async function NavAuth() {
-  const current = await getCurrentUser();
+  const current = await loadViewer();
 
   if (!current) {
     return (

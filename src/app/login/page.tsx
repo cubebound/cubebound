@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { getCurrentUser } from "@/lib/auth";
+import { loadViewer } from "@/lib/cube-request";
 import { safeReturnPath } from "@/lib/site-url";
 
 import LoginForm from "./login-form";
@@ -15,7 +15,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [current, params] = await Promise.all([getCurrentUser(), searchParams]);
+  const [current, params] = await Promise.all([loadViewer(), searchParams]);
   // Where sign-in started, e.g. a cube someone tried to clone while signed out.
   // It travels through the callback and `/welcome` so they land back there.
   const next = safeReturnPath(Array.isArray(params.next) ? params.next[0] : params.next);
