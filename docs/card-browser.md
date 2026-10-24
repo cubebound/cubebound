@@ -64,8 +64,8 @@
 - **An implausible read is served but never cached, and is reported.**
   `looksLikeFilterOptions` rejects an all-digits entry where a name belongs. The
   five-minute memo is what turned that momentary fault into five minutes of
-  wrong data on one instance, so a suspect read now skips the cache and calls
-  `Sentry.captureMessage`. Serving it beats a 500 on the card browser; caching
+  wrong data on one instance, so a suspect read now skips the cache (it is the
+  memo's `cacheIf`) and calls `Sentry.captureMessage`. Serving it beats a 500 on the card browser; caching
   it does not.
 - **`getFilterOptions` is memoised in-process for five minutes**
   (`CARD_POOL_TTL_MS`). It used to fire six concurrent queries on every
@@ -76,8 +76,8 @@
   it. Fold new filter lists into that statement rather than adding a query
   beside it. The values
   describe the card pool, so they only change when `sync-cards` runs and a new
-  set appears within five minutes of a sync with nobody doing anything. It is a
-  plain module-level memo rather than a framework cache deliberately: no
+  set appears within five minutes of a sync with nobody doing anything. It is
+  an in-process `memoize` rather than a framework cache deliberately: no
   revalidation story to get wrong, and a cold instance simply reads once.
 - **The unfiltered first page of `/cards` is memoised the same way and for the
   same reason** — it is the identical 60 rows for every visitor, on the page

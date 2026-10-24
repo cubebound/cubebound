@@ -169,6 +169,19 @@ try {
     !/select\(\{ value: grouped/.test(cardsSource),
     "the old ambiguous `value` alias is back on the count query",
   );
+  // The card-pool memos share their in-flight read through `memoize`, which
+  // the popularity assertion above exercises. A hand-rolled `{ at, value }`
+  // memo would quietly lose that, so none may come back.
+  for (const [file, source] of [
+    ["src/db/queries/cards.ts", cardsSource],
+    ["src/db/queries/discovery.ts", readFileSync("src/db/queries/discovery.ts", "utf8")],
+  ] as const) {
+    expect(
+      !/:\s*\{\s*at:\s*number;\s*value:/.test(source),
+      `${file} holds a hand-rolled { at, value } memo: use memoize() from ` +
+        `src/lib/memo.ts, which shares a read that is still in flight`,
+    );
+  }
   expect(
     cardsSource.includes("looksLikeFilterOptions"),
     "getFilterOptions must validate before memoising, or one bad read sticks " +

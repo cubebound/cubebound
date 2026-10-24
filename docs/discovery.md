@@ -98,13 +98,12 @@ of them is the pure module `src/lib/card-popularity.ts`, which
   behind, because a percentage over hundreds of cubes does not visibly move when
   one card is added.
 - **The shared in-flight promise is the point of the memo, not a refinement of
-  it.** A TTL only deduplicates calls that arrive after the first has
-  *finished*; concurrent ones each miss and each fire their own read. That is
-  the burst against a pool of six that took the site down
-  ([page-speed.md](page-speed.md)), and this read scans every qualifying cube
-  rather than a page of sixty. The promise is cleared in a `finally` so one bad
-  read does not wedge every later caller onto a rejected one. `check:pool`
-  asserts both halves, the coalescing by object identity rather than by timing.
+  it**, and it matters most here: this read scans every qualifying cube rather
+  than a page of sixty. `memoize` provides it, for the reason in
+  [page-speed.md](page-speed.md). The promise is cleared when the read
+  settles, so one bad read does not wedge every later caller onto a rejected
+  one. `check:pool` asserts both the memo and the coalescing, the second by
+  object identity rather than by timing.
 - **A failed refresh serves the last good snapshot**, reported to Sentry, and
   the memo keeps its old time so the next request tries again: numbers an hour
   or two old are still true, and throwing would take every card page down with
