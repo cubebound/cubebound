@@ -42,5 +42,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Journals written by scripts/retire-promo-printings.ts (one per --apply run)
+# Journals written by the one-off promo retirement (October 2026). Kept
+# ignored so a journal left in the working tree is never committed.
 retire-promos-*.json

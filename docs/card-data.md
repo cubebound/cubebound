@@ -148,22 +148,22 @@ across by deploying.
   canonical choices. The promo retirement is the case that made this a rule:
   the code hides every promo assuming none is canonical any more, and against
   the old `base_id` 43 cards would vanish from import and the printing picker.
-- **`npm run retire-promos` (`scripts/retire-promo-printings.ts`) moves every
-  cube off the retired promo printings**, onto `retiredPrintingTargets`' choice
-  ([printings.md](printings.md)). It is **report-only unless `--apply`** — the
-  reverse of the sync's `--dry-run`, because this writes into people's cubes —
-  and refuses unless the sync has already made no promo canonical. `--apply`
-  is one transaction that locks `cube_cards`, moves every promo row in every
-  section and every promo cover, merges into an existing row up to 99 copies,
-  logs one `printing_switched` per cube, section and promo with no actor and
-  one shared timestamp, and rolls back unless no promo is left and every cube's
-  copy count is unchanged. **It does not bump `cubes.updated_at`**: that would
-  push every touched cube to the top of the recency lists for a change its
-  owner did not make. It writes a gitignored `retire-promos-*.json` journal so
-  a run can be reversed exactly, and a second run finds nothing to do.
-  **Production's order is sync, `retire-promos` (report), `retire-promos --apply`,
-  then deploy, then one more `retire-promos`** expecting nothing, to catch a
-  promo added in the window between the apply and the deploy.
+- **Every cube was moved off the retired promo printings once, on 17 October
+  2026**, by a one-off script (`scripts/retire-promo-printings.ts`, deleted
+  after production showed no promo left; it is in the history of commit
+  `5c26abb`). It put each promo cube row and cover onto
+  `retiredPrintingTargets`' choice ([printings.md](printings.md)). Its shape is
+  the one to copy for any future write into people's cubes:
+  **report-only unless `--apply`** (the reverse of the sync's `--dry-run`);
+  a precondition that refuses to run in the wrong order; one transaction that
+  rolls back unless the result verifies (no promo left, every cube's copy count
+  unchanged); change-log rows with no actor and one shared timestamp, so the
+  run can be found again; a local journal of every replaced row for an exact
+  reversal; and **no bump to `cubes.updated_at`**, which would push every
+  touched cube to the top of the recency lists for a change its owner did not
+  make. One thing to do differently: it wrote row by row, about 1,900 round
+  trips to production, and held its lock on `cube_cards` for several minutes,
+  blocking cube edits; batch the writes next time.
 
 ## Still open
 
