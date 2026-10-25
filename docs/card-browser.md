@@ -70,7 +70,7 @@
 - **`getFilterOptions` is memoised in-process for five minutes**
   (`CARD_POOL_TTL_MS`). It used to fire six concurrent queries on every
   card-browser load and exhausted the connection pool in production — see
-  "Page speed". It is **one statement** now, a `union all` over a `kind`
+  [page-speed.md](page-speed.md). It is **one statement** now, a `union all` over a `kind`
   discriminator, so a memo miss costs one connection rather than six; the memo
   still earns its place, because a burst spins up cold instances that each pay
   it. Fold new filter lists into that statement rather than adding a query

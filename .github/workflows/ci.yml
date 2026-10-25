@@ -1,6 +1,6 @@
 # Typecheck, lint, build and the checks that need no database and no credentials.
 #
-# The other seventeen checks are deliberately NOT here — see docs/checks.md and
+# The other checks are deliberately NOT here — see docs/checks.md and
 # docs/gate-runbook.md. Several INSERT directly into `auth.users` and exchange a password
 # grant against a live GoTrue endpoint, so they need a real Supabase project
 # rather than a Postgres container; others drive Chrome over CDP against a

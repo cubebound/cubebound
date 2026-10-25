@@ -18,6 +18,7 @@ import { readFileSync } from "node:fs";
 
 import postgres from "postgres";
 
+import { openPage } from "./lib/chrome";
 import { fromEnvFile } from "./lib/env";
 import { createTestAccount } from "./lib/test-account";
 
@@ -28,7 +29,6 @@ import { defaultSectionForType, isCubeSection } from "../src/lib/riftbound";
 import { slugify, uniqueSlug } from "../src/lib/slug";
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
-const CDP = process.env.CDP_URL ?? "http://127.0.0.1:9222";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 
@@ -255,37 +255,15 @@ try {
   );
 
   // ---- capture a real Add request as the owner, then replay it as others ----
-  const targets = await (await fetch(`${CDP}/json/list`)).json();
-  const page = targets.find((t: { type: string }) => t.type === "page");
-  if (!page) throw new Error("no Chrome page target; is Chrome running with --remote-debugging-port?");
-  const ws = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((r) => (ws.onopen = r));
-
-  let id = 0;
-  const pendingCalls = new Map<number, (m: unknown) => void>();
+  const page = await openPage();
+  const { send, evaluate } = page;
   let captured: { url: string; method: string; headers: Record<string, string>; postData?: string } | null =
     null;
-  ws.onmessage = (e) => {
-    const m = JSON.parse(e.data as string);
-    if (m.id && pendingCalls.has(m.id)) {
-      pendingCalls.get(m.id)!(m);
-      pendingCalls.delete(m.id);
-    }
-    if (m.method === "Network.requestWillBeSent") {
-      const r = m.params.request;
-      if (r.method === "POST" && !captured) captured = r;
-    }
-  };
-  const send = (method: string, params: object = {}) => {
-    const msgId = ++id;
-    ws.send(JSON.stringify({ id: msgId, method, params }));
-    return new Promise<{ result?: { result?: { value?: string } } }>((r) =>
-      pendingCalls.set(msgId, r as (m: unknown) => void),
-    );
-  };
-  const evaluate = async (expression: string) =>
-    (await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }))
-      .result?.result?.value;
+  page.onEvent((method, params) => {
+    if (method !== "Network.requestWillBeSent") return;
+    const r = params.request as NonNullable<typeof captured>;
+    if (r.method === "POST" && !captured) captured = r;
+  });
 
   await send("Page.enable");
   await send("Runtime.enable");
@@ -348,7 +326,7 @@ try {
   expect(Boolean(added), "owner's Add should have added the card");
   expect(added?.section === "main", `unit should land in main, got ${added?.section}`);
 
-  ws.close();
+  await page.close();
 
   // Replay the captured Server Action request under other identities.
   const request = captured as { url: string; headers: Record<string, string>; postData?: string } | null;

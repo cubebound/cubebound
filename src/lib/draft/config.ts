@@ -122,20 +122,6 @@ export function readDraftConfig(input: unknown): DraftConfig {
   };
 }
 
-/**
- * How a type reaches a pack. The UI offers this as one choice per type, which
- * is what makes the exclusivity structural rather than a rule the form has to
- * police; the config stores it flat so an older snapshot still reads.
- */
-export type TypeMode = "reserved" | "shuffled";
-
-export function legendMode(config: DraftConfig): TypeMode {
-  return config.shuffleLegendsIntoPacks ? "shuffled" : "reserved";
-}
-export function battlefieldMode(config: DraftConfig): TypeMode {
-  return config.shuffleBattlefieldsIntoPacks ? "shuffled" : "reserved";
-}
-
 /** Whether the either-slot is available: it draws both types, so it needs both
  *  of them reserved. */
 export function canUseEitherSlot(config: DraftConfig): boolean {

@@ -53,11 +53,16 @@ edits as a follow-up commit rather than pretending the rule was kept.
    will announce that. A new doc that no stub and no routing row points at is
    unreachable — `check:docs` catches that one, so run it.
 4. **The surfaces that go stale most often**, in order: the Checks table in
-   `docs/checks.md`, the Routes block in `docs/routes.md`, the open items in
+   `docs/checks.md`, the Routes block in `docs/routes.md`, the shipped list in
    `docs/roadmap-and-status.md`, the branching narrative in `docs/environments.md`,
    and **any sentence containing a count** ("all 25 server actions", "sixteen
    scripts", "the other nine"). Counts are the highest-risk thing in the doc set
    because they are true when written and silently wrong three commits later.
+   **A count is stated once, where a check can hold it, or not at all.** The check
+   counts live in one sentence of `docs/checks.md`, and `check:docs` derives the true
+   numbers from `package.json` and `ci.yml` and fails if that sentence disagrees.
+   Everywhere else, write "the manual gate" or "the pure checks" and point there;
+   never restate the figure to keep it in step.
 5. **Watch the root for regrowth.** Status is what used to bloat it, and status now
    belongs in `docs/roadmap-and-status.md`. A new paragraph in the root has to earn
    its place by being a rule with no check and no directory to fire on.

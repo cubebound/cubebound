@@ -8,7 +8,7 @@ import {
   CARDS_PER_ROW_COOKIE_MAX_AGE,
   type CardsPerRow,
 } from "@/lib/cards-per-row";
-import { segment, selectSm } from "@/lib/ui";
+import { selectSm } from "@/lib/ui";
 
 /**
  * How many tiles a cube's visual view puts on a row, shared between the control
@@ -58,34 +58,8 @@ export function useCardsPerRow(): CardsPerRow | undefined {
   return useContext(Ctx)?.perRow;
 }
 
-export function CardsPerRowToggle() {
-  const ctx = useContext(Ctx);
-  if (!ctx) return null;
-
-  return (
-    <div
-      role="group"
-      aria-label="Cards per row"
-      className="inline-flex overflow-hidden rounded-md border border-line"
-    >
-      {CARDS_PER_ROW.map((count) => (
-        <button
-          key={count}
-          type="button"
-          onClick={() => ctx.choose(count)}
-          aria-pressed={count === ctx.perRow}
-          title={`${count} cards per row`}
-          className={count === ctx.perRow ? segment.active : segment.inactive}
-        >
-          {count}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /**
- * The same choice, as a plain native select.
+ * The cards-per-row choice, as a plain native select.
  *
  * It used to be a `<details>` menu labelled "Display", which hid the current
  * value behind a click - you could not tell what the grid was set to without

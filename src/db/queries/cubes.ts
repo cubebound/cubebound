@@ -350,7 +350,7 @@ export async function recordCubeChange(entry: NewCubeChange): Promise<void> {
  *
  * The edit panel saves a whole session at once and logs a row per card change,
  * so a run of edits would otherwise be a run of round trips purely to write
- * history — the fan-out rule under "Page speed" applies to the log as much as
+ * history — the fan-out rule in docs/page-speed.md applies to the log as much as
  * to the edit. Keeps `recordCubeChange`'s contract exactly: a failure here is
  * reported and swallowed, never raised into a caller whose write already
  * committed.

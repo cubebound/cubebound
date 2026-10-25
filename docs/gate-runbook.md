@@ -1,8 +1,8 @@
 # The manual gate
 
-## Why the other seventeen are a manual gate, not CI
+## Why the manual gate is not CI
 
-Six of them `INSERT` directly into `auth.users` and then exchange a password
+Several of its checks `INSERT` directly into `auth.users` and then exchange a password
 grant against a live GoTrue endpoint to mint a session cookie. That needs a
 real Supabase project, not a Postgres service container — and migration `0002`
 adds a foreign key into `auth.users`, so migrations don't even apply to bare
@@ -71,7 +71,7 @@ Start-Process -FilePath cmd.exe -ArgumentList '/c','npm run dev:probe' -WorkingD
 **Confirm the probe is armed before trusting the server, by grepping its log for
 `[otp-probe] armed`.** Nothing else can tell you. `otp-probe.mjs` prints that line
 unconditionally when it arms, and an unarmed server is identical to an armed one in every
-other respect: it serves `/cards` in 200ms, passes the other sixteen checks, and fails
+other respect: it serves `/cards` in 200ms, passes every other check, and fails
 only `check:magic-link`, with "no /auth/v1/otp request was captured within 15s" — which
 this runbook already attributes to a poisoned `.next`, so the obvious reading is the wrong
 one. On 19 September 2026 that cost a re-run: the server had been started through the
@@ -115,9 +115,19 @@ believing any gate result late in a sitting.
   listening on 9222: `netstat` showed no listener and `/json/version` refused
   the connection. Nothing reported an error — the first sign was
   `check:auth-flow` failing with **`check crashed: fetch failed`**, which names
-  neither Chrome nor the port. Killing every `chrome.exe`, deleting the profile
+  neither Chrome nor the port. Stopping the debug Chrome, deleting the profile
   directory and launching `chrome.exe` directly rather than through
   `Start-Process` bound it immediately and it stayed up for the rest of the run.
+- **"Stopping the debug Chrome" means only the processes on the gate's own
+  profile, never every `chrome.exe`.** The owner's browser runs on the same
+  machine, and on 23 October 2026 a gate run's `taskkill /IM chrome.exe`
+  closed it. Match on the profile directory instead:
+
+  ```powershell
+  Get-CimInstance Win32_Process -Filter "Name = 'chrome.exe'" |
+    Where-Object { $_.CommandLine -like '*\cbchrome*' } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+  ```
   **So `fetch failed` in a Chrome-driven check means look at 9222 before looking
   at the code**, and confirm the endpoint answers before starting a gate rather
   than assuming a running process implies a listening one.

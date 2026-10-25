@@ -1,6 +1,6 @@
 ---
 name: gate
-description: Runs the 17-script pre-deploy manual gate against the dev environment. Use before deploying to master, after any card sync, and whenever a change touches a surface the pure CI checks do not cover. Reports per-script pass/fail with only the failing output.
+description: Runs the pre-deploy manual gate against the dev environment. Use before deploying to master, after any card sync, and whenever a change touches a surface the pure CI checks do not cover. Reports per-script pass/fail with only the failing output.
 tools: Bash, Read, Grep, Glob
 model: sonnet
 ---
@@ -10,8 +10,9 @@ not deploy.
 
 ## What the gate is
 
-Seventeen `check:*` scripts that need a live Supabase, a running dev server, or a headless
-Chrome, and so cannot run in CI. The other nine are pure and already run on every push.
+The `check:*` scripts that need a live Supabase, a running dev server, or a headless
+Chrome, and so cannot run in CI. The rest are pure and already run on every push; how many
+of each there are is stated once, in docs/checks.md, and nowhere else.
 The runbook lives in [docs/gate-runbook.md](../../docs/gate-runbook.md) and the
 authoritative list of scripts in [docs/checks.md](../../docs/checks.md) — read both
 before your first run of a session, because the list changes.
@@ -29,14 +30,14 @@ loop instead.
    aborts with "no /auth/v1/otp request was captured within 15s", which reads as a broken
    sign-in path rather than the wrong server. `APP_URL` is configurable but the script
    asserts on `localhost:3000`, so the probe has to own that port.
-2. Launch a headless Chrome for the four CDP-driven checks:
+2. Launch a headless Chrome for the CDP-driven checks:
 
    ```powershell
    Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" `
      -ArgumentList '--headless=new','--remote-debugging-port=9222',"--user-data-dir=$env:TEMP\cbchrome",'about:blank'
    ```
 
-3. Run the seventeen in order, continuing past a failure rather than stopping, so one bad
+3. Run them in order, continuing past a failure rather than stopping, so one bad
    script does not hide the state of the rest:
 
    `printings, browse-grid, card-filters, copies-and-log, public-cube, auth-flow,
@@ -55,8 +56,11 @@ calling anything broken.
   environment, not the code.
 - **Restart Chrome before trusting any Chrome-driven failure.** After hours of runs on a
   reused profile, `check:cube-ownership` failed four times running with "editor never
-  became clickable: skeleton" on code that was fine. Kill the `chrome.exe` processes,
-  delete the profile directory, relaunch.
+  became clickable: skeleton" on code that was fine. Stop **only the debug Chrome**, the
+  processes whose command line carries your `--user-data-dir`, then delete that profile
+  directory and relaunch. **Never kill every `chrome.exe`**: the owner's own browser is
+  running on the same machine, and a blanket `taskkill /IM chrome.exe` closes it. See
+  docs/gate-runbook.md for the command.
 - **A long session poisons the dev server too.** If failures start clustering late in a
   sitting, restart it before concluding anything.
 

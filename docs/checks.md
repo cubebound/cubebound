@@ -46,10 +46,19 @@ hydrated — a click then lands on a button with no handler and silently does
 nothing. That is how `check:cube-ownership` started failing two runs in three
 the moment the loading boundaries landed. It now waits for the skeleton to
 clear *and* for the button to carry React's internal props key, then polls for
-the write instead of sleeping a fixed budget. `check:auth-flow` and
+the write instead of sleeping a fixed budget. `check:primer-toolbar` waits the
+same way on its own button. `check:auth-flow` and
 `check:magic-link` still use readyState, which is fine only because `/welcome`
 and `/login` have no loading boundary — **adding one to either route means
 fixing those checks the same way.**
+
+**The CDP plumbing is shared; the readiness wait is not.** `scripts/lib/chrome.ts`
+holds the target lookup, the socket, the reply map and `evaluate`, which the
+Chrome-driven checks used to copy four times with small drifts, two of them
+defaulting to `localhost` where the rest used `127.0.0.1`. `CDP_URL` now
+defaults to `http://127.0.0.1:9222` for all of them, because Chrome binds the
+debugging port on IPv4. The wait stays in each check because it names that
+check's own control; `waitForLoad` is only the readyState poll above.
 
 `check:cube-ownership` is also structural: it fails if a new action in
 `src/app/cube/actions.ts` skips `requireOwnedCube` without a documented
@@ -65,10 +74,8 @@ exemption.
 ### What CI runs
 
 `.github/workflows/ci.yml`, on every push and pull request: typecheck, lint,
-the ten pure checks — `check:primer-safety`, `check:draft`,
-`check:analytics`, `check:markdown-edit`, `check:draftmancer`,
-`check:pack-image`, `check:staged-edit`, `check:popularity`, `check:oauth` and
-`check:docs` — and a production build. It uses **placeholder** Supabase
+the pure checks listed under [What CI covers today](#what-ci-covers-today), and
+a production build. It uses **placeholder** Supabase
 values, never real ones — every route is dynamic, so the build renders no page
 and opens no connection, but `src/lib/supabase/config.ts` throws when the vars
 are absent. **No production credentials belong in CI under any arrangement.**
@@ -112,7 +119,7 @@ the browser.
 with "no /auth/v1/otp request was captured within 15s", which reads as a broken sign-in
 path. The real cause is that the check waits for React to hydrate before clicking submit,
 and a poisoned `.next` never hydrates, so the click degrades to a native POST that Next
-rejects and no OTP request is ever made. The other sixteen pass, which makes it look
+rejects and no OTP request is ever made. Every other check passes, which makes it look
 specific to sign-in. There is no browser to hard-reload in a headless run, so the fix is
 to stop the dev server, delete `.next`, and restart it. Confirmed 19 September 2026: it
 failed identically on a comment-only branch and on `master`, and passed on both once
@@ -131,5 +138,6 @@ CI does not have; that exact gap shipped a red build. `git clone` to a temp dir,
   `check:oauth` and `check:docs`. The other seventeen need a live Supabase or the
   card pool and are a documented pre-deploy manual gate — see
   [gate-runbook.md](gate-runbook.md). Run that gate before deploying.
-  (Twenty-seven scripts in total; if that number moves, this line and the count
-  above it move with it.)
+  (Twenty-seven scripts in total. `check:docs` derives all three numbers from
+  `package.json` and `ci.yml` and fails when this sentence disagrees, which is
+  why no other file states them.)

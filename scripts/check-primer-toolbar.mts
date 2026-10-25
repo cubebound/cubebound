@@ -16,13 +16,13 @@
  */
 import postgres from "postgres";
 
+import { openPage, type ChromePage } from "./lib/chrome";
 import { fromEnvFile } from "./lib/env";
 import { createTestAccount, deleteTestAccounts } from "./lib/test-account";
 
 import { createCube } from "../src/db/queries/cubes";
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
-const CDP = process.env.CDP_URL ?? "http://localhost:9222";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 const failures: string[] = [];
@@ -31,8 +31,7 @@ const expect = (ok: boolean, message: string) => {
 };
 
 const created: string[] = [];
-let ws: WebSocket | undefined;
-let targetId = "";
+let page: ChromePage | undefined;
 
 try {
   const account = await createTestAccount(sql, { prefix: "primer" });
@@ -44,34 +43,9 @@ try {
     visibility: "private",
   });
 
-  const target = await (await fetch(`${CDP}/json/new`, { method: "PUT" })).json();
-  targetId = target.id;
-  ws = new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise((r) => (ws!.onopen = r));
-
-  let id = 0;
-  const pending = new Map<number, (m: { result?: Record<string, unknown> }) => void>();
-  ws.onmessage = (event) => {
-    const message = JSON.parse(String(event.data));
-    if (message.id && pending.has(message.id)) {
-      pending.get(message.id)!(message);
-      pending.delete(message.id);
-    }
-  };
-  const send = (method: string, params: unknown = {}) =>
-    new Promise<{ result?: Record<string, unknown> }>((resolve) => {
-      const n = ++id;
-      pending.set(n, resolve);
-      ws!.send(JSON.stringify({ id: n, method, params }));
-    });
-
-  // The trailing comma is required: in a .mts file a bare `<T>` on an arrow
-  // function is parsed as the start of a type assertion.
-  const evaluate = async <T,>(expression: string): Promise<T> => {
-    const res = await send("Runtime.evaluate", { expression, returnByValue: true });
-    const r = res.result as { result?: { value?: T } };
-    return r?.result?.value as T;
-  };
+  // A tab of its own, closed in `finally`, rather than whichever page is open.
+  page = await openPage({ newTab: true });
+  const { send, evaluate } = page;
 
   await send("Network.enable");
   await send("Page.enable");
@@ -240,8 +214,7 @@ try {
 } catch (error) {
   failures.push(`check crashed: ${(error as Error).stack ?? (error as Error).message}`);
 } finally {
-  if (targetId) await fetch(`${CDP}/json/close/${targetId}`).catch(() => {});
-  ws?.close();
+  await page?.close();
   await deleteTestAccounts(sql, created);
   await sql.end();
 }

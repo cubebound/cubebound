@@ -196,7 +196,7 @@ the bots smart; C adds the deck builder.
   is the one that opens.** Drafting against bots, exporting to Draftmancer and
   drawing a pack as an image all start from the same question — what goes in a
   pack — so `DraftSettings` renders once above all three and only the action
-  differs. See "Exports" and "Crack-A-Pack". `mode` changes what the fields
+  differs. See [exports.md](exports.md) and [crack-a-pack.md](crack-a-pack.md). `mode` changes what the fields
   *say*, except on the pack tab, where Players and Packs each are hidden
   outright: a single pack has no seats and no rounds, so they are not merely
   worded differently there, they are meaningless.

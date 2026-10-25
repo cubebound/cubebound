@@ -23,10 +23,10 @@
 
 import postgres from "postgres";
 
+import { openPage, waitForLoad } from "./lib/chrome";
 import { fromEnvFile } from "./lib/env";
 
 const APP = process.env.APP_URL ?? "http://localhost:3000";
-const CDP = process.env.CDP_URL ?? "http://127.0.0.1:9222";
 
 const projectUrl = new URL(fromEnvFile("NEXT_PUBLIC_SUPABASE_URL"));
 const origin = projectUrl.origin;
@@ -105,42 +105,12 @@ interface Snapshot {
 async function run(): Promise<string[]> {
   const cookie = await sessionCookie();
 
-  const targets = await (await fetch(`${CDP}/json/list`)).json();
-  const page = targets.find((t: { type: string }) => t.type === "page");
-  if (!page) throw new Error("no Chrome page target; is Chrome running with --remote-debugging-port?");
-  const ws = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((r) => (ws.onopen = r));
-
-  let id = 0;
-  const pending = new Map<number, (m: unknown) => void>();
-  ws.onmessage = (e) => {
-    const m = JSON.parse(e.data as string);
-    if (m.id && pending.has(m.id)) {
-      pending.get(m.id)!(m);
-      pending.delete(m.id);
-    }
-  };
-  const send = (method: string, params: object = {}) => {
-    const msgId = ++id;
-    ws.send(JSON.stringify({ id: msgId, method, params }));
-    return new Promise<{ result?: { result?: { value?: string } } }>((r) =>
-      pending.set(msgId, r as (m: unknown) => void),
-    );
-  };
-  const evaluate = async (expression: string) =>
-    (await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }))
-      .result?.result?.value;
-
-  async function waitReady() {
-    for (let i = 0; i < 80; i++) {
-      if (await evaluate("document.readyState === 'complete'")) return;
-      await new Promise((r) => setTimeout(r, 250));
-    }
-    throw new Error("page never finished loading");
-  }
+  const page = await openPage();
+  const { send, evaluate } = page;
+  const waitReady = () => waitForLoad(page);
   const snapshot = async (): Promise<Snapshot> =>
     JSON.parse(
-      (await evaluate(`JSON.stringify({
+      (await evaluate<string>(`JSON.stringify({
         url: location.pathname,
         nav: document.querySelector('header nav')?.innerText.replace(/\\s+/g,' ').trim() ?? '',
         accountLabel: document.querySelector('header nav button[aria-haspopup="menu"]')?.getAttribute('aria-label') ?? '',
@@ -207,7 +177,7 @@ async function run(): Promise<string[]> {
   })()`);
   await new Promise((r) => setTimeout(r, 1500));
   const afterSignOut = await snapshot();
-  ws.close();
+  await page.close();
 
   const failures: string[] = [];
   if (!before.hasUsernameForm) failures.push("/welcome did not offer the claim form to a user without a profile");
