@@ -78,6 +78,15 @@ open it rather than trusting this.
     `retire-promos`). Merged `4218593`; production was synced and moved off the
     promos before the deploy, in the order [card-data.md](card-data.md) gives.
     See also [printings.md](printings.md).
+6d. ✅ Next.js 16.4.3, out of order for the 14 October 2026 security release.
+    Merged `f0ae84c`.
+6e. ✅ Codebase cleanup from the 23 October 2026 review, with the owner's calls
+    on it. Merged `975f8e3`, `75d9933`, `3309b05`. It includes the 9 October
+    to-do "stop a deploy from silently losing editor saves": a stale tab now
+    says the site was updated, and its staged edits survive the reload
+    ([cube-editor.md](cube-editor.md)). The `proxy.ts` move is built but held
+    on branch `proxy-ts` until the owner has a Fluid Active CPU baseline
+    ([monitoring.md](monitoring.md)).
 
 **Next**
 
