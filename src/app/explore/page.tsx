@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import CubeResults from "@/components/cube-results";
 import { searchCubes, type CubeSort } from "@/db/queries/discovery";
-import { getCurrentUser } from "@/lib/auth";
+import { loadViewer } from "@/lib/cube-request";
 import { btn, pager, tab } from "@/lib/ui";
 
 /** How deep an ordering goes before you have to search instead. */
@@ -47,7 +47,7 @@ export default async function ExplorePage({
   const cardName = one(params.card).slice(0, 100);
   const sort: CubeSort = one(params.sort) === "follows" ? "follows" : "updated";
 
-  const current = await getCurrentUser();
+  const current = await loadViewer();
 
   // The whole capped set in one query, paged in memory. Sixty rows is a trivial
   // amount to fetch and it keeps the cap in one place — an offset query per page

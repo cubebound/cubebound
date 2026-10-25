@@ -78,10 +78,33 @@
   wrote once per click, so a run of edits was a run of round trips against a
   pool of six. **Escape hides the panel and keeps the batch**; only Discard All
   throws it away, and a `beforeunload` warns if you leave with one pending,
-  because staged work lives only in that tab.
+  because staged work lives only in that tab. **A Save that fails keeps the
+  batch too**: nothing is cleared until the write comes back, and a dropped
+  request says nothing was saved and to press Save again. Before it went
+  through `callAction` a lost Save left the button stuck on saving.
+- **A Save from a tab older than the live deploy carries its batch across the
+  reload it asks for.** Pressing Save again cannot work there, because the
+  action id belongs to the replaced build, and a reload used to throw the batch
+  away; that is how a deploy silently lost editor saves (Sentry
+  `JAVASCRIPT-NEXTJS-6`). So on that one error the rows are stashed in the
+  tab's `sessionStorage` under `cubebound.staged-edits.<cubeId>`, and the
+  message says nothing was saved and the changes will come back after a
+  reload. The next load takes the stash **once**, checks the rows' shape, caps
+  them at `MAX_STAGED_ROWS`, reopens the panel with them and says how many
+  came back. It takes it inside a `requestAnimationFrame` in an effect: the
+  set-state-in-effect lint forbids setting state in the effect body, and
+  taking it in the frame stops a dev double-run from consuming it twice. The
+  `beforeunload` warning stands down while a stash exists, since that reload
+  is the one the panel asked for. **The stash is written on this error only,
+  never on ordinary edits**, so staged work still lives only in the tab
+  otherwise, and the server re-validates every row on Save as it always does.
+  If storage is unavailable nothing is stashed and the reload loses the batch,
+  as before. None of this relies on Vercel's Skew Protection, which would
+  prevent the error at the platform.
 - **It has two type-aheads and only one of them touches the database.** Add
   searches the whole card pool through `quickSearchAction` (two round trips per
-  debounced keystroke). Remove/Replace searches **the cube's own contents**,
+  debounced keystroke); a failed search shows the panel's error line, where an
+  `{ error }` used to read as no results. Remove/Replace searches **the cube's own contents**,
   which the page has already loaded to render the list, so it is passed down as
   a prop and filtered client-side for **no query at all**. The remove picker
   lists **one entry per copy** — two copies of a printing are two entries, and

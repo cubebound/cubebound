@@ -13,6 +13,7 @@ import CardHoverPreview, {
   useCardPreview,
   type PreviewCard,
 } from "@/components/card-hover-preview";
+import { callAction } from "@/lib/call-action";
 import { CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
 import {
   EDIT_BOARDS,
@@ -21,8 +22,9 @@ import {
   sectionForBoard,
   type EditBoard,
   type StagedEditRow,
+  type StagedOp,
 } from "@/lib/staged-edit";
-import { btn, check, errorText, input, label as labelClass, segment } from "@/lib/ui";
+import { btn, check, errorText, input, label as labelClass, notice, segment } from "@/lib/ui";
 
 /**
  * A copy already in the cube, for the remove/replace picker.
@@ -48,6 +50,63 @@ export interface HeldCard {
 const SEARCH_DEBOUNCE_MS = 300;
 /** Past this the floating trigger appears; above it the toolbar one is in view. */
 const FLOATING_TRIGGER_AFTER = 400;
+/**
+ * Where a batch waits out the reload a deploy forces.
+ *
+ * A tab left open across a deploy can no longer save: its action ids belong to
+ * the old build, and only a reload fixes that (see `callAction`). Staged work
+ * lives in React state, so that reload would throw it away, and losing a
+ * session of edits to a deploy you did not know happened is the failure this
+ * exists for. So a save that hits it stashes the rows in this tab's
+ * `sessionStorage`, and the panel takes them back once on the next load. Only
+ * then, not on every change: everything else about staging stays in memory,
+ * and the server re-validates every row on Save regardless of where it came
+ * from. Storage can be unavailable, in which case this quietly does nothing
+ * and the reload loses the batch, as it always did.
+ */
+const stashKey = (cubeId: string) => `cubebound.staged-edits.${cubeId}`;
+const STAGED_OPS: readonly StagedOp[] = ["add", "remove", "replace"];
+
+function stashRows(cubeId: string, rows: StagedRow[]): void {
+  try {
+    sessionStorage.setItem(stashKey(cubeId), JSON.stringify(rows));
+  } catch {}
+}
+
+function hasStash(cubeId: string): boolean {
+  try {
+    return sessionStorage.getItem(stashKey(cubeId)) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** Reads the stash and clears it, so it is restored at most once. */
+function takeStash(cubeId: string): StagedRow[] {
+  let parsed: unknown;
+  try {
+    const raw = sessionStorage.getItem(stashKey(cubeId));
+    if (raw === null) return [];
+    sessionStorage.removeItem(stashKey(cubeId));
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter(
+      (row): row is StagedRow =>
+        typeof row === "object" &&
+        row !== null &&
+        STAGED_OPS.includes(row.op) &&
+        typeof row.cardId === "string" &&
+        typeof row.section === "string" &&
+        typeof row.label === "string",
+    )
+    .slice(0, MAX_STAGED_ROWS)
+    .map((row, index) => ({ ...row, key: `restored-${index}` }));
+}
+
 const BOARD_LABELS: Record<EditBoard, string> = {
   mainboard: "Mainboard",
   maybeboard: "Maybeboard",
@@ -74,6 +133,25 @@ export default function EditPanel({
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<StagedRow[]>([]);
   const [scrolled, setScrolled] = useState(false);
+  const [restored, setRestored] = useState(0);
+
+  // A batch stashed by a save that a deploy refused comes back here, once, and
+  // the panel opens on it. In an effect rather than the initial state because
+  // the server cannot read this tab's storage, and rendering it on the client
+  // alone would not match the server's HTML. The frame callback is what the
+  // effect lint asks for (state set from a callback, not the effect body), and
+  // the stash is taken *inside* it, so a development double-run of the effect
+  // cancels the first frame before anything is consumed.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const back = takeStash(cubeId);
+      if (back.length === 0) return;
+      setRows(back);
+      setRestored(back.length);
+      setOpen(true);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [cubeId]);
 
   // Escape hides the panel; it deliberately does not discard the batch. The
   // whole point of staging is that your work survives until you say otherwise.
@@ -88,12 +166,16 @@ export default function EditPanel({
 
   // Staged work lives only in this tab, so leaving with a batch pending would
   // lose it silently — which would make staging a trap rather than a safety net.
+  // Once a deploy has made the batch unsavable and it is stashed, the reload is
+  // what the panel is asking for, so the warning stands down.
   useEffect(() => {
     if (rows.length === 0) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!hasStash(cubeId)) event.preventDefault();
+    };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [rows.length]);
+  }, [rows.length, cubeId]);
 
   // The toolbar trigger sits above the list and scrolls away with it, which on
   // a 400-card cube happens immediately — so a floating one takes over once it
@@ -150,6 +232,7 @@ export default function EditPanel({
               initialBoard={board}
               rows={rows}
               setRows={setRows}
+              restored={restored}
               onClose={() => setOpen(false)}
             />
           </div>
@@ -230,6 +313,7 @@ function PanelBody({
   initialBoard,
   rows,
   setRows,
+  restored,
   onClose,
 }: {
   cubeId: string;
@@ -239,6 +323,8 @@ function PanelBody({
   initialBoard: EditBoard;
   rows: StagedRow[];
   setRows: (next: StagedRow[] | ((prev: StagedRow[]) => StagedRow[])) => void;
+  /** How many staged rows came back from before a deploy forced a reload. */
+  restored: number;
   onClose: () => void;
 }) {
   const [board, setBoard] = useState<EditBoard>(initialBoard);
@@ -296,9 +382,14 @@ function PanelBody({
     const key = `${specifyVersions ? "all" : "one"}:${current}`;
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const response = await quickSearchAction(cubeId, current, specifyVersions);
+      const response = await callAction(
+        () => quickSearchAction(cubeId, current, specifyVersions),
+        (message) => {
+          if (!cancelled) setError(message);
+        },
+      );
       if (cancelled) return;
-      setAnswered({ key, items: response.results ?? [] });
+      setAnswered({ key, items: response?.results ?? [] });
     }, SEARCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
@@ -407,12 +498,16 @@ function PanelBody({
       section: row.section,
       quantity: 1,
     }));
-    const response = await saveCubeEditsAction(cubeId, payload);
+    // A lost request leaves the batch exactly as it was: nothing is cleared
+    // until a save comes back, so the reader can simply press Save again.
+    const response = await callAction(() => saveCubeEditsAction(cubeId, payload), setError, {
+      lost: "Couldn't reach the server, so nothing was saved. Your changes are still here; press Save to try again.",
+      updated:
+        "cubebound.gg was updated while this page was open, so nothing was saved. Reload the page and your changes will come back.",
+      onUpdated: () => stashRows(cubeId, rows),
+    });
     setSaving(false);
-    if (response.error) {
-      setError(response.error);
-      return;
-    }
+    if (!response) return;
     setRows([]);
     clearAdd();
     clearRemove();
@@ -634,6 +729,13 @@ function PanelBody({
       </div>
 
       <footer className="space-y-2 border-t border-line px-4 py-3">
+        {restored > 0 && rows.length > 0 && !error && (
+          <p className={notice}>
+            {restored === 1 ? "1 change" : `${restored} changes`} you staged before the site
+            updated {restored === 1 ? "is" : "are"} back. Press Save to apply{" "}
+            {restored === 1 ? "it" : "them"}.
+          </p>
+        )}
         {error && <p className={errorText}>{error}</p>}
         <div className="flex gap-2">
           <button

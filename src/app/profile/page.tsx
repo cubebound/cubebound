@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { getCurrentUser } from "@/lib/auth";
+import { loadViewer } from "@/lib/cube-request";
 
 /**
  * "Profile" in the account menu means *your* profile, but a profile is a public
@@ -9,7 +9,7 @@ import { getCurrentUser } from "@/lib/auth";
  * working without knowing your username.
  */
 export default async function MyProfilePage() {
-  const current = await getCurrentUser();
+  const current = await loadViewer();
   if (!current) redirect("/login");
   if (!current.profile) redirect("/welcome");
   redirect(`/u/${current.profile.username}`);

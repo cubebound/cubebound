@@ -57,7 +57,7 @@ Two things dominate, and neither is the amount of data.
   page's cost is *how many round trips it makes in a row*, not how much any of
   them returns. Anything independent goes in a `Promise.all` — including
   `params`, `searchParams`, `cookies()` and `headers()`, which are all
-  awaitable in Next 16 and were each adding a hop. `getCurrentUser()` is
+  awaitable in Next 16 and were each adding a hop. Asking who is signed in is
   another network call (GoTrue), and it does not depend on looking up the cube.
   `searchCubesPage` and `getFollowState` exist to collapse pairs of queries
   that always travel together.
@@ -74,6 +74,19 @@ Two things dominate, and neither is the amount of data.
   Callers must pass rows already collapsed to one per (card, section) —
   `mergeImportRows` does that — because Postgres refuses to let a single
   `ON CONFLICT DO UPDATE` touch one row twice.
+- **A render asks who is signed in through `loadViewer()`, never
+  `getCurrentUser()`, and lint enforces it.** The root layout's nav asks on
+  every page, and it called `getCurrentUser()` uncached, so a signed-in page
+  that asked again in its own page or layout paid two GoTrue `getUser()` calls
+  and two profile queries for one answer; with middleware's refresh, three auth
+  round trips per load. Through the request-`cache()`d `loadViewer()` it is two
+  auth calls and one profile query. A `no-restricted-imports` rule in
+  `eslint.config.mjs` refuses `getCurrentUser` and `getAuthUser` from
+  `@/lib/auth` across `src/`, except in `actions.ts` files (an action is not a
+  render and has nothing to share), `src/lib/auth.ts` itself and
+  `src/lib/cube-request.ts`, where `loadViewer` wraps `getCurrentUser`. Signed
+  out was never the cost: `getUser()` with no session cookie makes no network
+  call.
 - **A page must not fetch what its current mode does not render.** The editor
   reads six different modes off `?mode=`, and it used to load the whole cube's
   card quantities *and* every printing of every card in it on all six — a

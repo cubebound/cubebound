@@ -11,6 +11,7 @@ import {
 import CubeSections from "@/components/cube-sections";
 import type { CardPrinting } from "@/db/queries/cards";
 import type { CubeCardRow } from "@/db/queries/cubes";
+import { callAction } from "@/lib/call-action";
 import type { CardPopularityView } from "@/lib/card-popularity";
 import type { CubeView } from "@/lib/cube-view";
 import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
@@ -50,10 +51,9 @@ export default function CubeContents({
   async function run(card: CubeCardRow, work: () => Promise<{ error?: string }>) {
     setBusy(rowKey(card));
     setError(null);
-    const result = await work();
+    const result = await callAction(work, setError);
     setBusy(null);
-    if (result.error) setError(result.error);
-    return !result.error;
+    return result !== null;
   }
 
   /** Every control here acts on ONE copy, matching what the list shows. */

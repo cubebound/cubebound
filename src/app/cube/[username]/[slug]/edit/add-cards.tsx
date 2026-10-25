@@ -6,6 +6,7 @@ import { addCardAction, listPrintingsAction } from "@/app/cube/actions";
 import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
 import type { BrowseCard } from "@/db/queries/cards";
 import type { CubeHolding } from "@/db/queries/cubes";
+import { callAction } from "@/lib/call-action";
 import type { CardPopularityView } from "@/lib/card-popularity";
 import { CUBE_SECTION_LABELS, defaultSectionForType } from "@/lib/riftbound";
 
@@ -68,12 +69,12 @@ export default function AddCards({
     async (card: BrowseCard, printing: BrowseCard) => {
       setBusyId(printing.id);
       setError(null);
-      const result = await addCardAction(cubeId, printing.id, undefined);
+      const result = await callAction(
+        () => addCardAction(cubeId, printing.id, undefined),
+        setError,
+      );
       setBusyId(null);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
+      if (!result) return;
       setHeld((prev) => {
         const current = prev[card.baseId];
         const byPrinting = {
@@ -99,12 +100,12 @@ export default function AddCards({
     async (card: BrowseCard) => {
       setBusyId(card.id);
       setError(null);
-      const result = await listPrintingsAction(cubeId, card.baseId);
+      const result = await callAction(
+        () => listPrintingsAction(cubeId, card.baseId),
+        setError,
+      );
       setBusyId(null);
-      if ("error" in result && result.error) {
-        setError(result.error);
-        return;
-      }
+      if (!result) return;
       setPicker({ card, printings: result.printings });
     },
     [cubeId],

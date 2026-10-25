@@ -12,7 +12,7 @@ import {
   searchCubesPage,
   type CubeSearchOptions,
 } from "@/db/queries/discovery";
-import { getCurrentUser } from "@/lib/auth";
+import { loadViewer } from "@/lib/cube-request";
 import { hasBackupSignIn } from "@/lib/auth-providers";
 import { BACKUP_NOTICE_COOKIE } from "@/lib/backup-notice";
 import { underlineTab } from "@/lib/ui";
@@ -38,7 +38,7 @@ export default async function CubesPage({
 }: {
   searchParams: Promise<{ tab?: string | string[]; q?: string | string[]; page?: string | string[] }>;
 }) {
-  const current = await getCurrentUser();
+  const current = await loadViewer();
   if (!current) redirect("/login");
   if (!current.profile) redirect("/welcome");
   const profile = current.profile;

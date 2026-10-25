@@ -8,7 +8,7 @@ import CloneButton, { CloneCubeForm } from "@/components/clone-cube";
 import { getStarterSets } from "@/db/queries/cards";
 import { getCubeByOwnerAndSlug } from "@/db/queries/cubes";
 import { searchCubes } from "@/db/queries/discovery";
-import { getCurrentUser } from "@/lib/auth";
+import { loadViewer } from "@/lib/cube-request";
 import { canUseCube } from "@/lib/cube-access";
 import { DEFAULT_DRAFT_CONFIG, totalMainCardsNeeded } from "@/lib/draft/config";
 import { help, input, label as labelClass, link, panel } from "@/lib/ui";
@@ -66,7 +66,7 @@ export default async function NewCubePage({
 }: {
   searchParams: Promise<{ start?: string | string[]; from?: string | string[] }>;
 }) {
-  const [current, params] = await Promise.all([getCurrentUser(), searchParams]);
+  const [current, params] = await Promise.all([loadViewer(), searchParams]);
   if (!current) redirect("/login");
   if (!current.profile) redirect("/welcome");
   const profile = current.profile;
