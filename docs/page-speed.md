@@ -24,6 +24,16 @@ Two things dominate, and neither is the amount of data.
     the same scrutiny**: the number that matters is queries × concurrent
     requests, not the cost of one query, and sizing the pool to the fan-out
     means the next `Promise.all` someone adds silently reintroduces this.
+  - **A TTL memo alone does not make a burst read once.** It only deduplicates
+    calls that arrive after the first read has *finished*; calls that arrive
+    while it is in flight each miss and each fire their own, which on a cold
+    instance is the burst above. Only the popularity snapshot used to share its
+    in-flight read; the filter options, the default card pages, the card
+    identities and the starter sets each hand-rolled an `{ at, value }` memo
+    without it. **Every in-process memo goes through `memoize` in
+    `src/lib/memo.ts`**, which gives callers arriving mid-read the same
+    promise, and `check:pool` refuses a hand-rolled one in `cards.ts` or
+    `discovery.ts`.
   - The pool was unbounded and never released. postgres-js defaults to `max`
     10 with no idle timeout, and **every Vercel instance builds its own pool**,
     so a burst spun up instances that each took ten connections and were then

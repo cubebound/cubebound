@@ -33,6 +33,7 @@ import {
   sortByCanonical,
 } from "@/lib/riftbound";
 import { RETIRED_SETS, TOKEN_ID_PATTERN } from "@/lib/card-ids";
+import { memoize, type Memo } from "@/lib/memo";
 
 export const PAGE_SIZE = 60;
 
@@ -251,7 +252,7 @@ type CardSearchResult = {
  *
  * Stripping the suffix here rather than rewriting `base_id` keeps the fix to
  * the two queries that collapse printings — no migration, and nothing stored
- * changes. See the limits recorded on `printingCount` below.
+ * changes. The printing badge still counts by `base_id`; see `printingCountByBase`.
  *
  * **Only a trailing parenthetical**, which is why this cannot be a plain
  * `like '%(%'`: `Recruit (271) // Buff` and `Sprite (274) // Buff` are four
@@ -301,10 +302,15 @@ export const realCard = sql`(not ${tokenCard})`;
  * `isRetiredPrinting` it mirrors; why they are kept at all is there. Qualified
  * by hand like `tokenCard`, so the same scoping rule applies.
  */
-export const retiredPrinting = sql`("cards"."set_code" in (${sql.join(
-  RETIRED_SETS.map((set) => sql`${set}`),
-  sql`, `,
-)}))`;
+export const retiredPrinting = retiredSetCode(sql`"cards"."set_code"`);
+
+/** The same rule over any set-code column, for a query that aliases `cards`. */
+export function retiredSetCode(setCode: SQLWrapper): SQL {
+  return sql`(${setCode} in (${sql.join(
+    RETIRED_SETS.map((set) => sql`${set}`),
+    sql`, `,
+  )}))`;
+}
 
 /**
  * Every row the site offers: a card, and not a retired printing. What every
@@ -337,6 +343,19 @@ const canonicalFirst = [
 ];
 
 /**
+ * How many printings of each card the query matched, so a tile can say "2
+ * printings". Aliased so it can be read back out of a `DISTINCT ON` subquery.
+ *
+ * **Partitioned by `base_id`, not by `collapseKey`.** The badge has to agree
+ * with what the printing picker will offer, and the picker reads `base_id`
+ * (`getPrintings`). Counting the collapsed group would promise a printing the
+ * picker then could not list.
+ */
+const printingCountByBase = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
+  "printing_count",
+);
+
+/**
  * The unfiltered first page, memoised.
  *
  * `/cards` with nothing set is the same 60 rows for every visitor and is the
@@ -356,10 +375,10 @@ const canonicalFirst = [
  * Same TTL and same reasoning as the filter options: this describes the card
  * pool, which changes only when `sync-cards` runs.
  *
- * The cached object is shared between requests, so **nothing may mutate it**.
- * Callers render it and nothing more; if that ever changes, copy on read.
+ * One `memoize` per opening view, made on first use (see src/lib/memo.ts for
+ * the sharing and mutation rules).
  */
-const defaultBrowseMemo = new Map<string, { at: number; value: CardSearchResult }>();
+const defaultBrowseMemos = new Map<string, Memo<CardSearchResult>>();
 
 /** True when the filters are a bare opening view: no filter or page, and either
  *  no sort or the one `/cards` opens on. */
@@ -380,11 +399,15 @@ function isDefaultBrowse(filters: CardFilters): boolean {
 export async function searchCards(filters: CardFilters): Promise<CardSearchResult> {
   if (isDefaultBrowse(filters)) {
     const key = `${filters.sort ?? "set"}:${filters.allPrintings ? "all" : "grouped"}`;
-    const hit = defaultBrowseMemo.get(key);
-    if (hit && Date.now() - hit.at < CARD_POOL_TTL_MS) return hit.value;
-    const value = await runSearchCards(filters);
-    defaultBrowseMemo.set(key, { at: Date.now(), value });
-    return value;
+    let memo = defaultBrowseMemos.get(key);
+    if (!memo) {
+      // Only what the key distinguishes, so the memo never reads with a stray
+      // field from whichever request happened to create it.
+      const opening: CardFilters = { sort: filters.sort, allPrintings: filters.allPrintings };
+      memo = memoize(CARD_POOL_TTL_MS, () => runSearchCards(opening));
+      defaultBrowseMemos.set(key, memo);
+    }
+    return memo.get();
   }
   return runSearchCards(filters);
 }
@@ -408,19 +431,6 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const page = Math.min(Math.max(1, filters.page ?? 1), pageCount);
   const offset = (page - 1) * PAGE_SIZE;
-
-  // Printings matching the current filters, so a tile can say "2 printings".
-  // Needs an explicit alias to be referenced back out of the subquery below.
-  //
-  // **Partitioned by `base_id`, not by `collapseKey`.** The badge has to agree
-  // with what the printing picker will offer, and the picker reads `base_id`
-  // (`getPrintings`). Counting the collapsed group would promise a printing
-  // the picker then could not list. So for those 31 cards the badge undercounts
-  // by one, and the treatment printing stays reachable through "All printings"
-  // — the honest reading of a `base_id` this query no longer groups by.
-  const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
-    "printing_count",
-  );
 
   const sort = filters.sort ?? "set";
 
@@ -517,7 +527,7 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
 
   if (!grouped) {
     const rows = await db
-      .select({ ...browseColumns, printingCount })
+      .select({ ...browseColumns, printingCount: printingCountByBase })
       .from(cards)
       .where(where)
       .orderBy(...orderFor(cards))
@@ -531,7 +541,7 @@ async function runSearchCards(filters: CardFilters): Promise<CardSearchResult> {
   // printing stands for the group. It never needs the group's base printing to
   // have survived the filter — "Fury commons" collapses whatever it matched.
   const representative = db
-    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
+    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount: printingCountByBase })
     .from(cards)
     .where(where)
     .orderBy(collapseKey, ...canonicalFirst)
@@ -580,16 +590,13 @@ export async function quickSearchCards(
   // allows: no tokens, no retired promo printings.
   const matches = and(or(ilike(cards.name, pattern), ilike(fullName, pattern)), offeredCard);
 
-  const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
-    "printing_count",
-  );
 
   // "Specify versions" in the edit panel: on, every printing is its own
   // suggestion and the reader picks the art directly; off, one entry per card,
   // which is the `collapseKey` grouping the browse grid uses by the same rule.
   if (allPrintings) {
     return db
-      .select({ ...browseColumns, printingCount })
+      .select({ ...browseColumns, printingCount: printingCountByBase })
       .from(cards)
       .where(matches)
       .orderBy(sql`(${fullName} ilike ${prefix}) desc`, cards.name, cards.id)
@@ -597,7 +604,7 @@ export async function quickSearchCards(
   }
 
   const grouped = db
-    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
+    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount: printingCountByBase })
     .from(cards)
     .where(matches)
     .orderBy(collapseKey, ...canonicalFirst)
@@ -644,21 +651,11 @@ export async function getCardById(id: string): Promise<BrowseCard | null> {
  * measured in months, not requests. Six queries were being fired on every
  * `/cards` load and on every re-render of the editor's browse tab, which is
  * the tab you sit in while adding cards one after another. That burst is what
- * exhausted the connection pool in production.
- *
- * Deliberately an in-process memo rather than a framework cache: it needs no
- * revalidation story, cannot be wrong for longer than the TTL, and a cold
- * instance simply reads once. A new set appears within five minutes of the
- * sync without anyone doing anything.
+ * exhausted the connection pool in production. A new set appears within five
+ * minutes of the sync without anyone doing anything.
  */
 const CARD_POOL_TTL_MS = 5 * 60_000;
-let filterOptionsMemo: { at: number; value: FilterOptions } | null = null;
 
-/**
- * Distinct filter values straight from the card pool, so a newly synced set
- * shows up without a code change. Ordered by the game's canonical sequences
- * rather than alphabetically.
- */
 /**
  * Whether a read looks like filter options rather than something else.
  *
@@ -679,17 +676,18 @@ function looksLikeFilterOptions(options: FilterOptions): boolean {
   return !names.some((name) => /^\d+$/.test(String(name)));
 }
 
-export async function getFilterOptions(): Promise<FilterOptions> {
-  const now = Date.now();
-  if (filterOptionsMemo && now - filterOptionsMemo.at < CARD_POOL_TTL_MS) {
-    return filterOptionsMemo.value;
-  }
-  const value = await readFilterOptions();
-
-  // Served anyway — a slightly wrong filter list beats a 500 on the card
-  // browser — but never cached, so the next request corrects itself, and
-  // reported so the next occurrence is a trace rather than a rumour.
-  if (!looksLikeFilterOptions(value)) {
+/**
+ * Distinct filter values straight from the card pool, so a newly synced set
+ * shows up without a code change. Ordered by the game's canonical sequences
+ * rather than alphabetically.
+ *
+ * An implausible read is served anyway — a slightly wrong filter list beats a
+ * 500 on the card browser — but never cached, so the next request corrects
+ * itself, and reported so the next occurrence is a trace rather than a rumour.
+ */
+const filterOptionsMemo = memoize(CARD_POOL_TTL_MS, readFilterOptions, {
+  cacheIf: (value) => {
+    if (looksLikeFilterOptions(value)) return true;
     Sentry.captureMessage("getFilterOptions returned implausible values", {
       level: "error",
       extra: {
@@ -699,11 +697,12 @@ export async function getFilterOptions(): Promise<FilterOptions> {
         rarities: value.rarities,
       },
     });
-    return value;
-  }
+    return false;
+  },
+});
 
-  filterOptionsMemo = { at: now, value };
-  return value;
+export function getFilterOptions(): Promise<FilterOptions> {
+  return filterOptionsMemo.get();
 }
 
 /**
@@ -729,11 +728,11 @@ async function readFilterOptions(): Promise<FilterOptions> {
   //  - the set's printed name comes from the stored raw payload rather than a
   //    lookup table, so a newly synced set names itself. `min()` because the
   //    grouping needs an aggregate; every set has exactly one label, and the
-  //    code stands in for a row whose payload has none. The two live sources
-  //    nest it differently: Riftcodex at `set.label`, Riot's gallery at
-  //    `set.value.label`. The gallery's path is read first because its
-  //    `set.label` also exists and is the field's caption, "Card Set": read
-  //    the other way round, every gallery set was labelled "Card Set".
+  //    code stands in for a row whose payload has none. Riot's gallery nests it
+  //    at `set.value.label`; its `set.label` is the field's caption, "Card
+  //    Set", and reading that labelled every set "Card Set". Only the retired
+  //    promo rows still carry Riftcodex's shape, and `offeredCard` leaves them
+  //    out (checked against production, 23 October 2026).
   //  - every branch leaves tokens out, so no filter offers a value only a
   //    token carries. Filtered per branch rather than in a CTE to keep the
   //    statement's shape; it is still one statement.
@@ -750,8 +749,7 @@ async function readFilterOptions(): Promise<FilterOptions> {
   }>(sql`
     select 'set'::text as kind,
            ${cards.setCode} as value,
-           min(coalesce(${cards.data}->'card'->'set'->'value'->>'label',
-                        ${cards.data}->'card'->'set'->>'label')) as label
+           min(${cards.data}->'card'->'set'->'value'->>'label') as label
       from ${cards}
      where ${offeredCard}
      group by ${cards.setCode}
@@ -946,6 +944,17 @@ export async function getSetStarterCards(
     .orderBy(collapseKey, ...canonicalFirst);
 }
 
+/** A card as its page URL and title need it. */
+export interface CardIdentity {
+  /** The collapsed identity key, which is what the popularity snapshot uses. */
+  key: string;
+  /** The representative printing, for `popularityForCards` and for art. */
+  id: string;
+  name: string;
+  type: string;
+  champion: string | null;
+}
+
 /**
  * One row per card, with just enough to build its page URL and title.
  *
@@ -961,25 +970,8 @@ export async function getSetStarterCards(
  * and `getRepresentativeCardsByKeys` below are the fifth and sixth queries
  * collapsing printings; see printings.md.
  */
-export interface CardIdentity {
-  /** The collapsed identity key, which is what the popularity snapshot uses. */
-  key: string;
-  /** The representative printing, for `popularityForCards` and for art. */
-  id: string;
-  name: string;
-  type: string;
-  champion: string | null;
-}
-
-let identitiesMemo: { at: number; value: CardIdentity[] } | null = null;
-
-export async function getCardIdentities(): Promise<CardIdentity[]> {
-  const now = Date.now();
-  if (identitiesMemo && now - identitiesMemo.at < CARD_POOL_TTL_MS) {
-    return identitiesMemo.value;
-  }
-
-  const rows = await db
+const identitiesMemo = memoize(CARD_POOL_TTL_MS, async (): Promise<CardIdentity[]> =>
+  db
     .selectDistinctOn([collapseKey], {
       key: sql<string>`${collapseKey}`.as("collapse_key"),
       id: cards.id,
@@ -989,10 +981,11 @@ export async function getCardIdentities(): Promise<CardIdentity[]> {
     })
     .from(cards)
     .where(offeredCard)
-    .orderBy(collapseKey, ...canonicalFirst);
+    .orderBy(collapseKey, ...canonicalFirst),
+);
 
-  identitiesMemo = { at: Date.now(), value: rows };
-  return rows;
+export function getCardIdentities(): Promise<CardIdentity[]> {
+  return identitiesMemo.get();
 }
 
 /**
@@ -1007,11 +1000,8 @@ export async function getCardIdentities(): Promise<CardIdentity[]> {
  */
 export async function getRepresentativeCardsByKeys(keys: string[]): Promise<BrowseCard[]> {
   if (keys.length === 0) return [];
-  const printingCount = sql<number>`count(*) over (partition by ${cards.baseId})::int`.as(
-    "printing_count",
-  );
   return db
-    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount })
+    .selectDistinctOn([collapseKey], { ...browseColumns, printingCount: printingCountByBase })
     .from(cards)
     .where(and(inArray(collapseKey, keys), offeredCard))
     .orderBy(collapseKey, ...canonicalFirst);
@@ -1033,8 +1023,6 @@ export interface StarterSet {
   cards: number;
 }
 
-let starterSetsMemo: { at: number; value: StarterSet[] } | null = null;
-
 /**
  * Sets worth starting a cube from, with how many cards each would give.
  *
@@ -1043,12 +1031,13 @@ let starterSetsMemo: { at: number; value: StarterSet[] } | null = null;
  * `sync-cards` runs. Labels come from the filter options, which are memoised
  * already, so a warm instance answers this without a query.
  */
-export async function getStarterSets(): Promise<StarterSet[]> {
-  const now = Date.now();
-  if (starterSetsMemo && now - starterSetsMemo.at < CARD_POOL_TTL_MS) {
-    return starterSetsMemo.value;
-  }
+const starterSetsMemo = memoize(CARD_POOL_TTL_MS, readStarterSets);
 
+export function getStarterSets(): Promise<StarterSet[]> {
+  return starterSetsMemo.get();
+}
+
+async function readStarterSets(): Promise<StarterSet[]> {
   const [counts, options] = await Promise.all([
     db
       .select({ code: cards.setCode, cards: countDistinct(collapseKey) })
@@ -1060,11 +1049,8 @@ export async function getStarterSets(): Promise<StarterSet[]> {
 
   const sizes = new Map(counts.map((row) => [row.code, Number(row.cards)]));
   // Filter options are already ordered by printed name.
-  const value = options.sets.flatMap((set) => {
+  return options.sets.flatMap((set) => {
     const size = sizes.get(set.code) ?? 0;
     return size >= STARTER_SET_MIN_CARDS ? [{ code: set.code, label: set.label, cards: size }] : [];
   });
-
-  starterSetsMemo = { at: now, value };
-  return value;
 }

@@ -35,13 +35,31 @@
   [moderation.md](moderation.md)), rather than by a second copy of it. The owner
   entries are derived from those same cube rows, so a cube that drops out takes
   its owner's profile with it.
+- **`robots.ts` also disallows URL variants and the tool routes under a cube,
+  to save compute rather than to hide anything.** Every route is dynamic, so
+  each variant a crawler fetches is a full render plus a middleware invocation
+  against the Hobby CPU limit ([monitoring.md](monitoring.md)), and the
+  canonical below already makes the bare path the one indexed. The variants
+  are a cube's `?tab=` and `?view=`, `/cards` and `/explore` with any query,
+  and a profile's `?q=` and `?page=`; the tool routes are draft (which covers
+  `draftmancer.txt`), edit, settings and `pack.png`, each per-viewer, a 404
+  for a crawler, or a download. **Bare pages, card pages and every
+  `/opengraph-image` must stay allowed, because Twitterbot obeys robots.txt.**
+  A first draft used `/u/*?`, which matched `/u/<name>/opengraph-image?<hash>`
+  and would have broken profile link previews on X; that is why the profile
+  rules name their parameters. Next's preview hash is bare hex with no `=`, so
+  no parameter-naming rule can match a preview. `check:share-previews` matches
+  rules the way Google and X do (`*` is any run, a rule is a prefix) and fails
+  if one catches an advertised `og:image` or a bare cube or profile page, or
+  if a cube's `?tab=` variant stops being disallowed.
 - **Every indexable route declares a canonical, and it is always the bare
   path.** Each one has query-string variants serving the same content — `?view=`
   and `?tab=` on a cube, the whole filter surface on `/cards`, `?q=`/`?sort=`/
   `?page=` on `/explore`, and the `?code=…` auth near-miss on `/`. Without a
   canonical each variant is a separate URL competing with the others, and on a
   site this size the signal is thin enough already. Nothing is lost by
-  consolidating: every page worth crawling is in the sitemap. Canonicals resolve
+  consolidating: every page worth crawling is in the sitemap, and the robots
+  rules above keep crawlers from fetching most variants at all. Canonicals resolve
   against the per-request `metadataBase`, so a preview deployment self-references
   rather than claiming to be production. **A private cube returns before this**,
   from the same early exit that keeps its name out of a link preview, so the

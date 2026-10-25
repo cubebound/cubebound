@@ -40,25 +40,6 @@ export function provisionalBaseId(id: string): string {
 }
 
 /**
- * Builds a canonical id from a source's set / collector number / variant.
- * Variant discriminators seen so far: "" base, "a" alt art, "star" signature,
- * "tNN" token.
- */
-export function composeCardId(
-  setCode: string,
-  collectorNumber: number | string,
-  variant: string | null | undefined,
-): string {
-  const set = setCode.toUpperCase();
-  const num = String(collectorNumber).padStart(3, "0");
-  const suffix = (variant ?? "").trim();
-  if (!suffix) return `${set}-${num}`;
-  if (/^[a-z]$/i.test(suffix)) return `${set}-${num}${suffix.toLowerCase()}`;
-  if (/^t\d+$/i.test(suffix)) return `${set}-${suffix.toUpperCase()}`;
-  return `${set}-${num}-${suffix.toLowerCase()}`;
-}
-
-/**
  * A card's name with a trailing printing treatment removed.
  *
  * The sources spell some treatments in the name rather than the id: "Nine-Tailed

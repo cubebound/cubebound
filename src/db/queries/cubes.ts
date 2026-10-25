@@ -12,8 +12,13 @@ import {
   type CubeChange,
   type NewCubeChange,
 } from "../schema";
-import { browseColumns, realCard, retiredPrinting, type BrowseCard } from "./cards";
-import { RETIRED_SETS } from "@/lib/card-ids";
+import {
+  browseColumns,
+  realCard,
+  retiredPrinting,
+  retiredSetCode,
+  type BrowseCard,
+} from "./cards";
 import type { DraftmancerSourceCard } from "@/lib/draftmancer-export";
 import type { CubeSection } from "@/lib/riftbound";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -257,15 +262,12 @@ export async function getCubeCards(cubeId: string): Promise<CubeCardRow[]> {
       // Real printing count so the editor can show that alternates exist.
       // Offered printings only, matching what the picker lists (`getPrintings`):
       // a badge counting a retired promo would promise a printing nobody can
-      // pick. `alt.set_code`, written out, because `retiredPrinting` is
-      // qualified as "cards" and would bind to the outer row (database.md).
+      // pick. `retiredSetCode` over `alt.set_code`, because `retiredPrinting`
+      // is qualified as "cards" and would bind to the outer row (database.md).
       printingCount: sql<number>`(
         select count(*)::int from ${cards} alt
          where alt.base_id = ${cards.baseId}
-           and alt.set_code not in (${sql.join(
-             RETIRED_SETS.map((set) => sql`${set}`),
-             sql`, `,
-           )})
+           and not ${retiredSetCode(sql`alt.set_code`)}
       )`,
       section: cubeCards.section,
       quantity: cubeCards.quantity,

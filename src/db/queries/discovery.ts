@@ -12,6 +12,7 @@ import {
   STATS_MIN_CARDS,
   summarise,
 } from "@/lib/card-popularity";
+import { memoize } from "@/lib/memo";
 
 /**
  * Finding cubes, and following them.
@@ -365,61 +366,38 @@ export async function readCubeCardSets(): Promise<CubeCardSet[]> {
  */
 const POPULARITY_TTL_MS = 60 * 60_000;
 
-let popularityMemo: { at: number; value: PopularitySnapshot } | null = null;
-let popularityInFlight: Promise<PopularitySnapshot> | null = null;
-
 /**
  * How often every card is cubed, memoised, with concurrent callers sharing one
  * read.
  *
- * **The in-flight promise is not an optimisation, it is the whole point.** A
- * TTL alone only deduplicates calls that arrive after the first has *finished*.
- * The path that matters is the editor's browse tab, where a reader adds cards
- * one after another and each render asks again — the same burst of concurrent
- * reads against a pool of six that took the site down in August, and this one
- * scans every cube in the database rather than a page of sixty. Without the
- * coalescing, a cold instance under that burst fires the whole-table read once
- * per request in flight.
+ * **The in-flight sharing is not an optimisation, it is the whole point**, and
+ * `memoize` provides it. The path that matters is the editor's browse tab,
+ * where a reader adds cards one after another and each render asks again: the
+ * same burst of concurrent reads against a pool of six that took the site down
+ * in August, and this one scans every cube in the database rather than a page
+ * of sixty. `check:pool` asserts six concurrent cold callers get one object.
  *
- * It **throws** only when there is no earlier snapshot to fall back on; a failed
- * refresh keeps serving the last good one. It never returns an empty snapshot,
- * matching
- * `getFilterOptions`: a silent zero here would render "In 0% of cubes" under
- * every card, which is a wrong statement rather than a missing one. Callers
- * that would rather degrade than fail — `sitemap.ts` — catch it themselves.
- *
- * The snapshot is shared between requests, so **nothing may mutate it**.
+ * It **throws** only when there is no earlier snapshot to fall back on. A failed
+ * refresh keeps serving the last good one: numbers an hour or two old are still
+ * true statements, whereas throwing would take every card page to an error and
+ * the popularity line off every other page. It never returns an empty snapshot,
+ * matching `getFilterOptions`: a silent zero here would render "In 0% of cubes"
+ * under every card, which is a wrong statement rather than a missing one.
+ * Callers that would rather degrade than fail (`sitemap.ts`) catch it themselves.
  */
-export async function getCardPopularity(): Promise<PopularitySnapshot> {
-  if (popularityMemo && Date.now() - popularityMemo.at < POPULARITY_TTL_MS) {
-    return popularityMemo.value;
-  }
-  if (popularityInFlight) return popularityInFlight;
+const popularityMemo = memoize(
+  POPULARITY_TTL_MS,
+  async () => summarise(await readCubeCardSets()),
+  {
+    onStaleError: (error) => {
+      Sentry.captureException(error);
+      console.error("card popularity refresh failed; serving the previous snapshot", error);
+    },
+  },
+);
 
-  popularityInFlight = (async () => {
-    try {
-      const value = summarise(await readCubeCardSets());
-      popularityMemo = { at: Date.now(), value };
-      return value;
-    } catch (error) {
-      // A failed *refresh* keeps serving the last good snapshot: numbers an
-      // hour or two old are still true statements, whereas throwing would take
-      // every card page to an error and the popularity line off every other
-      // page. It is reported, and the memo keeps its old time so the next
-      // request tries again. Only a read with nothing to fall back on throws.
-      if (popularityMemo) {
-        Sentry.captureException(error);
-        console.error("card popularity refresh failed; serving the previous snapshot", error);
-        return popularityMemo.value;
-      }
-      throw error;
-    } finally {
-      // Cleared on failure too, so one bad read does not wedge every later
-      // caller onto a rejected promise for the rest of the instance's life.
-      popularityInFlight = null;
-    }
-  })();
-  return popularityInFlight;
+export function getCardPopularity(): Promise<PopularitySnapshot> {
+  return popularityMemo.get();
 }
 
 /**
@@ -431,8 +409,7 @@ export async function getCardPopularity(): Promise<PopularitySnapshot> {
  * one would mean deciding what does.
  */
 export function resetCardPopularityMemo(): void {
-  popularityMemo = null;
-  popularityInFlight = null;
+  popularityMemo.reset();
 }
 
 export async function countCubes(options: CubeSearchOptions = {}): Promise<number> {
