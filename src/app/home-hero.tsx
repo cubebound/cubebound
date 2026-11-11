@@ -30,11 +30,18 @@ export function HeroFanPlaceholder() {
  * requested, so a phone does not pay for art it does not show.
  */
 export default async function HeroFan() {
-  const cards = await loadHeroCards();
+  const { cards, featured } = await loadHeroCards();
   if (cards.length < 3) return <HeroFanPlaceholder />;
 
   return (
     <div aria-hidden className={FAN_FRAME}>
+      {/* Only over the daily picks: over the fallback covers it would be
+          false. Hidden with the fan, which the most-cubed row repeats. */}
+      {featured && (
+        <p className="absolute inset-x-0 bottom-0 text-center text-xs text-subtle">
+          Three of the most-cubed cards. New cards featured every day.
+        </p>
+      )}
       {cards.map((card, index) => (
         <div
           key={card.id}

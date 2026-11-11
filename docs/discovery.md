@@ -102,8 +102,12 @@ approved mockup is <https://claude.ai/artifact/7BqUGzmQznbDfhWtjbv92Q>.
   if their top-20 reads differ *and* the difference touches a picked card.
   **Without popularity it falls back to the covers of the three most-followed
   cubes**, already loaded for the grid so it costs no query, and a fallback is
-  never pinned; fewer than three means no fan. It is decoration (`aria-hidden`,
-  since the same cards are named in the row below) and hidden below `lg`.
+  never pinned; fewer than three means no fan. **The caption under the fan
+  ("Three of the most-cubed cards…") renders only over the daily picks**,
+  never over the fallback covers, where it would be false; `loadHeroCards`
+  returns `featured` to say which it is. The fan and its caption are decoration
+  (`aria-hidden`, since the same cards are named in the row below) and hidden
+  below `lg`.
 - **One Draft button per cube card**, to `/cube/{owner}/{slug}/draft?new=1`,
   the settings screen whose tabs are the Draftmancer export, bots and
   Crack-A-Pack ([exports.md](exports.md)). The spec had separate "Bot draft" and
