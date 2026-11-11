@@ -114,10 +114,13 @@ let pinned: { day: string; cards: HeroCard[] } | null = null;
  * most-followed cubes, which the page has already asked for, so the fallback
  * costs no query of its own. A fallback is never pinned: the real picks take
  * over as soon as the snapshot is readable again.
+ *
+ * `featured` says which of the two it is, because the caption under the fan
+ * describes the daily picks and would be false over cube covers.
  */
-export async function loadHeroCards(): Promise<HeroCard[]> {
+export async function loadHeroCards(): Promise<{ cards: HeroCard[]; featured: boolean }> {
   const day = utcDay(new Date());
-  if (pinned?.day === day) return pinned.cards;
+  if (pinned?.day === day) return { cards: pinned.cards, featured: true };
 
   const mostCubed = await loadMostCubed();
   if (mostCubed) {
@@ -125,12 +128,12 @@ export async function loadHeroCards(): Promise<HeroCard[]> {
     if (picks.length === 3) {
       const cards = picks.map(({ id, name, src, turned }) => ({ id, name, src, turned }));
       pinned = { day, cards };
-      return cards;
+      return { cards, featured: true };
     }
   }
 
   const cubes = await loadMostFollowed();
-  return cubes
+  const cards = cubes
     .filter((cube) => cube.coverImage)
     .slice(0, 3)
     .map((cube) => ({
@@ -139,4 +142,5 @@ export async function loadHeroCards(): Promise<HeroCard[]> {
       src: cardThumb(cube.coverImage),
       turned: false,
     }));
+  return { cards, featured: false };
 }

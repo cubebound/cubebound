@@ -57,10 +57,11 @@ export default function HomeCubeCard({ cube }: { cube: CubeSearchResult }) {
           <span className="tabular-nums">{cube.followers}</span>{" "}
           {cube.followers === 1 ? "follower" : "followers"}
         </p>
-        {/* No line at all for an empty description, and none on a phone, where
-            the cards scroll sideways and stay short. */}
+        {/* Up to three lines, clipped after that. Nothing at all for an empty
+            description, and none on a phone, where the cards scroll sideways
+            and stay short. */}
         {description && (
-          <p className="hidden text-sm text-muted sm:line-clamp-1">{description}</p>
+          <p className="hidden text-sm text-muted sm:line-clamp-3">{description}</p>
         )}
         <div className="mt-auto flex flex-wrap gap-2 pt-2.5">
           <Link href={path} className={`${btn.primarySm} ${TAP}`}>
