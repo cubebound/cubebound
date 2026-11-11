@@ -78,6 +78,7 @@ export default function CubeResults({
   signedIn,
   empty,
   variant = "public",
+  coverFromSm = false,
 }: {
   cubes: CubeSearchResult[];
   returnPath: string;
@@ -85,6 +86,13 @@ export default function CubeResults({
   /** Shown in place of the list; a node so callers can offer a way out of it. */
   empty: React.ReactNode;
   variant?: "public" | "owned";
+  /**
+   * Draw the cover from `sm` up only, so a phone gets text-only rows. The home
+   * page's list uses it. Hidden with CSS rather than left out of the query,
+   * because wider screens still show the art, and a lazy image that is never
+   * displayed is never fetched.
+   */
+  coverFromSm?: boolean;
 }) {
   if (cubes.length === 0) {
     return (
@@ -104,7 +112,12 @@ export default function CubeResults({
           <li key={cube.id} className="flex flex-wrap items-start gap-x-3 gap-y-2 px-4 py-3">
             {/* Linked, not decorative: the thumbnail is the biggest target in
                 the row and clicking a picture of a cube should open it. */}
-            <Link href={owned ? `${path}/edit` : path} tabIndex={-1} aria-hidden>
+            <Link
+              href={owned ? `${path}/edit` : path}
+              tabIndex={-1}
+              aria-hidden
+              className={coverFromSm ? "hidden sm:block" : undefined}
+            >
               <CoverThumb url={cube.coverImage} />
             </Link>
             <div className="min-w-0 flex-1">

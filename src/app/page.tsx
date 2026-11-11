@@ -1,11 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import AuthHashError from "@/app/auth-hash-error";
-import { LogoMark } from "@/components/logo";
+import { SkeletonCardRow, SkeletonCubeCards, SkeletonRows } from "@/components/skeleton";
 import { loadViewer } from "@/lib/cube-request";
 import { btn, link } from "@/lib/ui";
+
+import HeroFan, { HeroFanPlaceholder } from "./home-hero";
+import {
+  HowItWorks,
+  MostCubedCards,
+  MostFollowedCubes,
+  RecentlyUpdated,
+  SECTION,
+  SectionHeading,
+  YourCubesStrip,
+} from "./home-sections";
 
 // Title and description come from the layout's defaults; only the canonical is
 // this page's own. The near-miss `?code=…` catch below means the landing page
@@ -44,79 +56,102 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   // cube creation needs one — send them to finish that instead of to a form
   // that would bounce them.
   const current = await loadViewer();
-  const build = current?.profile
+  const profile = current?.profile ?? null;
+
+  // Signed out, browsing leads: a first-time visitor needs to see real cubes
+  // before a form. The sign-in link carries `next` itself, because /cubes/new
+  // bounces a signed-out visitor to a bare /login and the destination is lost.
+  const browse = { href: "/explore", label: "Browse cubes" };
+  const build = profile
     ? { href: "/cubes/new", label: "Create a cube" }
     : current
       ? { href: "/welcome", label: "Choose a username" }
-      : { href: "/login", label: "Sign in" };
+      : { href: "/login?next=/cubes/new", label: "Build a cube" };
+  const [primary, secondary] = current ? [build, browse] : [browse, build];
+
+  // 44px of tap height and full width on a phone; the designed size from `sm`.
+  const heroButton = "min-h-11 sm:min-h-0";
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-24 sm:px-6">
+    <div className="mx-auto w-full max-w-[1200px] px-4 sm:px-6">
       {/* The query-string self-heal above cannot see a fragment, and Supabase
           reports some OAuth failures that way — see auth-hash-error.tsx. */}
       <AuthHashError signedIn={Boolean(current)} />
-      {/* Not a link: this is already home. */}
-      <p className="mb-6">
-        <LogoMark size="lg" />
-      </p>
-      <h1 className="text-3xl font-semibold">
-        Cube construction and drafting for Riftbound
-      </h1>
-      <div className="mt-5 space-y-4 text-muted">
-        <p>
-          It&rsquo;s easy to get started building a cube or{" "}
-          <Link href="/guides/draftmancer" className={link}>
-            drafting with friends on Draftmancer
-          </Link>
-          .
-        </p>
-        {/* Above the Cube Cobra credit and below the pitch: someone who has
-            never drafted a cube needs this before they need a Create button,
-            and it is also the page most worth linking to from outside. */}
-        <p>
-          New to cubes?{" "}
-          <Link href="/guides/riftbound-cube-drafting" className={link}>
-            Read how Riftbound cube drafting works
-          </Link>
-          : what a cube is, how legends and battlefields change drafting, and how
-          many cards to include.
-        </p>
-      </div>
 
-      <div className="mt-8 flex flex-wrap items-center gap-3">
-        <Link href={build.href} className={btn.primary}>
-          {build.label}
-        </Link>
-        <Link href="/explore" className={btn.secondary}>
-          Browse cubes
-        </Link>
-        <Link href="/cards" className={btn.secondary}>
-          Browse cards
-        </Link>
-      </div>
+      <section className="flex items-center gap-12 py-10 lg:py-20">
+        <div className="flex min-w-0 flex-1 flex-col gap-4 sm:gap-5">
+          <h1 className="text-[34px] leading-[1.08] font-semibold lg:text-[52px] lg:leading-[1.05]">
+            Cube construction and drafting for Riftbound
+          </h1>
+          <p className="max-w-[560px] text-base text-muted sm:text-lg">
+            Build a cube, share it, and draft it against bots or with friends on
+            Draftmancer. It&rsquo;s free, and you can export to Draftmancer
+            without an account.
+          </p>
+          <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <Link href={primary.href} className={`${btn.primary} ${heroButton}`}>
+              {primary.label}
+            </Link>
+            <Link href={secondary.href} className={`${btn.secondary} ${heroButton}`}>
+              {secondary.label}
+            </Link>
+          </div>
+          <p className="text-sm text-subtle">
+            New to cube?{" "}
+            <Link href="/guides/riftbound-cube-drafting" className={link}>
+              How Riftbound cube drafting works
+            </Link>
+          </p>
+        </div>
+        <Suspense fallback={<HeroFanPlaceholder />}>
+          <HeroFan />
+        </Suspense>
+      </section>
 
-      {current?.profile && (
-        <p className="mt-4 text-sm text-muted">
-          Or pick up where you left off in{" "}
-          <Link href="/cubes" className={link}>
-            your cubes
-          </Link>
-          .
-        </p>
+      {/* Each section reads for itself inside its own boundary, so the hero
+          paints at once and the queries run side by side. There is
+          deliberately no `loading.tsx` on this route: it would commit a 200
+          ahead of the `?code=` redirect above. See docs/routes.md. */}
+      {profile && (
+        <Suspense fallback={null}>
+          <YourCubesStrip ownerId={profile.id} />
+        </Suspense>
       )}
 
-      <p className="mt-10 border-t border-line pt-6 text-sm text-subtle">
-        Credit for many feature and design decisions goes to{" "}
-        <a
-          href="https://cubecobra.com"
-          target="_blank"
-          rel="noreferrer noopener"
-          className={link}
-        >
-          Cube Cobra
-        </a>{" "}
-        who do an incredible job serving the MTG community.
-      </p>
+      <Suspense
+        fallback={
+          <section className={SECTION}>
+            <SectionHeading title="Most-followed cubes" />
+            <SkeletonCubeCards />
+          </section>
+        }
+      >
+        <MostFollowedCubes />
+      </Suspense>
+
+      <HowItWorks buildHref={build.href} />
+
+      <Suspense
+        fallback={
+          <section className={SECTION}>
+            <SectionHeading title="Most-cubed cards" />
+            <SkeletonCardRow />
+          </section>
+        }
+      >
+        <MostCubedCards />
+      </Suspense>
+
+      <Suspense
+        fallback={
+          <section className={SECTION}>
+            <SectionHeading title="Recently updated" />
+            <SkeletonRows rows={5} />
+          </section>
+        }
+      >
+        <RecentlyUpdated viewerId={profile?.id ?? null} />
+      </Suspense>
     </div>
   );
 }

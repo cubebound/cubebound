@@ -1,7 +1,8 @@
 # Routes
 
 ```
-/                                     landing
+/                                     landing — most-followed and recently updated cubes,
+                                      most-cubed cards; see [discovery.md](discovery.md)
 /cards                                card browser (milestone 3)
 /cards/{type}/{slug}                  "Cards commonly cubed with {card}" — exists only
                                       for a card over the distinct-owner floor
@@ -51,6 +52,15 @@
   because metadata is generated before the layout's `notFound()` is reached.
   `check:discovery` asserts the **status** rather than the body, since the
   boundary makes a soft 404 the silent default.
+- **`/` deliberately has no `loading.tsx`, and streams through a `<Suspense>`
+  per section instead.** It reads data, so by the root `CLAUDE.md`'s rule it
+  would otherwise want one, but a loading boundary commits HTTP 200 as soon
+  as its shell flushes, and the page's first job is the near-miss `?code=`
+  redirect to `/auth/callback` ([auth.md](auth.md)), which `check:magic-link`
+  asserts is a 30x. A root-level `loading.tsx` would also become the boundary
+  for every route without its own, `/login`, `/welcome`, the guides and
+  `/privacy` among them. Per-section boundaries let the hero paint at once
+  while the queries run side by side.
 
 Server Actions live in `src/app/cube/actions.ts`, `src/app/auth/actions.ts`,
 `src/app/cube/[username]/[slug]/draft/actions.ts`, `src/app/explore/actions.ts`,

@@ -40,6 +40,42 @@ export function SkeletonRows({ rows = 6 }: { rows?: number }) {
   );
 }
 
+/** Placeholder cube cards, for the home page's most-followed grid. */
+export function SkeletonCubeCards({ cards = 6 }: { cards?: number }) {
+  return (
+    <div aria-hidden className="flex gap-4 overflow-hidden sm:grid sm:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: cards }, (_, i) => (
+        <div
+          key={i}
+          className="w-[280px] shrink-0 overflow-hidden rounded-lg border border-line sm:w-auto"
+        >
+          <SkeletonLine className="h-[110px] rounded-none sm:h-[132px]" />
+          <div className="space-y-2 p-4">
+            <SkeletonLine className="h-5 w-3/5" />
+            <SkeletonLine className="h-3 w-4/5" />
+            <SkeletonLine className="mt-4 h-9 w-32" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** A row of placeholder card tiles, for the home page's most-cubed row. */
+export function SkeletonCardRow({ cards = 8 }: { cards?: number }) {
+  return (
+    <div aria-hidden className="flex gap-3.5 overflow-hidden lg:grid lg:grid-cols-8">
+      {Array.from({ length: cards }, (_, i) => (
+        <div key={i} className="w-[116px] shrink-0 space-y-2 sm:w-[132px] lg:w-auto">
+          <SkeletonLine className="aspect-[5/7] w-full rounded-lg" />
+          <SkeletonLine className="h-3 w-4/5" />
+          <SkeletonLine className="h-3 w-3/5" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /**
  * The shell of a cube page: title, byline, tabs, then columns.
  *

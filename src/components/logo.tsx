@@ -3,7 +3,7 @@ import Link from "next/link";
 /**
  * The brand mark, in one place.
  *
- * Every surface that shows the logo — the nav, the landing page and the 404 —
+ * Every surface that shows the logo — the nav, the error page and the 404 —
  * renders this, so changing the artwork is a change to this file alone.
  *
  * **There are two marks, and the size picks between them.** `public/logo.svg`

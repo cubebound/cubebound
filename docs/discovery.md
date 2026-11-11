@@ -56,6 +56,69 @@ counted the maybeboard, which nothing else does.
   disagrees. It is a low-stakes control people click while scanning a list, and
   waiting on the network makes the list feel broken.
 
+## Landing page
+
+`/` exists to show a first-time visitor, within one screen, real cubes they can
+draft now. Its reads are in `src/app/home-data.ts` and its sections in
+`src/app/home-sections.tsx`; how they stream is in [routes.md](routes.md). The
+approved mockup is <https://claude.ai/artifact/7BqUGzmQznbDfhWtjbv92Q>.
+
+- **Featured cubes are the most-followed, chosen by the query alone.**
+  `searchCubes({ sort: "follows", minCards: 300, limit: 6 })`, so Explore's
+  rules (public only, moderation) apply for free and nobody hand-picks: a
+  curated shelf on a one-person site is the owner's taste presented as the
+  community's. If the owner ever asks, a small blocklist constant is the
+  accepted escape hatch, not a picker. **When none qualifies the section is
+  hidden**, because an empty grid under that heading says nothing.
+- **Recently updated is `sort: "updated"`, `minCards: 100`, `limit: 5`, drawn by
+  `CubeResults`** so a cube reads the same here as on Explore. A phone gets
+  text-only rows through `coverFromSm`, which hides the cover below `sm` with
+  CSS. **Not `omitCover`**: wider screens still draw the art, and a null cover
+  renders the "No cards yet" placeholder rather than nothing. Follow state is
+  requested only when someone is signed in, so signed out it costs no query.
+- **No memo on either cube list, deliberately.** A cube made private or hidden
+  has to drop out on the next request, not when a TTL expires.
+- **No totals anywhere on the page**, for the same reason Explore reports none:
+  no "cubes built" counter, and `searchCards().total` is never rendered.
+  Per-cube follower and card counts are fine; they describe one cube, not the
+  site.
+- **Most-cubed cards are the opening page of `/cards`**, `searchCards({ sort:
+  "played" })`, which is memoised, plus `popularityForCards`, so the label and
+  the href are the card browser's own. **Only cards with a label are kept**: if
+  the snapshot failed while that page was memoised it is in printed order, and
+  the filter stops printed order being presented as popularity. A card below
+  the owner floor is drawn unlinked rather than pointed at a 404. With
+  popularity unavailable the whole section hides: `loadMostCubed` reports to
+  Sentry and returns null, because a row of cards with no numbers under that
+  heading is a claim the page cannot back.
+- **The hero fan changes once a day; that is the owner's requirement.** It is
+  three of the top 20 most-cubed cards in distinct domains, picked by
+  `pickHeroCards` in `src/lib/hero-cards.ts`. **Each card is scored by
+  `createRng("home-hero", <UTC day>, card.id)` and the lowest scores win**,
+  rather than the list being shuffled: the top 20 shifts when the hourly
+  snapshot refreshes, and with a shuffle one card entering or leaving would
+  reshuffle every pick mid-day. `loadHeroCards` additionally pins the picks per
+  instance for the UTC day. The residual: two cold instances can disagree only
+  if their top-20 reads differ *and* the difference touches a picked card.
+  **Without popularity it falls back to the covers of the three most-followed
+  cubes**, already loaded for the grid so it costs no query, and a fallback is
+  never pinned; fewer than three means no fan. It is decoration (`aria-hidden`,
+  since the same cards are named in the row below) and hidden below `lg`.
+- **One Draft button per cube card**, to `/cube/{owner}/{slug}/draft?new=1`,
+  the settings screen whose tabs are the Draftmancer export, bots and
+  Crack-A-Pack ([exports.md](exports.md)). The spec had separate "Bot draft" and
+  "Draftmancer" actions; the owner merged them because both landed on that one
+  URL. **Bots need an account and the export does not**, so the copy says
+  exactly that and never offers a no-account bot draft.
+- **Signed out, Browse cubes leads**: a first-time visitor needs to see cubes
+  before a form. The secondary, Build a cube, links to `/login?next=/cubes/new`
+  directly, because `/cubes/new` bounces a signed-out visitor to a bare
+  `/login` and the destination is lost. Signed in, Create a cube (or Choose a
+  username) leads and Browse cubes follows, and a "Your cubes" strip (three most
+  recently edited, `omitCover`, linking on to `/cubes?tab=followed`) renders
+  only for an account that has cubes. What the page costs is in
+  [page-speed.md](page-speed.md).
+
 ## How often a card is cubed
 
 `readCubeCardSets` and `getCardPopularity`, in the same file, are the read

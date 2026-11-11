@@ -155,5 +155,8 @@ Two things dominate, and neither is the amount of data.
 
 Measured on the 206-card cube, warm, after both changes: cube page 297ms in
 production (486ms under `npm run dev`), editor 351ms (589ms), `/cubes` 299ms.
+The home page, measured 11 November 2026 on a production build against dev
+Supabase, signed out and warm: 9ms with zero queries before the redesign; after
+it, first byte in 11ms (the hero) and 70ms in total with the sections streamed.
 **Roughly half of what you feel locally is Turbopack**, so measure against
 `npm run build && npx next start` before concluding something is slow.
