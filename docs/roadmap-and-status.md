@@ -94,7 +94,7 @@ open it rather than trusting this.
     ([monitoring.md](monitoring.md)).
 6f. ✅ Feature cubes on the home page. Added to the build order unordered on 26
     September 2026 and pulled forward by the owner on 11 November 2026. Merged
-    `f970223`: the most-followed cubes, the most-cubed cards and a hero that
+    `f970223`, `6273731`: the most-followed cubes, the most-cubed cards and a hero that
     changes once a UTC day; see "Landing page" in [discovery.md](discovery.md).
 
 **Next**
