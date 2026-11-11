@@ -38,7 +38,7 @@ us bandwidth, and the reason it is the one export that needs an account. See
 cubed alongside it, and a signed-in owner can add a card to a cube from any
 card's detail box. See [card-browser.md](card-browser.md).
 
-**Feature cubes on the home page is built** — `/` leads with the most-followed
+**Feature cubes on the home page has shipped** — `/` leads with the most-followed
 cubes, chosen by the query rather than by hand, alongside the most-cubed cards
 and the recently updated cubes. See "Landing page" in
 [discovery.md](discovery.md).
@@ -92,6 +92,10 @@ open it rather than trusting this.
     ([cube-editor.md](cube-editor.md)). The `proxy.ts` move is built but held
     on branch `proxy-ts` until the owner has a Fluid Active CPU baseline
     ([monitoring.md](monitoring.md)).
+6f. ✅ Feature cubes on the home page. Added to the build order unordered on 26
+    September 2026 and pulled forward by the owner on 11 November 2026. Merged
+    `f970223`: the most-followed cubes, the most-cubed cards and a hero that
+    changes once a UTC day; see "Landing page" in [discovery.md](discovery.md).
 
 **Next**
 
