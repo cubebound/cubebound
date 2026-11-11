@@ -225,8 +225,9 @@ decides when work goes live. Asked, merge each branch `--no-ff`, add a separate
   boundary.** With no `loading.tsx`, clicking a cube left the previous page on
   screen, unchanged, for the whole server render — which reads as a hang, and
   was reported as one. Each navigable route now has one, built from
-  `src/components/skeleton.tsx`. **A new navigable route needs a `loading.tsx`
-  or it inherits that behaviour.**
+  `src/components/skeleton.tsx`; `/` is the deliberate exception, for the
+  reason in [docs/routes.md](docs/routes.md). **A new navigable route needs a
+  `loading.tsx` or it inherits that behaviour.**
 - **`loading.tsx` breaks `notFound()` in the page it wraps.** Next flushes the
   loading shell as soon as it can, and flushing commits **HTTP 200** — after
   that a `notFound()` swaps the body for the 404 UI but cannot change the
@@ -306,7 +307,7 @@ job.
 | The edit panel, `?mode=`, import, the primer, staged edits | [docs/cube-editor.md](docs/cube-editor.md) |
 | The text or visual view, columns, hover preview, density | [docs/cube-views.md](docs/cube-views.md) |
 | Visibility, ownership, Clone, Share, the owner redirect | [docs/cube-access.md](docs/cube-access.md) |
-| Explore, `/cubes`, a profile, following | [docs/discovery.md](docs/discovery.md) |
+| The home page, Explore, `/cubes`, a profile, following | [docs/discovery.md](docs/discovery.md) |
 | The Analytics tab, `charts.tsx` | [docs/analytics.md](docs/analytics.md) |
 | The draft engine, packs, bots, `/drafts` | [docs/draft.md](docs/draft.md) |
 | `draftmancer.txt`, `deck-export.ts` | [docs/exports.md](docs/exports.md) |

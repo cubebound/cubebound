@@ -38,6 +38,11 @@ us bandwidth, and the reason it is the one export that needs an account. See
 cubed alongside it, and a signed-in owner can add a card to a cube from any
 card's detail box. See [card-browser.md](card-browser.md).
 
+**Feature cubes on the home page is built** — `/` leads with the most-followed
+cubes, chosen by the query rather than by hand, alongside the most-cubed cards
+and the recently updated cubes. See "Landing page" in
+[discovery.md](discovery.md).
+
 ## Build order
 
 **The [cubebound build order](https://claude.ai/artifact/5xyrDck2rNoMExUoVtrqGW) doc
@@ -92,9 +97,6 @@ open it rather than trusting this.
 
 8. The Draftmancer round trip — a spike, not a build.
 9. Smarter bots. Lower priority.
-
-**Unordered**: Feature cubes on the home page, added to the build order doc on
-26 September 2026 without a place in it yet.
 
 **Workflow** (items 10 to 14, all of which are about how the work gets done rather
 than what ships)

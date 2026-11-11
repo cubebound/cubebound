@@ -3,7 +3,7 @@
   <desc id="cbDesc">A transparent cube containing floating cards with orange-lit edges and sparkles.</desc>
 
   <!--
-    The detailed mark, used at `lg` (64px) on the landing page, the 404 and the
+    The detailed mark, used at `lg` (64px) on the 404 and the
     error page. The nav uses public/logo-mark.svg instead - see
     src/components/logo.tsx for why.
 

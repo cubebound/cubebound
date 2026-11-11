@@ -122,9 +122,10 @@
   The indicator is an `::after` bar rather than a border so it adds nothing to
   the link's box and the nav's height cannot shift between pages.
 - **The brand mark lives in `src/components/logo.tsx`, and there are two of
-  them.** Every surface that shows the logo — nav, landing page, 404 —
+  them.** Every surface that shows the logo — nav, error page, 404 —
   renders that component, so the artwork changes in one place;
-  the *size* picks the file. `lg` (64px) gets `public/logo.svg`, the detailed
+  the *size* picks the file. `lg` (64px, the error page and the 404) gets
+  `public/logo.svg`, the detailed
   mark with dashed rear edges, five floating cards and sparkles. `sm`/`md`
   (26–30px, the nav) get `public/logo-mark.svg`: the cube silhouette and its
   spokes, nothing else.
@@ -150,6 +151,12 @@
   because Explore puts a username on every row and the cube URL carries one, so
   both were link-shaped dead ends. `/settings` is the account page beside it —
 sign-in methods, and nothing else yet; see [auth.md](auth.md).
+- **The footer carries the Cube Cobra credit**, moved there from the home page
+  so it is said once for the whole site. **Its "Suggest a feature" link opens an
+  X DM and renders only while `X_ACCOUNT_ID` in `src/app/layout.tsx` is
+  non-empty**: X addresses a DM by the account's numeric id, not its handle, so
+  there is nothing to link to until the owner fills that constant in, and an
+  empty one must not offer a DM to nobody.
 - `not-found.tsx` covers unknown URLs *and* every `notFound()` call, so a
   private cube and a cube that never existed look identical — the 404 must not
   become a way to test whether a cube id is real. `error.tsx` leads with "Try

@@ -1,6 +1,6 @@
-Routes, the root layout, the nav, the error and not-found pages, `globals.css`, robots and the sitemap.
+Routes, the root layout, the nav, the home page (`page.tsx` and `home-*`), the error and not-found pages, `globals.css`, robots and the sitemap.
 
-Read before changing a file in this directory: [docs/routes.md](../../docs/routes.md), [docs/chrome-and-theme.md](../../docs/chrome-and-theme.md), [docs/share-previews-and-seo.md](../../docs/share-previews-and-seo.md).
+Read before changing a file in this directory: [docs/routes.md](../../docs/routes.md), [docs/chrome-and-theme.md](../../docs/chrome-and-theme.md), [docs/share-previews-and-seo.md](../../docs/share-previews-and-seo.md), and for the home page [docs/discovery.md](../../docs/discovery.md).
 
 Directories beneath this one carry their own `CLAUDE.md`. This file governs the
 files directly in `src/app/` only, so ignore it when you are working deeper.

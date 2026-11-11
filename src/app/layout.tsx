@@ -10,6 +10,7 @@ import Logo, { LogoMark } from "@/components/logo";
 import ThemeToggle from "@/components/theme-toggle";
 import { resolveSiteUrl } from "@/lib/site-url";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
+import { link } from "@/lib/ui";
 
 import NavAuth from "./nav-auth";
 import NavLinks from "./nav-links";
@@ -28,6 +29,15 @@ import NavLinks from "./nav-links";
  * URL on Settings, and `.primer code` — and swapping it would be churn for no
  * visible gain.
  */
+/**
+ * The numeric id of the @cubeboundgg X account, which is what the footer's
+ * "Suggest a feature" link needs to open a DM: X addresses a DM by account id,
+ * not by handle. The link is not rendered while this is empty, so the footer
+ * never offers a DM to nobody.
+ */
+// TODO(owner): fill in the account's numeric id.
+const X_ACCOUNT_ID: string = "";
+
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
@@ -131,6 +141,16 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                 <Link href="/explore" className="transition-colors hover:text-ink">
                   Explore cubes
                 </Link>
+                {X_ACCOUNT_ID && (
+                  <a
+                    href={`https://x.com/messages/compose?recipient_id=${X_ACCOUNT_ID}`}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="transition-colors hover:text-ink"
+                  >
+                    Suggest a feature
+                  </a>
+                )}
                 <Link href="/privacy" className="transition-colors hover:text-ink">
                   Privacy
                 </Link>
@@ -159,6 +179,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </div>
 
             <p className="mt-6 border-t border-line pt-5 text-xs leading-relaxed text-subtle">
+              Credit for many feature and design decisions goes to{" "}
+              <a
+                href="https://cubecobra.com"
+                target="_blank"
+                rel="noreferrer noopener"
+                className={link}
+              >
+                Cube Cobra
+              </a>
+              , who do an incredible job serving the MTG community.
+            </p>
+            <p className="mt-3 text-xs leading-relaxed text-subtle">
               cubebound.gg is not endorsed by Riot Games and does not reflect the
               views or opinions of Riot Games or anyone officially involved in
               producing or managing Riot Games properties.
