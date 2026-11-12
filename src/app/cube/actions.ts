@@ -54,7 +54,13 @@ import {
   planStagedEdits,
   type StagedEditRow,
 } from "@/lib/staged-edit";
-import { defaultSectionForType, isCubeSection, type CubeSection } from "@/lib/riftbound";
+import {
+  defaultSectionForType,
+  isCubeSection,
+  MAIN_SECTION_REFUSAL,
+  sectionAllowsType,
+  type CubeSection,
+} from "@/lib/riftbound";
 
 export interface ActionState {
   error?: string;
@@ -398,6 +404,7 @@ export async function addCardAction(
     section && isCubeSection(section)
       ? (section as CubeSection)
       : defaultSectionForType(card.type);
+  if (!sectionAllowsType(target, card.type)) return { error: MAIN_SECTION_REFUSAL };
 
   await addCubeCard(owned.cube.id, card.id, target);
   await logChange(owned, {
@@ -544,6 +551,9 @@ export async function adjustQuantityAction(
   // adding one.
   const refused = delta > 0 && card ? notOfferedError(card) : null;
   if (refused) return refused;
+  if (delta > 0 && card && !sectionAllowsType(section, card.type)) {
+    return { error: MAIN_SECTION_REFUSAL };
+  }
   const quantity = await adjustCubeCardQuantity(owned.cube.id, cardId, section, delta);
   await logChange(owned, {
     kind: delta > 0 ? "cards_added" : "cards_removed",
@@ -567,6 +577,7 @@ export async function moveCardAction(
   if (!isCubeSection(from) || !isCubeSection(to)) return { error: "Unknown section." };
 
   const card = await getCardById(cardId);
+  if (card && !sectionAllowsType(to, card.type)) return { error: MAIN_SECTION_REFUSAL };
   const moved = await moveCopyToSection(owned.cube.id, cardId, from, to);
   if (moved) {
     await logChange(owned, {
@@ -600,6 +611,7 @@ export async function swapPrintingAction(
   // those are not the only things standing here.
   const refused = swapRefusal(from, to);
   if (refused) return refused;
+  if (!sectionAllowsType(section, to.type)) return { error: MAIN_SECTION_REFUSAL };
 
   const switched = await switchCopyPrinting(owned.cube.id, fromCardId, toCardId, section);
   if (switched) {
@@ -841,6 +853,7 @@ export async function createCubeFromListAction(
   if (unknown) return { error: `That card no longer exists: ${unknown.cardId}` };
   const refused = known.map(notOfferedError).find(Boolean);
   if (refused) return refused;
+  if (misplacedRow(merge.rows, known)) return { error: MAIN_SECTION_REFUSAL };
 
   const cube = await createCubeWithLog(
     { id: creator.profile.id, username: creator.profile.username },
@@ -853,6 +866,19 @@ export async function createCubeFromListAction(
     added: merge.totalCopies,
     path: editorPath(creator.profile.username, cube.slug),
   };
+}
+
+/**
+ * True when a confirmed row would file a legend, rune or battlefield in Main. The
+ * importer never sends one (`sectionForPick` re-files them), so this refuses a
+ * forged request rather than quietly correcting it.
+ */
+function misplacedRow(
+  rows: { cardId: string; section: CubeSection }[],
+  known: { id: string; type: string }[],
+): boolean {
+  const typeById = new Map(known.map((card) => [card.id, card.type]));
+  return rows.some((row) => !sectionAllowsType(row.section, typeById.get(row.cardId) ?? ""));
 }
 
 /** One resolved row the user confirmed. */
@@ -889,6 +915,7 @@ export async function commitImportAction(
   if (unknown) return { error: `That card no longer exists: ${unknown.cardId}` };
   const refused = known.map(notOfferedError).find(Boolean);
   if (refused) return refused;
+  if (misplacedRow(entries, known)) return { error: MAIN_SECTION_REFUSAL };
 
   // One statement, not one per line: `mergeImportRows` has already collapsed
   // duplicates, so the whole import is a single upsert and a single
@@ -948,6 +975,12 @@ export async function saveCubeEditsAction(
       .map((swap) => swapRefusal(byId.get(swap.fromCardId)!, byId.get(swap.toCardId)!))
       .find(Boolean);
   if (refused) return refused;
+  if (
+    plan.adds.some((row) => !sectionAllowsType(row.section, byId.get(row.cardId)!.type)) ||
+    plan.replaces.some((swap) => !sectionAllowsType(swap.section, byId.get(swap.toCardId)!.type))
+  ) {
+    return { error: MAIN_SECTION_REFUSAL };
+  }
 
   const log: Omit<NewCubeChange, "cubeId" | "actorId" | "actorUsername">[] = [];
 

@@ -46,6 +46,7 @@ import {
   parseImportList,
   previewImport,
   resolveLine,
+  sectionForPick,
   type CatalogCard,
 } from "../src/lib/import-list";
 import {
@@ -56,6 +57,7 @@ import {
   RETIRED_SETS,
   TOKEN_ID_PATTERN,
 } from "../src/lib/card-ids";
+import { sectionAllowsType } from "../src/lib/riftbound";
 
 const sql = postgres(fromEnvFile("DATABASE_URL"), { prepare: false });
 
@@ -336,6 +338,54 @@ try {
   expect(
     twinRow.resolution.status === "ambiguous" && twinRow.resolution.candidates.length === 2,
     "an ambiguity should carry both candidates for the user to pick from",
+  );
+
+  // A line resolved by hand files by the picked card's type, the way an exact
+  // match does. It used to default to Main, which is how six battlefields
+  // picked from a dropdown ended up in a cube's main deck.
+  const field: CatalogCard = { id: "CCC-003", name: "Some Field", type: "Battlefield" };
+  const bare = previewImport("Some Feild", [field]).rows[0];
+  expect(bare.section === null, "an unmatched line without a header should carry no section");
+  expect(
+    sectionForPick(bare, field, undefined) === "battlefields",
+    "a battlefield picked for an unmatched line should land in Battlefields, not Main",
+  );
+  const headed = previewImport("Sideboard:\nSome Feild", [field]).rows[0];
+  expect(
+    sectionForPick(headed, field, undefined) === "sideboard",
+    "a header above a hand-resolved line should still win over the card's type",
+  );
+  expect(
+    sectionForPick(headed, field, "maybeboard") === "maybeboard",
+    "a section the user picked in the preview should win over both",
+  );
+
+  // Legends, runes and battlefields never sit in Main, whoever asked for it: not a
+  // `Main:` header, not a pick in the preview.
+  expect(
+    sectionForPick(bare, field, "main") === "battlefields",
+    "a battlefield the user put in Main should still be filed in Battlefields",
+  );
+  const someLegend: CatalogCard = { id: "DDD-004", name: "Some Legend", type: "Legend" };
+  const underMain = previewImport("Main:\nSome Legend", [someLegend]).rows[0];
+  expect(
+    underMain.section === "legends",
+    `a legend under a Main: header should be filed in Legends, got ${underMain.section}`,
+  );
+  const unit: CatalogCard = { id: "EEE-005", name: "Some Unit", type: "Unit" };
+  expect(
+    previewImport("Sideboard:\nSome Unit", [unit]).rows[0].section === "sideboard",
+    "a header should still place any other card where it says",
+  );
+  expect(
+    !sectionAllowsType("main", "Legend") &&
+      !sectionAllowsType("main", "Rune") &&
+      !sectionAllowsType("main", "Battlefield") &&
+      sectionAllowsType("sideboard", "Rune") &&
+      sectionAllowsType("sideboard", "Legend") &&
+      sectionAllowsType("maybeboard", "Battlefield") &&
+      sectionAllowsType("main", "Unit"),
+    "only Main refuses a type, and only legends, runes and battlefields",
   );
 
   // A name that begins with digits must beat the quantity reading.

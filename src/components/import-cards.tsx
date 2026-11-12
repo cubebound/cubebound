@@ -9,8 +9,13 @@ import type {
   ImportPreviewState,
 } from "@/app/cube/actions";
 import type { CatalogCard, ImportPreview, PreviewRow } from "@/lib/import-list";
-import { MAX_IMPORT_LINES } from "@/lib/import-list";
-import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
+import { MAX_IMPORT_LINES, sectionForPick } from "@/lib/import-list";
+import {
+  CUBE_SECTIONS,
+  CUBE_SECTION_LABELS,
+  sectionAllowsType,
+  type CubeSection,
+} from "@/lib/riftbound";
 import { btn, errorText } from "@/lib/ui";
 
 const PLACEHOLDER = `# Paste a card list, one per line
@@ -20,8 +25,13 @@ Blazing Scorcher
 Legends:
 Daughter of the Void`;
 
-/** A row the user has resolved, keyed by preview line number. */
-type Choice = { cardId: string; section: CubeSection };
+/**
+ * A row the user has resolved, keyed by preview line number. `picked` is set
+ * only when the user chose a section themselves; otherwise the row files the
+ * way `sectionForPick` says, so a battlefield picked from the dropdown still
+ * lands in Battlefields.
+ */
+type Choice = { card: CatalogCard; picked?: CubeSection };
 
 function statusLabel(row: PreviewRow): string {
   switch (row.resolution.status) {
@@ -96,7 +106,11 @@ export default function ImportCards({
     for (const row of current.rows) {
       const chosen = choices[row.line];
       if (chosen) {
-        rows.push({ cardId: chosen.cardId, section: chosen.section, quantity: row.quantity });
+        rows.push({
+          cardId: chosen.card.id,
+          section: sectionForPick(row, chosen.card, chosen.picked),
+          quantity: row.quantity,
+        });
       } else if (row.resolution.status === "matched" && row.section) {
         rows.push({
           cardId: row.resolution.card.id,
@@ -148,10 +162,10 @@ export default function ImportCards({
   }
 
   /** Resolves an unmatched or ambiguous line to a specific card. */
-  function choose(row: PreviewRow, card: CatalogCard | null, section: CubeSection) {
+  function choose(row: PreviewRow, card: CatalogCard | null, picked: CubeSection | undefined) {
     setChoices((prev) => {
       const next = { ...prev };
-      if (card) next[row.line] = { cardId: card.id, section };
+      if (card) next[row.line] = { card, picked };
       else delete next[row.line];
       return next;
     });
@@ -259,7 +273,12 @@ export default function ImportCards({
                     : row.resolution.status === "unmatched"
                       ? row.resolution.suggestions
                       : [];
-                const section: CubeSection = chosen?.section ?? row.section ?? "main";
+                const card =
+                  chosen?.card ??
+                  (row.resolution.status === "matched" ? row.resolution.card : null);
+                const section: CubeSection = card
+                  ? sectionForPick(row, card, chosen?.picked)
+                  : (row.section ?? "main");
 
                 return (
                   <tr
@@ -281,20 +300,20 @@ export default function ImportCards({
                           {options.length > 0 ? (
                             <select
                               aria-label={`Replacement for line ${row.line}`}
-                              value={chosen?.cardId ?? ""}
+                              value={chosen?.card.id ?? ""}
                               onChange={(event) =>
                                 choose(
                                   row,
                                   options.find((c) => c.id === event.target.value) ?? null,
-                                  section,
+                                  chosen?.picked,
                                 )
                               }
                               className="ml-2 rounded border border-line bg-sunken px-1 py-0.5 text-xs"
                             >
                               <option value="">Skip this line</option>
-                              {options.map((card) => (
-                                <option key={card.id} value={card.id}>
-                                  {card.name} ({card.type})
+                              {options.map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.name} ({option.type})
                                 </option>
                               ))}
                             </select>
@@ -309,24 +328,13 @@ export default function ImportCards({
                         aria-label={`Section for line ${row.line}`}
                         value={section}
                         onChange={(event) => {
-                          const nextSection = event.target.value as CubeSection;
-                          if (matched) {
-                            choose(
-                              row,
-                              (row.resolution as { card: CatalogCard }).card,
-                              nextSection,
-                            );
-                          } else if (chosen) {
-                            choose(
-                              row,
-                              options.find((c) => c.id === chosen.cardId) ?? null,
-                              nextSection,
-                            );
-                          }
+                          if (card) choose(row, card, event.target.value as CubeSection);
                         }}
                         className="rounded border border-line bg-sunken px-1 py-0.5 text-xs"
                       >
-                        {CUBE_SECTIONS.map((value) => (
+                        {CUBE_SECTIONS.filter(
+                          (value) => !card || sectionAllowsType(value, card.type),
+                        ).map((value) => (
                           <option key={value} value={value}>
                             {CUBE_SECTION_LABELS[value]}
                           </option>

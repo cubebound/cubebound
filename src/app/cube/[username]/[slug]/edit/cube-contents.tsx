@@ -14,7 +14,12 @@ import type { CubeCardRow } from "@/db/queries/cubes";
 import { callAction } from "@/lib/call-action";
 import type { CardPopularityView } from "@/lib/card-popularity";
 import type { CubeView } from "@/lib/cube-view";
-import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
+import {
+  CUBE_SECTIONS,
+  CUBE_SECTION_LABELS,
+  sectionAllowsType,
+  type CubeSection,
+} from "@/lib/riftbound";
 
 const rowKey = (card: CubeCardRow) => `${card.id}:${card.section}`;
 
@@ -84,7 +89,11 @@ export default function CubeContents({
       }}
       className={className}
     >
-      {CUBE_SECTIONS.map((value) => (
+      {/* No Main for a legend, rune or battlefield. The copy's own section stays
+          listed so a row filed before that rule still shows where it is. */}
+      {CUBE_SECTIONS.filter(
+        (value) => value === card.section || sectionAllowsType(value, card.type),
+      ).map((value) => (
         <option key={value} value={value}>
           {CUBE_SECTION_LABELS[value]}
         </option>
