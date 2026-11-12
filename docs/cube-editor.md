@@ -269,6 +269,11 @@
   Without this a real 426-line buylist missed on all 111 of its champion lines.
   Tokens are not in the catalog, so a pasted "Gold" comes back unmatched
   rather than adding one, while a card named after a token still matches.
+  **A line resolved by hand files by the picked card, through
+  `sectionForPick`**: a section chosen in the preview, else the header above
+  the line, else the card's type. `resolveLine` can only apply the type
+  fallback to an exact match, so picked lines used to default to Main, and
+  battlefields picked from the dropdown landed in a production cube's main deck.
   The preview writes nothing; commit takes resolved rows
   rather than re-parsing, so the user's picks survive, and re-validates every
   one server-side through `mergeImportRows`. Imports append and increment, and

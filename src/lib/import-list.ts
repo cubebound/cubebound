@@ -335,6 +335,23 @@ function resolveName(name: string, index: CatalogIndex): CatalogCard[] {
   return [...distinct.values()];
 }
 
+/**
+ * The section a hand-resolved line commits to: one the user picked in the
+ * preview, else the header above the line, else the chosen card's own type.
+ *
+ * Exact matches get the type fallback in `resolveLine`, but an unmatched or
+ * ambiguous line has no card yet, so its `section` is null there. Without this
+ * the preview defaulted those lines to Main, and a battlefield or legend picked
+ * from the dropdown was filed into the main deck.
+ */
+export function sectionForPick(
+  row: Pick<PreviewRow, "section">,
+  card: Pick<CatalogCard, "type">,
+  picked: CubeSection | null | undefined,
+): CubeSection {
+  return picked ?? row.section ?? defaultSectionForType(card.type);
+}
+
 /** Resolves one parsed line against the catalog. */
 export function resolveLine(line: ParsedLine, index: CatalogIndex): PreviewRow {
   let quantity = line.quantity;

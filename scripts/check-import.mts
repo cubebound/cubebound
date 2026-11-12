@@ -46,6 +46,7 @@ import {
   parseImportList,
   previewImport,
   resolveLine,
+  sectionForPick,
   type CatalogCard,
 } from "../src/lib/import-list";
 import {
@@ -336,6 +337,26 @@ try {
   expect(
     twinRow.resolution.status === "ambiguous" && twinRow.resolution.candidates.length === 2,
     "an ambiguity should carry both candidates for the user to pick from",
+  );
+
+  // A line resolved by hand files by the picked card's type, the way an exact
+  // match does. It used to default to Main, which is how six battlefields
+  // picked from a dropdown ended up in a cube's main deck.
+  const field: CatalogCard = { id: "CCC-003", name: "Some Field", type: "Battlefield" };
+  const bare = previewImport("Some Feild", [field]).rows[0];
+  expect(bare.section === null, "an unmatched line without a header should carry no section");
+  expect(
+    sectionForPick(bare, field, undefined) === "battlefields",
+    "a battlefield picked for an unmatched line should land in Battlefields, not Main",
+  );
+  const headed = previewImport("Sideboard:\nSome Feild", [field]).rows[0];
+  expect(
+    sectionForPick(headed, field, undefined) === "sideboard",
+    "a header above a hand-resolved line should still win over the card's type",
+  );
+  expect(
+    sectionForPick(bare, field, "main") === "main",
+    "a section the user picked in the preview should win over both",
   );
 
   // A name that begins with digits must beat the quantity reading.
