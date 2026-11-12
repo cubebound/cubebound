@@ -10,7 +10,12 @@ import type {
 } from "@/app/cube/actions";
 import type { CatalogCard, ImportPreview, PreviewRow } from "@/lib/import-list";
 import { MAX_IMPORT_LINES, sectionForPick } from "@/lib/import-list";
-import { CUBE_SECTIONS, CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
+import {
+  CUBE_SECTIONS,
+  CUBE_SECTION_LABELS,
+  sectionAllowsType,
+  type CubeSection,
+} from "@/lib/riftbound";
 import { btn, errorText } from "@/lib/ui";
 
 const PLACEHOLDER = `# Paste a card list, one per line
@@ -327,7 +332,9 @@ export default function ImportCards({
                         }}
                         className="rounded border border-line bg-sunken px-1 py-0.5 text-xs"
                       >
-                        {CUBE_SECTIONS.map((value) => (
+                        {CUBE_SECTIONS.filter(
+                          (value) => !card || sectionAllowsType(value, card.type),
+                        ).map((value) => (
                           <option key={value} value={value}>
                             {CUBE_SECTION_LABELS[value]}
                           </option>

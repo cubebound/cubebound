@@ -241,6 +241,24 @@ export function defaultSectionForType(type: string): CubeSection {
   }
 }
 
+/**
+ * Legends and battlefields never sit in Main. They are drafted from their own
+ * sections, and in Main they would be dealt into main packs and shown as
+ * Colorless main-deck cards. Every other section takes any card: the sideboard
+ * and maybeboard hold whatever the owner sets aside.
+ */
+export function sectionAllowsType(section: CubeSection, type: string): boolean {
+  return !(section === "main" && (type === "Legend" || type === "Battlefield"));
+}
+
+/** `section`, unless the card may not go there; then its own section. */
+export function placeInSection(section: CubeSection, type: string): CubeSection {
+  return sectionAllowsType(section, type) ? section : defaultSectionForType(type);
+}
+
+/** The message every write path returns when it refuses a misplaced card. */
+export const MAIN_SECTION_REFUSAL = "Legends and battlefields can't go in Main.";
+
 export function isCubeSection(value: string): value is CubeSection {
   return (CUBE_SECTIONS as readonly string[]).includes(value);
 }

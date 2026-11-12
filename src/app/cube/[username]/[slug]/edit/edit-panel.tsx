@@ -14,7 +14,12 @@ import CardHoverPreview, {
   type PreviewCard,
 } from "@/components/card-hover-preview";
 import { callAction } from "@/lib/call-action";
-import { CUBE_SECTION_LABELS, type CubeSection } from "@/lib/riftbound";
+import {
+  CUBE_SECTION_LABELS,
+  placeInSection,
+  sectionAllowsType,
+  type CubeSection,
+} from "@/lib/riftbound";
 import {
   EDIT_BOARDS,
   MAX_STAGED_ROWS,
@@ -467,7 +472,24 @@ function PanelBody({
    */
   function commitRemoveOrReplace() {
     if (!removeChoice) return;
-    if (addChoice) {
+    if (addChoice && !sectionAllowsType(removeChoice.section, addChoice.card.type)) {
+      // A legend or battlefield cannot take a Main copy's place, so this swap
+      // is what it would amount to anyway: one out of Main, and the new card
+      // into its own section.
+      stage({
+        op: "remove",
+        cardId: removeChoice.cardId,
+        section: removeChoice.section,
+        label: printingLabel({ ...removeChoice, id: removeChoice.cardId }),
+      });
+      stage({
+        op: "add",
+        cardId: addChoice.card.id,
+        section: placeInSection(removeChoice.section, addChoice.card.type),
+        label: printingLabel(addChoice.card),
+      });
+      clearAdd();
+    } else if (addChoice) {
       stage({
         op: "replace",
         cardId: addChoice.card.id,

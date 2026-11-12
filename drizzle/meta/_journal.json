@@ -99,6 +99,13 @@
       "when": 1786700200000,
       "tag": "0013_cube_cards_section_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786700300000,
+      "tag": "0014_legends_battlefields_out_of_main",
+      "breakpoints": true
     }
   ]
 }

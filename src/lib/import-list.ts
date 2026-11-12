@@ -11,7 +11,12 @@
  * becomes an ambiguity — never a coin flip.
  */
 
-import { defaultSectionForType, isCubeSection, type CubeSection } from "@/lib/riftbound";
+import {
+  defaultSectionForType,
+  isCubeSection,
+  placeInSection,
+  type CubeSection,
+} from "@/lib/riftbound";
 
 /** Refuses input beyond this many lines. A cube is a few hundred cards. */
 export const MAX_IMPORT_LINES = 500;
@@ -342,14 +347,15 @@ function resolveName(name: string, index: CatalogIndex): CatalogCard[] {
  * Exact matches get the type fallback in `resolveLine`, but an unmatched or
  * ambiguous line has no card yet, so its `section` is null there. Without this
  * the preview defaulted those lines to Main, and a battlefield or legend picked
- * from the dropdown was filed into the main deck.
+ * from the dropdown was filed into the main deck. Whichever wins, a legend or
+ * battlefield is never filed in Main (`placeInSection`).
  */
 export function sectionForPick(
   row: Pick<PreviewRow, "section">,
   card: Pick<CatalogCard, "type">,
   picked: CubeSection | null | undefined,
 ): CubeSection {
-  return picked ?? row.section ?? defaultSectionForType(card.type);
+  return placeInSection(picked ?? row.section ?? defaultSectionForType(card.type), card.type);
 }
 
 /** Resolves one parsed line against the catalog. */
@@ -374,7 +380,8 @@ export function resolveLine(line: ParsedLine, index: CatalogIndex): PreviewRow {
     const card = exact[0];
     return {
       ...base,
-      section: line.section ?? defaultSectionForType(card.type),
+      // A `Main:` header still cannot put a legend or battlefield in Main.
+      section: placeInSection(line.section ?? defaultSectionForType(card.type), card.type),
       resolution: { status: "matched", card },
     };
   }

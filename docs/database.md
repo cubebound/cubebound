@@ -39,7 +39,10 @@ Migrations, in order — `0000` initial · `0001` add + backfill `base_id` ·
 `0010` `cube_follows` (+ RLS) · `0011` `cubes.cover_card_id` ·
 `0012` moderation: `users.is_admin` / `users.suspended_at`, `cubes.hidden_at` /
 `hidden_reason`, `moderation_log` (+ RLS) · `0013` `cube_cards_cube_id_section_idx`
-(**applied to both environments by hand — see [environments.md](environments.md)**).
+(**applied to both environments by hand — see [environments.md](environments.md)**) ·
+`0014` moves every Legend and Battlefield row out of `main` into its own
+section (merging capped at 99, one unattributed `copy_moved` per row, no
+`cubes.updated_at` bump).
 
 Migrations are applied **per environment and by hand** — see [environments.md](environments.md).
 A migration in a merged branch is not live until production is migrated.

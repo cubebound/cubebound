@@ -250,6 +250,26 @@
   so a batch with either in it writes nothing. Removing, decrementing or moving
   one always works, because a cube may hold one from before the rule and has
   to be able to shed it.
+- **Legends and battlefields never sit in Main; every other section takes any
+  card.** In Main they would be dealt into main packs and shown as Colorless
+  main-deck cards, and before the rule a hand-resolved import line, a `Main:`
+  header or a per-copy move could put them there. `sectionAllowsType` in
+  `src/lib/riftbound.ts` is the rule, and the sideboard and maybeboard stay
+  open to anything the owner sets aside. **The interface never offers the
+  move**: the per-copy section select and the import preview's dropdown drop
+  Main for these two types (the per-copy select still lists the copy's current
+  section, so a row filed before the rule shows where it is), the importer
+  re-files them (below), and a Remove/Replace whose incoming legend or
+  battlefield cannot take a Main copy's place is staged as a remove plus an add
+  into the card's own section, which is what that swap amounts to anyway.
+  **The server refuses rather than coerces**, returning `MAIN_SECTION_REFUSAL`
+  from `addCardAction` with an explicit section, `adjustQuantityAction` when
+  `delta > 0`, `moveCardAction`, `swapPrintingAction`, `saveCubeEditsAction`
+  (adds and replaces, checked before anything is written) and, through
+  `misplacedRow`, `commitImportAction` and `createCubeFromListAction`. Nothing
+  honest reaches it, so quietly correcting a forged request would only hide
+  one. Moving or removing a copy *out* of Main always works. Existing rows
+  were moved by migration `0014`.
 - **Bulk import never guesses.** The Import tab parses a pasted list
   (`src/lib/import-list.ts`, pure and catalog-driven): optional leading
   quantity (`2 Fury Rune` / `2x Fury Rune`), `#` and `//` comments, and
@@ -274,6 +294,10 @@
   the line, else the card's type. `resolveLine` can only apply the type
   fallback to an exact match, so picked lines used to default to Main, and
   battlefields picked from the dropdown landed in a production cube's main deck.
+  **Whichever wins, a legend or battlefield is never filed in Main**:
+  `sectionForPick` and `resolveLine` both pass the result through
+  `placeInSection`, so a `Main:` header or a Main pick re-files one to its own
+  section rather than being refused at commit.
   The preview writes nothing; commit takes resolved rows
   rather than re-parsing, so the user's picks survive, and re-validates every
   one server-side through `mergeImportRows`. Imports append and increment, and
