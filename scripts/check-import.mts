@@ -360,7 +360,7 @@ try {
     "a section the user picked in the preview should win over both",
   );
 
-  // Legends and battlefields never sit in Main, whoever asked for it: not a
+  // Legends, runes and battlefields never sit in Main, whoever asked for it: not a
   // `Main:` header, not a pick in the preview.
   expect(
     sectionForPick(bare, field, "main") === "battlefields",
@@ -379,11 +379,13 @@ try {
   );
   expect(
     !sectionAllowsType("main", "Legend") &&
+      !sectionAllowsType("main", "Rune") &&
       !sectionAllowsType("main", "Battlefield") &&
+      sectionAllowsType("sideboard", "Rune") &&
       sectionAllowsType("sideboard", "Legend") &&
       sectionAllowsType("maybeboard", "Battlefield") &&
       sectionAllowsType("main", "Unit"),
-    "only Main refuses a type, and only legends and battlefields",
+    "only Main refuses a type, and only legends, runes and battlefields",
   );
 
   // A name that begins with digits must beat the quantity reading.

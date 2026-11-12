@@ -869,7 +869,7 @@ export async function createCubeFromListAction(
 }
 
 /**
- * True when a confirmed row would file a legend or battlefield in Main. The
+ * True when a confirmed row would file a legend, rune or battlefield in Main. The
  * importer never sends one (`sectionForPick` re-files them), so this refuses a
  * forged request rather than quietly correcting it.
  */

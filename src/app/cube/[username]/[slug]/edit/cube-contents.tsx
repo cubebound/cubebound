@@ -89,7 +89,7 @@ export default function CubeContents({
       }}
       className={className}
     >
-      {/* No Main for a legend or battlefield. The copy's own section stays
+      {/* No Main for a legend, rune or battlefield. The copy's own section stays
           listed so a row filed before that rule still shows where it is. */}
       {CUBE_SECTIONS.filter(
         (value) => value === card.section || sectionAllowsType(value, card.type),

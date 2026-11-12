@@ -380,7 +380,7 @@ export function resolveLine(line: ParsedLine, index: CatalogIndex): PreviewRow {
     const card = exact[0];
     return {
       ...base,
-      // A `Main:` header still cannot put a legend or battlefield in Main.
+      // A `Main:` header still cannot put a legend, rune or battlefield in Main.
       section: placeInSection(line.section ?? defaultSectionForType(card.type), card.type),
       resolution: { status: "matched", card },
     };

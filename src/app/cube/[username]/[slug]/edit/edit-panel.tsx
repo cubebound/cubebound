@@ -473,7 +473,7 @@ function PanelBody({
   function commitRemoveOrReplace() {
     if (!removeChoice) return;
     if (addChoice && !sectionAllowsType(removeChoice.section, addChoice.card.type)) {
-      // A legend or battlefield cannot take a Main copy's place, so this swap
+      // A legend, rune or battlefield cannot take a Main copy's place, so this swap
       // is what it would amount to anyway: one out of Main, and the new card
       // into its own section.
       stage({
