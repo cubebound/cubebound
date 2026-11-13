@@ -66,14 +66,30 @@ function sized(
   return parsed.toString();
 }
 
+/**
+ * **`w` is the image's width, and a battlefield's width is its long edge.**
+ * Battlefields are stored 1038×744, so `w=512` gives one 512×367 — about 70%
+ * of the pixels a portrait card gets at the same setting, and `FULL_WIDTH`
+ * shrinks it below native. That only matters where a battlefield's long edge
+ * renders wider than a portrait card's width would, which is a grid tile
+ * (turned upright, or shown as printed in a cube's Battlefields section). There
+ * `landscape` scales the request by the long-to-short ratio, so its pixel
+ * density matches a portrait tile's; at full size that is exactly native.
+ */
+const LANDSCAPE_SCALE = 1038 / 744;
+
+function width(base: number, landscape: boolean): number {
+  return landscape ? Math.round(base * LANDSCAPE_SCALE) : base;
+}
+
 /** A grid- or pile-sized rendition. */
-export function cardThumb(url: string | null | undefined): string | null {
-  return sized(url, THUMB_WIDTH);
+export function cardThumb(url: string | null | undefined, landscape = false): string | null {
+  return sized(url, width(THUMB_WIDTH, landscape));
 }
 
 /** Full-card rendition, for the detail view. */
-export function cardFull(url: string | null | undefined): string | null {
-  return sized(url, FULL_WIDTH);
+export function cardFull(url: string | null | undefined, landscape = false): string | null {
+  return sized(url, width(FULL_WIDTH, landscape));
 }
 
 /**

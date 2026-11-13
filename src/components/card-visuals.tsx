@@ -423,6 +423,7 @@ export function CardTile({
   quantity,
   wide = false,
   bare = false,
+  printedShape = false,
 }: {
   card: BrowseCard;
   onOpen: () => void;
@@ -454,9 +455,22 @@ export function CardTile({
    * have not found yet.
    */
   bare?: boolean;
+  /**
+   * Show a landscape card landscape, as printed, instead of turned upright.
+   *
+   * Only for a grid where every tile is landscape (a cube's Battlefields
+   * section), laid out on `landscapeCardGrid`. Turning exists so a mixed grid
+   * keeps one shape; with nothing to line up against, a wall of sideways cards
+   * is just harder to read.
+   */
+  printedShape?: boolean;
 }) {
   const source = card.imageThumb ?? card.imageFull;
-  const thumb = wide ? cardFull(source) : cardThumb(source);
+  const landscape = isLandscape(card.type);
+  // A battlefield's long edge spans 1.4 tile widths whether turned or not, and
+  // the CDN's `w` sizes that edge, so it asks for proportionally more.
+  const thumb = wide ? cardFull(source, landscape) : cardThumb(source, landscape);
+  const asPrinted = printedShape && landscape;
   return (
     <li className="self-start">
       <button
@@ -468,7 +482,8 @@ export function CardTile({
           className={`relative overflow-hidden rounded-lg bg-sunken ring-1 ring-black/5 transition group-hover:ring-2 group-hover:ring-accent-strong/60 group-focus-visible:ring-2 group-focus-visible:ring-accent-strong dark:ring-white/10 ${dimmed ? "opacity-45" : ""}`}
           // Every tile is upright, battlefields turned to fit: a grid of one
           // shape reads as a grid, and a landscape tile left a gap in its row.
-          style={{ aspectRatio: aspectRatio("Unit") }}
+          // The exception is an all-landscape grid, which asks for printedShape.
+          style={{ aspectRatio: aspectRatio(asPrinted ? card.type : "Unit") }}
         >
           {/* Retries a failed fetch before settling on the name: this grid
               shows sixty tiles at once, so a transient CDN blip used to leave
@@ -476,7 +491,7 @@ export function CardTile({
           <CardArt
             src={thumb}
             name={card.name}
-            turned={isLandscape(card.type)}
+            turned={landscape && !asPrinted}
             className="object-cover transition group-hover:scale-[1.02]"
           />
           {/* Printing count is a bare number, not "×N" — that reads as a

@@ -142,3 +142,13 @@
   `cardGrid.auto`, so the card browser and the editor's browse grid keep the
   responsive default and are untouched by the density control, which reads
   context and is `undefined` outside a provider.
+- **A section whose cards are all landscape lays out on `landscapeCardGrid`,
+  with battlefields as printed rather than turned.** Turning a battlefield
+  upright exists so a mixed grid keeps one shape; in a section of nothing but
+  battlefields there is no portrait card to line up against, and a wall of
+  sideways cards is only harder to read. Each tier is the portrait count ÷ 1.4,
+  rounded and never under two, so a 7:5 tile is about as wide as a portrait
+  tile is tall and the card's text renders at the size it had turned. **The
+  decision reads the cards' types, never the section name**: a battlefield in
+  Main or the maybeboard sits among portrait cards and stays turned, as it
+  does in the card browser and the draft.

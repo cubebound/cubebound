@@ -5,7 +5,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import BackToTop from "@/components/back-to-top";
 import { CARD_GRID_CLASS, CardDetail, CardTile } from "@/components/card-visuals";
 import { useCardsPerRow } from "@/components/cards-per-row";
-import { cardGrid } from "@/lib/ui";
+import { cardGrid, landscapeCardGrid } from "@/lib/ui";
 import CubeTable from "@/components/cube-table";
 import type { CubeCardRow } from "@/db/queries/cubes";
 import type { CardPopularityView } from "@/lib/card-popularity";
@@ -15,6 +15,7 @@ import type { CubeView } from "@/lib/cube-view";
 import {
   CUBE_LIST_SECTIONS,
   CUBE_SECTION_LABELS,
+  isLandscape,
   type CubeSection,
 } from "@/lib/riftbound";
 
@@ -105,6 +106,12 @@ export default function CubeSections({
         {sections.map((section) => {
           const inSection = bySection.get(section) ?? [];
           if (inSection.length === 0) return null;
+          // Decided by the cards, not the section name: a battlefield filed in
+          // Main or the maybeboard sits among portrait cards and stays turned,
+          // while a Battlefields section that is all battlefields shows them as
+          // printed on a grid sized for landscape tiles.
+          const allLandscape = inSection.every((card) => isLandscape(card.type));
+          const grid = allLandscape ? landscapeCardGrid : cardGrid;
           return (
             <section key={section}>
               <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-subtle">
@@ -121,7 +128,11 @@ export default function CubeSections({
                   groupByType={section === "main"}
                 />
               ) : (
-                <ul className={perRow ? cardGrid[perRow] : CARD_GRID_CLASS}>
+                <ul
+                  className={
+                    perRow ? grid[perRow] : allLandscape ? landscapeCardGrid.auto : CARD_GRID_CLASS
+                  }
+                >
                   {/* Domain, then cost, with the costless cards kept together
                       at the end — see compareForDisplay. Sorted here rather
                       than in the query so both views order from one rule.
@@ -135,6 +146,7 @@ export default function CubeSections({
                       key={copy.key}
                       card={copy.card}
                       bare
+                      printedShape={allLandscape}
                       showPrintingCount={false}
                       wide={perRow !== undefined && perRow <= 4}
                       onOpen={() => setSelectedKey(rowKey(copy.card))}
