@@ -156,7 +156,9 @@ the bots smart; C adds the deck builder.
   exports and what the others parse. The binary deck code
   (`Piltover-Archive/RiftboundDeckCodes`) is deliberately not used: it is a
   dependency and an encoding to get wrong, where a text list is a paste a human
-  can read and fix.
+  can read and fix. The single Ko-fi line beneath the export is the only tip
+  prompt in the draft flow; why it sits there and nowhere earlier is in
+  [chrome-and-theme.md](chrome-and-theme.md).
   **The names have to be rebuilt, and that is the whole feature.** `cards.name`
   is normalised per type by the sync: champion units are stored `Darius,
   Trifarian`, which is already right, but **a legend stores only its title**

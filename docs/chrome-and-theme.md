@@ -104,8 +104,8 @@
   upper bound: a 30-character one pushed Sign out past the right edge of a
   phone, which is the bug that prompted this. The avatar is a fixed 32px, the
   full name is in its `aria-label` and at the top of the menu it opens
-  (Profile / Settings / Log out). Below `sm` the nav also drops "Your " from
-  the cube and draft links, shrinks the logo and **hides the wordmark**,
+  (Profile / Settings / Support on Ko-fi / Log out). Below `sm` the nav also
+  drops "Your " from the cube and draft links, shrinks the logo and **hides the wordmark**,
   without which a 320px screen still overflowed. The nav is at its width
   budget: adding a sixth item means taking one away or collapsing them behind
   a menu, and the check is a 320px screenshot, not an opinion.
@@ -161,6 +161,17 @@ sign-in methods, and nothing else yet; see [auth.md](auth.md).
   loads a third-party script and iframe on every page, which `/privacy` would
   have to disclose and the planned `script-src` policy (see `next.config.ts`)
   would have to allow.
+- **Tips are offered only where they cannot read as begging, and every link
+  reads `KOFI_URL` from `src/lib/support.ts`**: the footer, an account-menu
+  item (signed-in people are the regulars, and a menu item costs no space), and one quiet line under
+  the export on a finished draft's end screen, which is the moment someone has
+  just got something out of the site. Each opens in a new tab, since it leaves
+  the site. The aim is that the option is visible without the site begging, so
+  **it is deliberately absent elsewhere**: not on public cube pages, where it
+  would read as the cube's owner asking for money or put the site's ask on
+  their page; not in the editor or during picks, where people are mid-task; and
+  not in the nav, a banner or a popup — the nav is at its width budget (above)
+  and a banner reads as begging. A new placement should clear the same bar.
 - `not-found.tsx` covers unknown URLs *and* every `notFound()` call, so a
   private cube and a cube that never existed look identical — the 404 must not
   become a way to test whether a cube id is real. `error.tsx` leads with "Try

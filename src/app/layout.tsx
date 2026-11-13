@@ -9,6 +9,7 @@ import { Analytics } from "@vercel/analytics/next";
 import Logo, { LogoMark } from "@/components/logo";
 import ThemeToggle from "@/components/theme-toggle";
 import { resolveSiteUrl } from "@/lib/site-url";
+import { KOFI_URL } from "@/lib/support";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 import { link } from "@/lib/ui";
 
@@ -177,7 +178,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     to disclose and a future script-src policy would have to
                     allow. */}
                 <a
-                  href="https://ko-fi.com/cubebound"
+                  href={KOFI_URL}
                   target="_blank"
                   rel="noreferrer noopener"
                   className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"

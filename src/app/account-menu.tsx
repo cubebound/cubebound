@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { signOut } from "@/app/auth/actions";
+import { KOFI_URL } from "@/lib/support";
 
 /**
  * The account control in the nav.
@@ -78,6 +79,18 @@ export default function AccountMenu({ username }: { username: string }) {
           <Link href="/settings" role="menuitem" className={itemClass} onClick={() => setOpen(false)}>
             Settings
           </Link>
+          {/* Here because signed-in people are the regulars, and a menu item
+              costs no space anywhere else. It leaves the site, so a new tab. */}
+          <a
+            href={KOFI_URL}
+            target="_blank"
+            rel="noreferrer noopener"
+            role="menuitem"
+            className={itemClass}
+            onClick={() => setOpen(false)}
+          >
+            Support on Ko-fi
+          </a>
 
           <div className="my-1 border-t border-line" />
           <form action={signOut}>

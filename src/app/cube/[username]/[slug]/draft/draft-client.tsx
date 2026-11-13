@@ -21,7 +21,8 @@ import {
   type DraftActionState,
 } from "./actions";
 import DraftSettings, { type PoolCounts } from "@/components/draft-settings";
-import { btn, cardTab } from "@/lib/ui";
+import { KOFI_URL } from "@/lib/support";
+import { btn, cardTab, link } from "@/lib/ui";
 import DeckExport from "./deck-export";
 import CrackAPack from "./crack-a-pack";
 import DraftmancerExport from "./draftmancer-export";
@@ -427,6 +428,19 @@ export function EndScreen({
       )}
 
       <DeckExport pool={pool} />
+
+      {/* The one place the site mentions tips outside the footer and account
+          menu: right after a draft is finished, which is when someone has
+          just got something out of it. One quiet line, below the export rather
+          than above the pool, so it never sits between a drafter and a task. */}
+      <p className="text-sm text-subtle">
+        cubebound.gg is free and run by one fan. If you enjoyed this draft, you
+        can help cover hosting on{" "}
+        <a href={KOFI_URL} target="_blank" rel="noreferrer noopener" className={link}>
+          Ko-fi
+        </a>
+        .
+      </p>
 
       <PoolPiles cards={pool} onMove={move} />
     </div>
