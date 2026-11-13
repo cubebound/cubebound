@@ -29,9 +29,15 @@ import { COLORLESS, DOMAIN_COLORS } from "@/lib/riftbound";
  * Squeezing every column onto one row was the alternative and it does not work
  * here: a cube spanning 18 domain combinations left each column ~63px, which
  * truncated names to about six characters.
+ *
+ * The widest tier is six because there are six domains: from 1024px they
+ * share the first row, edge to edge, and Colorless and the pair columns —
+ * which in Main hold a handful of cards, since two-domain cards are mostly
+ * legends — wrap beneath them rather than each narrowing every domain column.
+ * Six at 1024px is about 150px a column, which a card name survives.
  */
 const COLUMN_TIERS = [
-  { from: 1280, columns: 8 },
+  { from: 1024, columns: 6 },
   { from: 768, columns: 4 },
   { from: 0, columns: 3 },
 ] as const;
@@ -56,7 +62,7 @@ function useMaxColumns(): number {
     () => maxColumnsFor(window.innerWidth),
     // Widest tier on the server: desktop is the common case, so this is the
     // layout least likely to visibly correct itself after hydration.
-    () => 8,
+    () => 6,
   );
 }
 
@@ -273,16 +279,18 @@ export default function CubeTable({
   // Columns beyond what a row holds wrap onto the next row and the page scrolls
   // vertically; there is never a horizontal scrollbar, and a column never
   // shrinks below its tier to force everything onto one line.
-  const perRow = Math.min(present.length, maxColumns);
-  const gridTemplateColumns = `repeat(${perRow}, minmax(0, 1fr))`;
-  // Without a ceiling, a section with fewer columns than the tier allows
-  // (Battlefields has one) would stretch them across the whole page and stop
-  // lining up with the section above it.
-  const maxWidth = `${perRow * 11}rem`;
+  //
+  // Every section lays out on the tier's full track count, whether or not it
+  // fills them, so the grid always spans the page and a column is the same
+  // width in every section: Battlefields' one column sits under Fury at
+  // Fury's width. That replaced a `columns × 11rem` cap, which kept short
+  // sections from stretching but also stopped Main at ~700px on a tablet or
+  // mid-width desktop and left the rest of the page empty.
+  const gridTemplateColumns = `repeat(${maxColumns}, minmax(0, 1fr))`;
 
   return (
     <div>
-      <div className="grid gap-3" style={{ gridTemplateColumns, maxWidth }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns }}>
         {present.map((column) => {
           const bySubgroup = columns.get(column)!;
           const allCards = [...bySubgroup.values()].flatMap((byCost) =>

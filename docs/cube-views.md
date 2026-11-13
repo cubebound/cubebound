@@ -23,16 +23,24 @@
   cells are already bordered and it nests a border inside a border for about
   four extra pixels of height per group on a page that can run to 500 cards.
 - **Columns wrap; they never shrink to fit and never scroll
-  sideways.** The count per row steps at breakpoints — 8 at ≥1280px, 4 at
+  sideways.** The count per row steps at breakpoints — 6 at ≥1024px, 4 at
   ≥768px, 3 below, never fewer — and columns flex within a tier, which is how
   Cube Cobra keeps names readable at every width. Squeezing all of them onto
   one row was tried and fails on real data: a cube spanning 18 domain
   combinations left each column ~63px, truncating names to about six
   characters. The tier is read through `useSyncExternalStore` so the value
   stays out of render-time state and the server still gets a defined snapshot.
-  The grid is also capped at `columns × 11rem` so a section with fewer columns
-  than the tier allows (Battlefields has one) doesn't stretch across the page.
-  Cost cells
+  **The widest tier is six because there are six domains:** on desktop they
+  share the first row edge to edge, and Colorless and the pair columns wrap
+  beneath. In Main those hold a handful of cards, since two-domain cards are
+  mostly legends, and on a wider tier each one took a track and narrowed
+  every domain column to make room for almost nothing. **Every section lays
+  out on the tier's full track count, whether or not it fills them**, so the
+  grid always spans the page and a column is the same width in every section:
+  Battlefields' one column sits under Fury at Fury's width. That replaced a
+  `columns × 11rem` cap, which kept short sections from stretching but also
+  stopped Main at about 700px on a tablet or mid-width desktop and left the
+  rest of the page empty. Cost cells
   are tinted with their domain colour mixed against `--tint-base`, which flips
   between white and near-black so one mix percentage stays legible in both
   themes.
