@@ -156,7 +156,11 @@ sign-in methods, and nothing else yet; see [auth.md](auth.md).
   X DM and renders only while `X_ACCOUNT_ID` in `src/app/layout.tsx` is
   non-empty**: X addresses a DM by the account's numeric id, not its handle, so
   there is nothing to link to until the owner fills that constant in, and an
-  empty one must not offer a DM to nobody.
+  empty one must not offer a DM to nobody. **Its "Support on Ko-fi" link is a
+  plain outbound link, deliberately not Ko-fi's floating widget**: the widget
+  loads a third-party script and iframe on every page, which `/privacy` would
+  have to disclose and the planned `script-src` policy (see `next.config.ts`)
+  would have to allow.
 - `not-found.tsx` covers unknown URLs *and* every `notFound()` call, so a
   private cube and a cube that never existed look identical — the 404 must not
   become a way to test whether a cube id is real. `error.tsx` leads with "Try

@@ -172,6 +172,30 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   </svg>
                   @cubeboundgg
                 </a>
+                {/* A plain link, not Ko-fi's widget: the widget is a third-party
+                    script and iframe on every page, which /privacy would have
+                    to disclose and a future script-src policy would have to
+                    allow. */}
+                <a
+                  href="https://ko-fi.com/cubebound"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                    className="size-3.5 fill-none stroke-current"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M17 8h1a4 4 0 0 1 0 8h-1" />
+                    <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
+                    <path d="M7 2v2M11 2v2M15 2v2" />
+                  </svg>
+                  Support on Ko-fi
+                </a>
               </nav>
               <div className="ml-auto">
                 <ThemeToggle initial={theme} />
