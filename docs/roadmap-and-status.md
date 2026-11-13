@@ -96,6 +96,10 @@ open it rather than trusting this.
     September 2026 and pulled forward by the owner on 11 November 2026. Merged
     `f970223`, `6273731`: the most-followed cubes, the most-cubed cards and a hero that
     changes once a UTC day; see "Landing page" in [discovery.md](discovery.md).
+6g. ✅ Ko-fi tips toward hosting, added and pulled forward by the owner on 12
+    November 2026 ahead of moving to Vercel Pro. Merged `f9b9a4e`: a link in
+    the footer, the account menu and under a finished draft's export, and
+    nowhere else; see the tips bullet in [chrome-and-theme.md](chrome-and-theme.md).
 
 **Next**
 
