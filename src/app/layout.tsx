@@ -9,6 +9,7 @@ import { Analytics } from "@vercel/analytics/next";
 import Logo, { LogoMark } from "@/components/logo";
 import ThemeToggle from "@/components/theme-toggle";
 import { resolveSiteUrl } from "@/lib/site-url";
+import { KOFI_URL } from "@/lib/support";
 import { resolveTheme, THEME_COOKIE } from "@/lib/theme";
 import { link } from "@/lib/ui";
 
@@ -171,6 +172,30 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                     <path d="M18.9 2.2h3.4l-7.4 8.5 8.7 11.5h-6.8l-5.3-7-6.1 7H1.9l7.9-9.1L1.5 2.2h7l4.8 6.4 5.6-6.4Zm-1.2 18h1.9L7.4 4.1H5.4l12.3 16.1Z" />
                   </svg>
                   @cubeboundgg
+                </a>
+                {/* A plain link, not Ko-fi's widget: the widget is a third-party
+                    script and iframe on every page, which /privacy would have
+                    to disclose and a future script-src policy would have to
+                    allow. */}
+                <a
+                  href={KOFI_URL}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-1.5 transition-colors hover:text-ink"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                    className="size-3.5 fill-none stroke-current"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M17 8h1a4 4 0 0 1 0 8h-1" />
+                    <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
+                    <path d="M7 2v2M11 2v2M15 2v2" />
+                  </svg>
+                  Support on Ko-fi
                 </a>
               </nav>
               <div className="ml-auto">
