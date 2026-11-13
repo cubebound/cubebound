@@ -183,3 +183,19 @@ export const cardGrid = {
   8: "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8",
   10: "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10",
 } as const;
+
+/**
+ * The same densities for a section of landscape tiles (battlefields shown as
+ * printed). Each tier is the portrait count divided by 1.4, rounded, so a
+ * landscape tile is about as wide as a portrait tile is tall: the card's long
+ * edge, and so its text, renders at the size it had when it was turned upright
+ * in the portrait grid. Never below two columns, for the same reason the
+ * portrait grid never goes below two on a phone. Source literals, like above.
+ */
+export const landscapeCardGrid = {
+  auto: "grid grid-cols-2 gap-x-3 gap-y-4 md:grid-cols-3 lg:grid-cols-4",
+  4: "grid grid-cols-2 gap-x-3 gap-y-4 lg:grid-cols-3",
+  6: "grid grid-cols-2 gap-x-3 gap-y-4 md:grid-cols-3 lg:grid-cols-4",
+  8: "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6",
+  10: "grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7",
+} as const;

@@ -29,3 +29,11 @@
   as blurred card text on a 2x display. That is the same failure that made 320
   unusable. It is the source the card detail modal already uses, so it is
   usually cached rather than newly fetched.
+- **A battlefield tile asks for 1038/744 times the width, which is native at
+  full size.** The CDN's `w` sets the image's width, and a battlefield is stored
+  1038x744, so its width is the long edge: `w=512` gave one 512x367, about 70%
+  of a portrait card's pixels, and `FULL_WIDTH` shrank it below native. In a
+  grid tile that long edge renders around 1.4 tile widths, turned or as printed,
+  so battlefields looked blurry beside the cards around them. Only `CardTile`
+  passes `landscape` to `cardThumb`/`cardFull`; the detail modal and the hover
+  preview do not, because they draw a battlefield no wider than a portrait card.
